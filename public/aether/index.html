@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AETHER // Audio Steganography</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Space+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050505;
+            --surface-color: #111111;
+            --primary-color: #00ff9d;
+            --secondary-color: #00b8ff;
+            --text-color: #e0e0e0;
+            --text-dim: #888888;
+            --error-color: #ff3366;
+            --font-main: 'Outfit', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --glow: 0 0 20px rgba(0, 255, 157, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            padding: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(5, 5, 5, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .logo {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1.5rem;
+            letter-spacing: -1px;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            text-shadow: var(--glow);
+        }
+
+        .logo span {
+            color: var(--text-color);
+        }
+
+        /* Main Layout */
+        main {
+            flex: 1;
+            display: flex;
+            position: relative;
+        }
+
+        /* Visualizer Background */
+        #visualizer-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Content Container */
+        .container {
+            z-index: 1;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            justify-content: center;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-dim);
+            padding: 0.8rem 2rem;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+        }
+
+        .tab-btn:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .tab-btn.active {
+            background: rgba(0, 255, 157, 0.1);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            box-shadow: var(--glow);
+        }
+
+        /* Panels */
+        .panel {
+            display: none;
+            background: rgba(17, 17, 17, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 12px;
+            backdrop-filter: blur(20px);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .panel.active {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Inputs */
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        textarea {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            padding: 1rem;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            resize: none;
+            height: 150px;
+            border-radius: 8px;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        /* Buttons */
+        .btn {
+            background: var(--primary-color);
+            color: #000;
+            border: none;
+            padding: 1rem 2rem;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 157, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 255, 157, 0.1);
+        }
+
+        /* Status & Output */
+        .status-display {
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            min-height: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #333;
+        }
+
+        .status-dot.active {
+            background-color: var(--primary-color);
+            box-shadow: 0 0 10px var(--primary-color);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .output-box {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            color: var(--primary-color);
+            min-height: 60px;
+            word-break: break-all;
+        }
+
+        /* Controls Row */
+        .controls {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="logo">Aether <span>//</span> Protocol</div>
+        <div class="status-display">
+            <div class="status-dot" id="global-status-dot"></div>
+            <span id="global-status-text">System Ready</span>
+        </div>
+    </header>
+
+    <div id="visualizer-container">
+        <canvas id="viz-canvas"></canvas>
+    </div>
+
+    <main>
+        <div class="container">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchMode('encode')">Encode</button>
+                <button class="tab-btn" onclick="switchMode('decode')">Decode</button>
+            </div>
+
+            <!-- ENCODE PANEL -->
+            <div id="panel-encode" class="panel active">
+                <div class="input-group">
+                    <label>Secret Message</label>
+                    <textarea id="encode-input" placeholder="Enter text to encode..."></textarea>
+                </div>
+
+                <div class="controls">
+                    <button id="btn-generate" class="btn" onclick="app.generateAudio()">
+                        Generate Audio
+                    </button>
+                    <button id="btn-play" class="btn btn-secondary" disabled onclick="app.togglePlayback()">
+                        Play
+                    </button>
+                    <button id="btn-download" class="btn btn-secondary" disabled onclick="app.downloadAudio()">
+                        Download .WAV
+                    </button>
+                </div>
+            </div>
+
+            <!-- DECODE PANEL -->
+            <div id="panel-decode" class="panel">
+                <div class="controls">
+                    <button id="btn-listen" class="btn" onclick="app.toggleListening()">
+                        Start Listening (Mic)
+                    </button>
+                    <input type="file" id="file-upload" accept="audio/*" style="display: none"
+                        onchange="app.handleFileUpload(this)">
+                    <button id="btn-upload" class="btn btn-secondary"
+                        onclick="document.getElementById('file-upload').click()">
+                        Upload Audio File
+                    </button>
+                </div>
+
+                <div class="input-group">
+                    <label>Decoded Message</label>
+                    <div id="decode-output" class="output-box">Waiting for signal...</div>
+                </div>
+
+                <div class="input-group">
+                    <label>Signal Strength</label>
+                    <div style="height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+                        <div id="signal-meter"
+                            style="width: 0%; height: 100%; background: var(--primary-color); transition: width 0.1s;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- UI LOGIC ---
+        function switchMode(mode) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+            if (mode === 'encode') {
+                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+                document.getElementById('panel-encode').classList.add('active');
+            } else {
+                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+                document.getElementById('panel-decode').classList.add('active');
+            }
+        }
+
+
+        // --- CONSTANTS & CONFIG ---
+        const CONFIG = {
+            TONE_DURATION: 0.02, // Active tone time
+            SILENCE_DURATION: 0.04, // Gap time (Silence)
+            RAMP_DURATION: 0.01, // Smoother ramp
+            SAMPLE_RATE: 44100,
+            FFT_SIZE: 1024, // 23.2ms window
+            BASE_FREQ: 500,
+            FREQ_STEP: 75,
+            FREQUENCIES: [], // Computed below
+            PREAMBLE: [16, 17, 16], // Reserved START Sequence
+            POSTAMBLE: [17, 16, 17] // Reserved END Sequence
+        };
+
+        // Compute Frequencies (Linear Grid)
+        // 0-15 (Payload) + 16 (Start) + 17 (End)
+        for (let i = 0; i < 18; i++) {
+            CONFIG.FREQUENCIES.push(CONFIG.BASE_FREQ + (i * CONFIG.FREQ_STEP));
+        }
+
+        function validateAudioPhysics() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            // Update CONFIG to match native sample rate (e.g. 48000 on mobile)
+            CONFIG.SAMPLE_RATE = audioCtx.sampleRate;
+
+            const binWidth = CONFIG.SAMPLE_RATE / CONFIG.FFT_SIZE;
+            const fftWindow = CONFIG.FFT_SIZE / CONFIG.SAMPLE_RATE;
+
+            console.log(`[Physics Check] Bin Width: ${binWidth.toFixed(2)} Hz`);
+            console.log(`[Physics Check] FFT Window: ${(fftWindow * 1000).toFixed(2)} ms`);
+            console.log(`[Physics Check] Silence Duration: ${(CONFIG.SILENCE_DURATION * 1000).toFixed(2)} ms`);
+            console.log(`[Physics Check] Freq Step: ${CONFIG.FREQ_STEP} Hz`);
+
+            // 1. Silence must be > FFT Window (with margin)
+            if (CONFIG.SILENCE_DURATION <= fftWindow) {
+                console.error("CRITICAL: Silence duration is shorter than FFT window! Detection will fail.");
+                alert("Physics Error: Silence < FFT Window");
+            }
+
+            // 2. Frequency Step must be > Bin Width * 1.5 (Resolution check)
+            if (CONFIG.FREQ_STEP < binWidth * 1.5) {
+                console.error("CRITICAL: Frequency step is too small for FFT resolution!");
+                alert("Physics Error: Freq Step < Resolution");
+            }
+
+            console.log("[Physics Check] PASSED. Configuration is robust.");
+        }
+
+        validateAudioPhysics();
+
+        // --- UTILS ---
+        function textToNibbles(text) {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(text);
+            const nibbles = [];
+
+            // Preamble
+            nibbles.push(...CONFIG.PREAMBLE);
+
+            let checksum = 0;
+            for (let byte of bytes) {
+                nibbles.push((byte >> 4) & 0xF); // High nibble
+                nibbles.push(byte & 0xF);        // Low nibble
+                checksum ^= byte;
+            }
+
+            // Checksum (1 byte = 2 nibbles)
+            nibbles.push((checksum >> 4) & 0xF);
+            nibbles.push(checksum & 0xF);
+
+            // Postamble
+            nibbles.push(...CONFIG.POSTAMBLE);
+
+            return nibbles;
+        }
+
+        function bufferToWav(buffer, opt) {
+            opt = opt || {};
+            var numChannels = buffer.numberOfChannels;
+            var sampleRate = buffer.sampleRate;
+            var format = opt.float32 ? 3 : 1;
+            var bitDepth = format === 3 ? 32 : 16;
+
+            var result;
+            if (numChannels === 2) {
+                result = interleave(buffer.getChannelData(0), buffer.getChannelData(1));
+            } else {
+                result = buffer.getChannelData(0);
+            }
+
+            return encodeWAV(result, format, sampleRate, numChannels, bitDepth);
+        }
+
+        function encodeWAV(samples, format, sampleRate, numChannels, bitDepth) {
+            var bytesPerSample = bitDepth / 8;
+            var blockAlign = numChannels * bytesPerSample;
+
+            var buffer = new ArrayBuffer(44 + samples.length * bytesPerSample);
+            var view = new DataView(buffer);
+
+            /* RIFF identifier */
+            writeString(view, 0, 'RIFF');
+            /* RIFF chunk length */
+            view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+            /* RIFF type */
+            writeString(view, 8, 'WAVE');
+            /* format chunk identifier */
+            writeString(view, 12, 'fmt ');
+            /* format chunk length */
+            view.setUint32(16, 16, true);
+            /* sample format (raw) */
+            view.setUint16(20, format, true);
+            /* channel count */
+            view.setUint16(22, numChannels, true);
+            /* sample rate */
+            view.setUint32(24, sampleRate, true);
+            /* byte rate (sample rate * block align) */
+            view.setUint32(28, sampleRate * blockAlign, true);
+            /* block align (channel count * bytes per sample) */
+            view.setUint16(32, blockAlign, true);
+            /* bits per sample */
+            view.setUint16(34, bitDepth, true);
+            /* data chunk identifier */
+            writeString(view, 36, 'data');
+            /* data chunk length */
+            view.setUint32(40, samples.length * bytesPerSample, true);
+
+            if (format === 1) { // Raw PCM
+                floatTo16BitPCM(view, 44, samples);
+            } else {
+                writeFloat32(view, 44, samples);
+            }
+
+            return view;
+        }
+
+        function interleave(inputL, inputR) {
+            var length = inputL.length + inputR.length;
+            var result = new Float32Array(length);
+
+            var index = 0;
+            var inputIndex = 0;
+
+            while (index < length) {
+                result[index++] = inputL[inputIndex];
+                result[index++] = inputR[inputIndex];
+                inputIndex++;
+            }
+            return result;
+        }
+
+        function writeString(view, offset, string) {
+            for (var i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        function floatTo16BitPCM(output, offset, input) {
+            for (var i = 0; i < input.length; i++, offset += 2) {
+                var s = Math.max(-1, Math.min(1, input[i]));
+                output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+        }
+
+        function writeFloat32(output, offset, input) {
+            for (var i = 0; i < input.length; i++, offset += 4) {
+                output.setFloat32(offset, input[i], true);
+            }
+        }
+
+        // --- APP LOGIC ---
+        class App {
+            constructor() {
+                this.audioCtx = null;
+                this.sourceNode = null;
+                this.analyser = null;
+                this.isPlaying = false;
+                this.isListening = false;
+                this.generatedBuffer = null;
+
+                // Visualizer setup
+                this.canvas = document.getElementById('viz-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                this.drawVisualizer();
+            }
+
+            initAudio() {
+                if (!this.audioCtx) {
+                    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+
+                // Create global analyser for visualizer
+                if (!this.analyser) {
+                    this.analyser = this.audioCtx.createAnalyser();
+                    this.analyser.fftSize = CONFIG.FFT_SIZE; // Configurable FFT Size
+                    this.analyser.smoothingTimeConstant = 0; // Fast response
+                    this.analyser.minDecibels = -90;
+                    this.analyser.maxDecibels = -10;
+                    this.analyser.connect(this.audioCtx.destination);
+                }
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            drawVisualizer() {
+                requestAnimationFrame(() => this.drawVisualizer());
+
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+
+                // Fade out
+                this.ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
+                this.ctx.fillRect(0, 0, w, h);
+
+                if (!this.analyser) return;
+
+                const bufferLength = this.analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                this.analyser.getByteFrequencyData(dataArray);
+
+                // Zoom in on the relevant frequency range (0 - 3000Hz)
+                // 3000Hz covers our max freq of 2700Hz
+                const maxBin = Math.ceil(3000 / (CONFIG.SAMPLE_RATE / this.analyser.fftSize));
+
+                const barWidth = (w / maxBin) * 1.5;
+                let barHeight;
+                let x = 0;
+
+                for (let i = 0; i < maxBin; i++) {
+                    barHeight = dataArray[i] / 255 * h * 0.8;
+
+                    // Color based on height/frequency
+                    const r = 0;
+                    const g = 255 - (i / maxBin) * 100;
+                    const b = 157 + (i / maxBin) * 100;
+
+                    this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    this.ctx.fillRect(x, h - barHeight, barWidth, barHeight);
+
+                    x += barWidth + 1;
+                }
+            }
+
+
+            // --- ENCODER METHODS ---
+            async generateAudio() {
+                this.initAudio();
+                const text = document.getElementById('encode-input').value;
+                if (!text) return;
+
+                document.getElementById('global-status-text').innerText = "Generating...";
+                document.getElementById('global-status-dot').classList.add('active');
+
+                // 1. Convert text to nibbles (indices)
+                const nibbles = textToNibbles(text);
+
+                // 2. Create AudioBuffer
+                // Add 1 second of silence at the end to ensure postamble isn't cut off
+                const paddingDuration = 1.0;
+                const stepDuration = CONFIG.TONE_DURATION + CONFIG.SILENCE_DURATION;
+                const totalDuration = (nibbles.length * stepDuration) + paddingDuration;
+                const sampleCount = Math.ceil(CONFIG.SAMPLE_RATE * totalDuration);
+                const buffer = this.audioCtx.createBuffer(1, sampleCount, CONFIG.SAMPLE_RATE);
+                const channelData = buffer.getChannelData(0);
+
+                // 3. Synthesize Tones
+                let offset = 0;
+                for (let nibble of nibbles) {
+                    const freq = CONFIG.FREQUENCIES[nibble];
+                    const toneSamples = Math.floor(CONFIG.SAMPLE_RATE * CONFIG.TONE_DURATION);
+                    const stepSamples = Math.floor(CONFIG.SAMPLE_RATE * stepDuration);
+                    const rampSamples = Math.floor(CONFIG.SAMPLE_RATE * CONFIG.RAMP_DURATION);
+
+                    for (let i = 0; i < toneSamples; i++) {
+                        const t = i / CONFIG.SAMPLE_RATE;
+                        let amplitude = 0.5; // Base volume
+
+                        // Envelope (Attack/Release)
+                        if (i < rampSamples) {
+                            amplitude *= (i / rampSamples);
+                        } else if (i > toneSamples - rampSamples) {
+                            amplitude *= ((toneSamples - i) / rampSamples);
+                        }
+
+                        // Sine Wave
+                        channelData[offset + i] = amplitude * Math.sin(2 * Math.PI * freq * t);
+                    }
+                    // Remaining samples in step are left as 0 (Silence)
+                    offset += stepSamples;
+                }
+
+                this.generatedBuffer = buffer;
+
+                document.getElementById('btn-play').disabled = false;
+                document.getElementById('btn-download').disabled = false;
+                document.getElementById('global-status-text').innerText = "Audio Generated";
+                document.getElementById('global-status-dot').classList.remove('active');
+            }
+
+            togglePlayback() {
+                this.initAudio();
+                if (this.isPlaying) {
+                    if (this.sourceNode) {
+                        this.sourceNode.stop();
+                        this.sourceNode = null;
+                    }
+                    this.isPlaying = false;
+                    document.getElementById('btn-play').innerText = "Play";
+                } else {
+                    if (!this.generatedBuffer) return;
+
+                    this.sourceNode = this.audioCtx.createBufferSource();
+                    this.sourceNode.buffer = this.generatedBuffer;
+                    this.sourceNode.loop = true; // Loop for "generative stream" effect
+                    this.sourceNode.connect(this.analyser); // Connect to visualizer
+                    // Analyser already connected to destination (speakers)
+
+                    this.sourceNode.start();
+                    this.isPlaying = true;
+                    document.getElementById('btn-play').innerText = "Stop";
+
+                    this.sourceNode.onended = () => {
+                        this.isPlaying = false;
+                        document.getElementById('btn-play').innerText = "Play";
+                    };
+                }
+            }
+
+            downloadAudio() {
+                if (!this.generatedBuffer) return;
+
+                const wavData = bufferToWav(this.generatedBuffer);
+                const blob = new Blob([wavData], { type: 'audio/wav' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'secret_message.wav';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+
+            // --- DECODER METHODS ---
+            async toggleListening() {
+                this.initAudio();
+                if (this.isListening) {
+                    this.stopListening();
+                } else {
+                    try {
+                        // Disable audio processing for raw signal
+                        const constraints = {
+                            audio: {
+                                echoCancellation: false,
+                                noiseSuppression: false,
+                                autoGainControl: false
+                            }
+                        };
+                        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                        this.micSource = this.audioCtx.createMediaStreamSource(stream);
+                        this.micSource.connect(this.analyser);
+                        // Note: Don't connect mic to destination to avoid feedback loop!
+
+                        this.isListening = true;
+                        document.getElementById('btn-listen').innerText = "Stop Listening";
+                        document.getElementById('btn-listen').classList.add('btn-secondary');
+                        document.getElementById('global-status-dot').classList.add('active');
+                        document.getElementById('global-status-text').innerText = "Listening...";
+
+                        // Reset Decoder State
+                        this.resetDecoderState();
+                        document.getElementById('decode-output').innerText = "Listening for signal...";
+
+                        // Start decoding loop
+                        this.decodeLoop();
+                    } catch (e) {
+                        console.error(e);
+                        alert("Microphone access denied or error: " + e.message);
+                    }
+                }
+            }
+
+            resetDecoderState() {
+                this.decoderState = {
+                    state: 'IDLE', // IDLE, PAYLOAD
+                    buffer: [], // Nibble buffer
+                    preambleIndex: 0,
+                    postambleIndex: 0,
+                    lastStableNibble: -1,
+                    lastRawNibble: -1,
+                    stableStartTime: 0
+                };
+            }
+
+            stopListening() {
+                this.isListening = false;
+                if (this.micSource) {
+                    this.micSource.disconnect();
+                    this.micSource = null;
+                }
+                document.getElementById('btn-listen').innerText = "Start Listening (Mic)";
+                document.getElementById('btn-listen').classList.remove('btn-secondary');
+                document.getElementById('global-status-dot').classList.remove('active');
+                document.getElementById('global-status-text').innerText = "System Ready";
+            }
+
+            handleFileUpload(input) {
+                this.initAudio(); // Ensure context exists
+                const file = input.files[0];
+                if (!file) return;
+
+                document.getElementById('decode-output').innerText = "Processing file...";
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const arrayBuffer = e.target.result;
+                    const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+
+                    // Offline processing for file
+                    this.processAudioBuffer(audioBuffer);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            decodeLoop() {
+                if (!this.isListening) return;
+                requestAnimationFrame(() => this.decodeLoop());
+
+                const bufferLength = this.analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                this.analyser.getByteFrequencyData(dataArray);
+
+                // 1. Find dominant frequency
+                let maxVal = 0;
+                let maxIndex = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    if (dataArray[i] > maxVal) {
+                        maxVal = dataArray[i];
+                        maxIndex = i;
+                    }
+                }
+
+                // Update Signal Meter
+                const signalPercent = (maxVal / 255) * 100;
+                document.getElementById('signal-meter').style.width = signalPercent + '%';
+
+                // Threshold check (noise gate)
+                if (maxVal < 20) { // Silence (Increased threshold to ignore reverb/ringing)
+                    this.processDetectedNibble(-1);
+                    return;
+                }
+
+                // 2. Map bin to frequency
+                const nyquist = this.audioCtx.sampleRate / 2;
+                const detectedFreq = maxIndex * (nyquist / bufferLength);
+
+                // 3. Match to closest target frequency
+                let closestNibble = -1;
+                let minDiff = Infinity;
+
+                CONFIG.FREQUENCIES.forEach((targetFreq, index) => {
+                    const diff = Math.abs(detectedFreq - targetFreq);
+                    // Allow ~3% deviation or fixed Hz range
+                    if (diff < minDiff && diff < (targetFreq * 0.05)) {
+                        minDiff = diff;
+                        closestNibble = index;
+                    }
+                });
+
+                this.processDetectedNibble(closestNibble);
+            }
+
+            processDetectedNibble(nibble) {
+                const state = this.decoderState;
+                const now = performance.now();
+
+                if (nibble !== state.lastRawNibble) {
+                    state.lastRawNibble = nibble;
+                    state.stableStartTime = now;
+                }
+
+                // Check if stable for half of tone duration
+                // This handles high refresh rate monitors correctly
+                if ((now - state.stableStartTime) > (CONFIG.TONE_DURATION * 1000 * 0.5)) {
+                    this.handleStableNibble(nibble);
+                }
+            }
+
+            handleStableNibble(nibble) {
+                const state = this.decoderState;
+
+                // If silence
+                if (nibble === -1) {
+                    state.lastStableNibble = -1;
+                    return;
+                }
+
+                if (nibble === state.lastStableNibble) return; // Ignore sustained tone
+                state.lastStableNibble = nibble;
+
+                console.log("Detected Stable Nibble:", nibble, performance.now());
+
+                // --- PREAMBLE DETECTION (IDLE & PAYLOAD) ---
+                if (nibble === CONFIG.PREAMBLE[state.preambleIndex]) {
+                    state.preambleIndex++;
+                    if (state.preambleIndex === CONFIG.PREAMBLE.length) {
+                        console.log("FULL PREAMBLE DETECTED. Resetting state.");
+                        state.state = 'PAYLOAD';
+                        state.buffer = [];
+                        state.preambleIndex = 0;
+                        state.postambleIndex = 0;
+                        document.getElementById('decode-output').innerText = "Receiving message...";
+                        return;
+                    }
+                } else {
+                    // Reset or Partial Match
+                    state.preambleIndex = 0;
+                    if (nibble === CONFIG.PREAMBLE[0]) state.preambleIndex = 1;
+                }
+
+                // --- POSTAMBLE DETECTION (PAYLOAD ONLY) ---
+                if (state.state === 'PAYLOAD') {
+                    if (nibble === CONFIG.POSTAMBLE[state.postambleIndex]) {
+                        state.postambleIndex++;
+                        if (state.postambleIndex === CONFIG.POSTAMBLE.length) {
+                            console.log("FULL POSTAMBLE DETECTED. Finalizing.");
+                            this.finalizeMessage(state.buffer);
+                            state.state = 'IDLE';
+                            state.postambleIndex = 0;
+                            return;
+                        }
+                    } else {
+                        // Mismatch in postamble sequence
+                        if (state.postambleIndex > 0) {
+                            // The nibbles we thought were postamble were actually payload!
+                            // But wait, postamble uses RESERVED tones (16,17).
+                            // Payload is 0-15.
+                            // This implies a corrupted signal or a glitch, because reserved tones shouldn't appear in payload.
+                            // We just reset the index.
+                            console.warn("Broken Postamble Sequence. Resetting.");
+                            state.postambleIndex = 0;
+                            if (nibble === CONFIG.POSTAMBLE[0]) state.postambleIndex = 1;
+                        }
+                    }
+
+                    // --- PAYLOAD CAPTURE ---
+                    // Only capture if it's NOT part of a control sequence being tracked
+                    // And only if it's a valid payload nibble (0-15)
+                    if (nibble >= 0 && nibble <= 15) {
+                        state.buffer.push(nibble);
+                    }
+                }
+            }
+            finalizeMessage(nibbles) {
+                console.log("Finalizing Message with nibbles:", nibbles);
+
+                // Convert nibbles to bytes
+                const bytes = [];
+                // We expect checksum at the end (2 nibbles)
+                if (nibbles.length < 2) {
+                    console.error("Message too short");
+                    return;
+                }
+
+                // Extract Checksum
+                const c2 = nibbles.pop();
+                const c1 = nibbles.pop();
+                const receivedChecksum = (c1 << 4) | c2;
+
+                let calculatedChecksum = 0;
+
+                for (let i = 0; i < nibbles.length; i += 2) {
+                    if (i + 1 >= nibbles.length) break; // Odd number of nibbles?
+                    const high = nibbles[i];
+                    const low = nibbles[i + 1];
+                    const byte = (high << 4) | low;
+                    bytes.push(byte);
+                    calculatedChecksum ^= byte;
+                }
+
+                const decoder = new TextDecoder();
+                const text = decoder.decode(new Uint8Array(bytes));
+
+                if (calculatedChecksum !== receivedChecksum) {
+                    console.warn("Checksum mismatch!", calculatedChecksum, receivedChecksum);
+                    document.getElementById('global-status-text').innerText = "Checksum Mismatch";
+                    document.getElementById('decode-output').innerHTML = `<span style='color:#ff4444'>Corrupted text: ${text}</span>`;
+                    this.stopListening();
+                    return;
+                }
+
+
+                console.log("Decoded Text:", text);
+                document.getElementById('decode-output').innerText = text;
+                document.getElementById('global-status-text').innerText = "Message Decoded";
+
+                // Stop listening automatically
+                this.stopListening();
+            }
+
+            async processAudioBuffer(audioBuffer) {
+                this.stopListening(); // Stop mic
+                this.initAudio();
+
+                this.sourceNode = this.audioCtx.createBufferSource();
+                this.sourceNode.buffer = audioBuffer;
+                this.sourceNode.connect(this.analyser);
+                // this.sourceNode.connect(this.audioCtx.destination); // Optional: hear it
+
+                this.resetDecoderState();
+
+                this.isListening = true; // Enable loop
+                this.sourceNode.start();
+                this.decodeLoop();
+
+                this.sourceNode.onended = () => {
+                    console.log("File playback finished. Waiting for decoder tail...");
+                    // Wait a bit for the decoder to process the last few frames/postamble
+                    setTimeout(() => {
+                        if (this.isListening) {
+                            console.log("Timeout reached, stopping listener.");
+                            this.isListening = false;
+                            if (this.decoderState.state === 'PAYLOAD') {
+                                document.getElementById('decode-output').innerText = "Error: Message incomplete (Postamble not found)";
+                            }
+                        }
+                    }, 2000); // 2 seconds tail
+                };
+            }
+        }
+
+        const app = new App();
+
+    </script>
+</body>
+
+</html>

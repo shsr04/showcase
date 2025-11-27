@@ -1,0 +1,9 @@
+# Top-level configuration
+name = "minigames"
+main = "./index.js"
+compatibility_date = "2022-07-12"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"

@@ -1,0 +1,2617 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Neon Voxel Glider</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 10px #ff00ff;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 4rem;
+            margin: 0;
+            letter-spacing: 5px;
+            background: linear-gradient(to bottom, #ffcc00, #ff00ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 4px 10px rgba(255, 0, 255, 0.5);
+        }
+
+        p {
+            font-size: 1.5rem;
+            color: #00ffff;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 2rem;
+            color: #00ffff;
+            display: none;
+            text-shadow: 0 0 5px #00ffff;
+        }
+
+        #biome-display {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            font-size: 1.2rem;
+            color: #ff00ff;
+            display: none;
+            text-shadow: 0 0 5px #ff00ff;
+        }
+
+        #danger-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2.2rem;
+            color: #ff4444;
+            text-shadow: 0 0 12px #ff0000;
+            display: none;
+            pointer-events: none;
+            z-index: 15;
+        }
+
+        #start-btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            background: rgba(255, 0, 255, 0.2);
+            border: 2px solid #ff00ff;
+            color: #fff;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        #start-btn:hover {
+            background: #ff00ff;
+            color: #000;
+            box-shadow: 0 0 20px #ff00ff;
+        }
+
+        #crash-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 0, 0, 0.3);
+            z-index: 20;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+    </style>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="score-display">SCORE: 0</div>
+    <div id="biome-display">SECTOR: DEEP WEB</div>
+    <div id="danger-display">DANGER!</div>
+
+    <div id="ui-layer">
+        <div id="main-menu">
+            <h1>NEON VOXEL GLIDER</h1>
+            <p>Travel through the Digital Infinite.</p>
+            <p style="font-size: 1rem; color: #fff;">(Mouse to Steer. Do not crash.)</p>
+            <div style="display: flex; justify-content: center; pointer-events: auto;"><label style="display: flex; gap: 0.5rem; align-items: center;"><input type="checkbox" id="invert-pitch" checked onclick="player.invertPitch = this.checked;"/> Invert Pitch</label></div>
+
+            <button id="start-btn">INITIATE FLIGHT</button>
+        </div>
+    </div>
+
+    <div id="crash-overlay">
+        <h1 style="color:red; -webkit-text-fill-color: red;">SYSTEM FAILURE</h1>
+        <p id="final-score">SCORE: 0</p>
+        <button id="restart-btn" style="
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            background: black;
+            border: 2px solid red;
+            color: red;
+            cursor: pointer;
+            text-transform: uppercase;
+            margin-top: 20px;
+        ">REBOOT</button>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const CONFIG = {
+            viewDistance: 100,
+            voxelSize: 3,
+            speed: 60,
+            camSmoothness: 0.1,
+            gridWidth: 50,
+            gridHeight: 50,
+            gridDepth: 60,
+            biomeLength: 2500
+        };
+
+        // --- GLOBAL STATE ---
+        let scene, camera, renderer, clock;
+        let voxelMesh;
+        let dummy = new THREE.Object3D();
+        let voxelColorHelper = new THREE.Color();
+        let voxels = [];
+        
+        // Voxel-art props
+        let warningLightMesh;
+        let warningLights = [];
+        let waterMesh, waterMaterial, waterBasePositions;
+        let waterBaseHSL = { h: 0, s: 0, l: 0 };
+        let tunnelDebrisMesh, tunnelDebris = [];
+        let cityNeonMesh, cityNeons = [];
+        let cityIndustrialMesh, cityIndustrials = [];
+        let miningDrone, miningDroneLeft, miningDroneRight;
+        let miningDroneExplosionMesh, miningDroneExploding = false, miningDroneExplosionTime = 0;
+        let miningDroneDestroyed = false;
+        let miningDroneActivated = false;
+        let attackDrone, attackDroneBullets = [];
+        let attackDroneState = 'idle';
+        let attackDroneTimer = 0;
+        let attackDroneShotsFired = 0;
+        let attackDroneActive = false;
+        let attackDroneIsTargetingGlider = false;
+        let attackDroneCityEngages = 0;
+        let attackDroneCityMaxEngages = 0;
+        let lastCityAttackTime = -Infinity;
+        let attackTargetLastPos = new THREE.Vector3();
+        let attackTargetVel = new THREE.Vector3();
+        let attackTargetHasPrev = false;
+        let attackTargetLastType = 'none';
+        let menuSun;
+        // Run-time world randomization
+        let runPathPhase = 0;
+        let runNoiseOffset = 0;
+        let isMenuPreview = false;
+        let isLiftOff = false;
+        let liftOffTime = 0;
+        let player = {
+            mesh: null,
+            invertPitch: document.getElementById('invert-pitch').checked,
+            velocity: new THREE.Vector3(),
+            position: new THREE.Vector3(0, 0, 0),
+            rotation: new THREE.Vector3(),
+            isDead: false,
+            score: 0
+        };
+        let mouse = { x: 0, y: 0 };
+        let isPlaying = false;
+        let animationId;
+        let currentBiomeName = "";
+
+        // --- BIOME DEFINITIONS ---
+        const BIOMES = [
+            {
+                name: "DEEP WEB TUNNEL",
+                fog: 0x05000a, // Almost black
+                colorBase: { h: 0.0, s: 0.0, l: 0.13 }, // Dark Grey base
+                type: 'tunnel'
+            },
+            {
+                name: "SEDIMENT CANYON",
+                fog: 0x2b1b12,
+                colorBase: { h: 0.06, s: 0.85, l: 0.38 },
+                type: 'canyon'
+            },
+            {
+                name: "MARBLE GARDENS",
+                fog: 0xf5f8ff,
+                colorBase: { h: 0.1, s: 0.08, l: 0.88 },
+                type: 'gardens'
+            },
+            {
+                name: "NEON CYBER CITY",
+                fog: 0x02040a,
+                colorBase: { h: 0.6, s: 0.65, l: 0.07 },
+                type: 'city'
+            },
+            {
+                name: "SKELETAL STRUCTURE",
+                fog: 0x660000, // Intense Red
+                colorBase: { h: 0.0, s: 0.0, l: 0.05 }, // Black/Dark
+                type: 'skeletal'
+            }
+        ];
+
+        // --- 3D NOISE & MATH ---
+        // Each run uses a different path phase and noise offset
+        function randomizeRunSeed() {
+            runPathPhase = performance.now() * Math.PI * 2;
+            runNoiseOffset = performance.now() * 10000;
+        }
+
+        function hash3(x, y, z) {
+            x = Math.floor(x); y = Math.floor(y); z = Math.floor(z);
+            let h = (x * 374761393 + y * 668265263 + z * 393555907) ^ 0x55555555;
+            h = (h ^ (h >> 13)) * 1274126177;
+            return (h ^ (h >> 16)) / 2147483647;
+        }
+
+        function noise3D(x, y, z) {
+            // Apply run-specific offset so each playthrough samples a different slice of noise space
+            x += runNoiseOffset;
+            y += runNoiseOffset;
+            z += runNoiseOffset;
+            let ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+            let fx = x - ix, fy = y - iy, fz = z - iz;
+            fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+
+            let c000 = hash3(ix, iy, iz); let c100 = hash3(ix + 1, iy, iz);
+            let c010 = hash3(ix, iy + 1, iz); let c110 = hash3(ix + 1, iy + 1, iz);
+            let c001 = hash3(ix, iy, iz + 1); let c101 = hash3(ix + 1, iy, iz + 1);
+            let c011 = hash3(ix, iy + 1, iz + 1); let c111 = hash3(ix + 1, iy + 1, iz + 1);
+
+            let lerp = (a, b, t) => a + t * (b - a);
+            return lerp(lerp(lerp(c000, c100, fx), lerp(c010, c110, fx), fy),
+                lerp(lerp(c001, c101, fx), lerp(c011, c111, fx), fy), fz);
+        }
+
+        // --- TERRAIN GENERATION LOGIC ---
+
+        function getSafePath(z) {
+            const freq = 0.005;
+            const phaseZ = z * freq + runPathPhase;
+            const x = Math.sin(phaseZ) * 80 + Math.cos(phaseZ * 2.3) * 40;
+            const y = Math.cos(phaseZ * 1.5) * 40 + Math.sin(phaseZ * 0.5) * 20;
+            return { x, y };
+        }
+
+        // Stylized menu preview: static neon-synth abstract landscape (not tied to biomes)
+        function updateMenuPreview() {
+            isMenuPreview = true;
+            // Deep violet synth fog
+            const neonFog = 0x050016;
+            if (scene && scene.fog) {
+                scene.fog.color.set(neonFog);
+            }
+            if (scene && scene.background) {
+                scene.background.set(neonFog);
+            }
+
+            // Static cinematic camera framing an abstract voxel wasteland near the grid center
+            camera.position.set(0, 70, 220);
+            camera.lookAt(0, -5, 60);
+
+            // Stylized synthwave sunset disk on the horizon
+            if (menuSun) {
+                menuSun.position.set(0, 10, -40);
+                menuSun.scale.set(1.4, 1.4, 1);
+                if (menuSun.material && menuSun.material.color) {
+                    menuSun.material.color.set(0xff6699);
+                }
+                // Ensure the sun is always rendered over fog as a flat glow
+                menuSun.material.fog = false;
+            }
+
+            if (player.mesh) {
+                player.mesh.visible = false;
+            }
+        }
+
+        // Render abstract neon-synth voxel landscape for menu (independent of game state)
+        function updateMenuAbstractVoxels() {
+            if (!voxelMesh) return;
+
+            const step = CONFIG.voxelSize;
+            const floorY = -50;
+            const maxY = 80;
+
+            voxels.forEach(v => {
+                const worldX = v.vx * step;
+                const worldY = v.vy * step;
+                const worldZ = v.vz * step;
+
+                // Skip outside vertical band
+                if (worldY < floorY || worldY > maxY) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.position.set(worldX, worldY, worldZ);
+                    dummy.updateMatrix();
+                    voxelMesh.setMatrixAt(v.id, dummy.matrix);
+                    return;
+                }
+
+                // Abstract height field: glowing ruins + horizon ridges
+                const radial = Math.sqrt(worldX * worldX + (worldZ - 40) * (worldZ - 40));
+                const wave = 15 + 10 * Math.sin(radial * 0.08);
+                const ridge = 35 * Math.exp(-Math.pow((worldZ - 70) / 55, 2));
+                const height = wave + ridge;
+                
+                if (worldY <= height) {
+                    dummy.position.set(worldX, worldY, worldZ);
+                    dummy.scale.set(1, 1, 1);
+
+                    // Neon gradient: magenta near center, cyan towards edges, brighter near the top
+                    const tHeight = THREE.MathUtils.clamp((worldY - floorY) / (maxY - floorY), 0, 1);
+                    const tHoriz = THREE.MathUtils.clamp(Math.abs(worldX) / 90, 0, 1);
+                    const hue = 0.83 - 0.33 * tHoriz; // ~magenta -> cyan
+                    const light = 0.22 + 0.4 * tHeight;
+                    voxelColorHelper.setHSL(hue, 1.0, light);
+                    voxelMesh.setColorAt(v.id, voxelColorHelper);
+                } else {
+                    dummy.position.set(worldX, worldY, worldZ);
+                    dummy.scale.set(0, 0, 0);
+                }
+
+                dummy.updateMatrix();
+                voxelMesh.setMatrixAt(v.id, dummy.matrix);
+            });
+
+            voxelMesh.instanceMatrix.needsUpdate = true;
+            if (voxelMesh.instanceColor) voxelMesh.instanceColor.needsUpdate = true;
+        }
+
+        // 1. TUNNEL: collapsed sections, base shape (debris now handled as separate voxel props)
+        function getTunnelDensity(x, y, z) {
+            const scale = 0.025;
+            // Base organic shape
+            let n = noise3D(x * scale, y * scale, z * scale);
+            n += noise3D(x * scale * 2, y * scale * 2, z * scale * 2) * 0.5;
+
+            const path = getSafePath(z);
+            const relY = y - path.y;
+
+            // Collapsed side tunnels (subtract density further from center)
+            const collapseNoise = noise3D(x * 0.01, y * 0.01, z * 0.005);
+            if (collapseNoise > 0.5 && Math.abs(x - path.x) > 35) {
+                n -= 0.8; // Carve out big chunks
+            }
+
+            return n;
+        }
+
+        // Biome density logic
+        function getCanyonDensity(x, y, z) {
+            const path = getSafePath(z);
+            const canyonHalf = 38;
+            let den = (Math.abs(x - path.x) - canyonHalf) * 0.08;
+
+            // Stratified cliffs and ledges
+            const strat = noise3D(x * 0.02, y * 0.05, z * 0.01) * 1.2;
+            den += strat;
+            const overhang = Math.max(0, noise3D(x * 0.05, z * 0.05, y * 0.02) - 0.55) * 3.0;
+            den += overhang;
+
+            // Ground fill
+            if (y < path.y - 55) den += 2.4;
+
+            // Carve winding water stream
+            const streamX = path.x + Math.sin(z * 0.01) * 10;
+            const streamWidth = 10 + noise3D(z * 0.02, 0, 0) * 5;
+            const streamBed = path.y - 52 - noise3D(x * 0.01, z * 0.01, 0) * 6;
+            if (Math.abs(x - streamX) < streamWidth) {
+                const depth = 1 - Math.min(1, Math.abs(y - streamBed) / 10);
+                den -= depth * 3.2;
+            }
+
+            // Side spires for dramatic cliffs
+            const spireNoise = noise3D((x + z) * 0.02, (x - z) * 0.02, 0);
+            if (Math.abs(x - path.x) > canyonHalf * 1.1 && spireNoise > 0.67) {
+                const spireHeight = path.y + 20 + spireNoise * 120;
+                if (y < spireHeight) den += 0.8 + spireNoise;
+            }
+            return den;
+        }
+        function getCityDensity(x, y, z) {
+            const path = getSafePath(z);
+            let den = -1.0;
+
+            // 1. THE TRENCH (Hyper-clean cut)
+            const distFromPath = Math.abs(x - path.x);
+            const trenchWidth = 18; // Narrower, more claustrophobic trench
+
+            // 2. GIGANTIC MONOLITHS
+            // Use a very large grid for the main towers
+            const blockSize = 120; // Massive footprint
+            const bx = Math.floor(x / blockSize);
+            const bz = Math.floor(z / blockSize);
+            const blockHash = hash3(bx, 0, bz);
+
+            // Tower properties
+            const towerHeight = 300 + blockHash * 1200; // Massively tall towers (up to 1500 units)
+
+            // "Slick" Geometry: Smooth, tapering, or rounded forms
+            // Instead of simple blocks, let's make them chamfered or slightly tapered
+            const localX = Math.abs((x % blockSize) - blockSize / 2);
+            const localZ = Math.abs((z % blockSize) - blockSize / 2);
+
+            // Taper factor: Towers get slightly thinner at the top
+            const taper = 1.0 - (y / 1600) * 0.3;
+            const buildingWidth = (blockSize * 0.4 + blockHash * 5) * taper;
+
+            // Smooth intersection for rounded corners (SDF-like)
+            // max(abs(x), abs(z)) is a square. length(x,z) is a circle.
+            // Let's mix them for a "squircle" or rounded box look
+            const dSquare = Math.max(localX, localZ);
+            const dCircle = Math.sqrt(localX * localX + localZ * localZ);
+            const shapeDist = dSquare * 0.2 + dCircle * 0.8; // Mostly rounded/cylindrical for "slickness"
+
+            if (shapeDist < buildingWidth) {
+                if (y < towerHeight) {
+                    den = 1.0;
+
+                    // "Slick" indentations (vertical grooves)
+                    // Low frequency, clean lines
+                    const groove = Math.sin(Math.atan2(x % blockSize - blockSize / 2, z % blockSize - blockSize / 2) * 8);
+                    if (groove > 0.95) {
+                        den -= 0.5; // Deep vertical cuts
+                    }
+                }
+            }
+
+            // 3. CONNECTING MEGA-STRUCTURES
+            // Large horizontal bars connecting towers high up
+            if (y > 100 && y < 800) {
+                // Check if we are in a "bridge zone"
+                const bridgeZone = Math.abs((y % 200) - 100) < 15;
+                if (bridgeZone) {
+                    // Connect along X or Z axes
+                    const bridgeWidth = 20;
+                    if (localX < bridgeWidth || localZ < bridgeWidth) {
+                        den = 1.0;
+                    }
+                }
+            }
+
+            // 4. TRENCH CLEARANCE
+            if (distFromPath < trenchWidth) {
+                if (y > path.y - 120 && y < path.y + 200) {
+                    den = -1.0;
+                }
+            }
+
+            // 5. FLOOR
+            // A solid floor deep below
+            if (y < path.y - 120) {
+                den = 1.0;
+                // Add some texture to the floor
+                if (noise3D(x * 0.05, 0, z * 0.05) > 0.2) {
+                    den += 0.5;
+                }
+            }
+
+            return den;
+        }
+        function getGardenDensity(x, y, z) {
+            const path = getSafePath(z);
+            const meadow = path.y - 10 + noise3D(x * 0.015, 0, z * 0.015) * 12;
+            let den = -0.5;
+
+            if (y < meadow) {
+                const soilDepth = meadow - y;
+                den = 0.4 + soilDepth * 0.05;
+                den += noise3D(x * 0.05, y * 0.05, z * 0.05) * 0.4; // lush shrubs
+            }
+
+            const colSpacing = 70;
+            const gridX = Math.abs((x + colSpacing / 2) % colSpacing - colSpacing / 2);
+            const gridZ = Math.abs((z + colSpacing / 2) % colSpacing - colSpacing / 2);
+            if (gridX < 6 && gridZ < 6 && y < path.y + 70) {
+                den += 1.2; // marble pillars
+            }
+
+            const ceiling = path.y + 80 + Math.sin(z * 0.003) * 6;
+            if (y > ceiling) {
+                den += 3.0;
+            } else if (y > ceiling - 6) {
+                den += (6 - (ceiling - y)) * 0.6; // thicken ceiling edge
+            }
+
+            return den;
+        }
+
+        function getSkeletalDensity(x, y, z) {
+            const path = getSafePath(z);
+            let den = -1.0;
+
+            // 0. Constriction (Narrow Passages)
+            const constrictionNoise = noise3D(z * 0.005, 0, 0);
+            let safeRadius = 25;
+            if (constrictionNoise > 0.4) {
+                safeRadius = 14 + (1 - constrictionNoise) * 10;
+            }
+
+            // 1. ALIEN GYROID STRUCTURES (The "Megastructure")
+            // Math: sin(x) * cos(y) + sin(y) * cos(z) + sin(z) * cos(x)
+            // We scale inputs to make them massive
+            const scale = 0.025;
+            const gx = x * scale;
+            const gy = y * scale;
+            const gz = z * scale;
+
+            // Distort the coordinates for a "melting" or "organic" look
+            const warp = noise3D(gx * 0.5, gy * 0.5, gz * 0.5) * 2.0;
+
+            const val = Math.sin(gx + warp) * Math.cos(gy) +
+                Math.sin(gy + warp) * Math.cos(gz) +
+                Math.sin(gz) * Math.cos(gx + warp);
+
+            // Create a "shell" or "surface" around 0
+            // Thickness determines how solid it is
+            const thickness = 0.15;
+            if (Math.abs(val) < thickness) {
+                den = 2.0;
+
+                // Add "Tech" texture to the surface
+                if (noise3D(x * 0.2, y * 0.2, z * 0.2) > 0.3) {
+                    den += 0.5; // Plates
+                } else {
+                    den -= 0.2; // Grooves
+                }
+            }
+
+            // 2. MASSIVE SPIKES / THORNS
+            // Protruding from the gyroid surfaces
+            if (Math.abs(val) < thickness * 3) { // Near the surface
+                const spikeNoise = noise3D(x * 0.04, y * 0.04, z * 0.04);
+                if (spikeNoise > 0.65) {
+                    // Sharp, needle-like density
+                    den += 1.5;
+                }
+            }
+
+            // 3. FLOATING DATA ORBS
+            // Scattered massive spheres
+            const orbScale = 150;
+            const ox = Math.floor(x / orbScale);
+            const oy = Math.floor(y / orbScale);
+            const oz = Math.floor(z / orbScale);
+            const orbHash = hash3(ox, oy, oz);
+
+            if (orbHash > 0.92) {
+                const orbX = (ox + 0.5) * orbScale;
+                const orbY = (oy + 0.5) * orbScale;
+                const orbZ = (oz + 0.5) * orbScale;
+                const distToOrb = Math.sqrt((x - orbX) ** 2 + (y - orbY) ** 2 + (z - orbZ) ** 2);
+
+                if (distToOrb < 35) { // 70 unit diameter
+                    den = 3.0; // Solid core
+                    // "Death Star" trench
+                    if (Math.abs(y - orbY) < 3) den = -1.0;
+                }
+            }
+
+            // 4. CHAOTIC CABLES (Connecting everything)
+            const cableWarp = noise3D(x * 0.01, y * 0.01, z * 0.01) * 30;
+            const cableNoise = noise3D((x + cableWarp) * 0.02, (y + cableWarp) * 0.02, z * 0.02);
+            if (Math.abs(cableNoise) < 0.06) {
+                den += 1.2;
+            }
+
+            // Ensure path is clear(ish)
+            const distFromPath = Math.sqrt((x - path.x) ** 2 + (y - path.y) ** 2);
+            if (distFromPath < safeRadius) {
+                den = -1.0;
+            }
+
+            return den;
+        }
+
+        // Collapsed tunnel wall obstacles: narrow safe radius at specific z-bands
+        function getTunnelObstacleFactor(z) {
+            const half = CONFIG.biomeLength * 0.5;
+            const zLoop = ((z % CONFIG.biomeLength) + CONFIG.biomeLength) % CONFIG.biomeLength;
+            const bands = [half * 0.35, half * 0.75, half * 1.15, half * 1.55];
+            let maxFactor = 0;
+            // Longer bands along Z for extended collapsed sections
+            const width = 180;
+            for (let i = 0; i < bands.length; i++) {
+                const dz = Math.abs(zLoop - bands[i]);
+                if (dz < width) {
+                    const f = 1 - dz / width;
+                    if (f > maxFactor) maxFactor = f;
+                }
+            }
+            return maxFactor;
+        }
+
+        function getDensity(x, y, z) {
+            const totalBiomes = BIOMES.length;
+            const zScaled = z / CONFIG.biomeLength;
+            let biomeIndex = Math.floor(zScaled) % totalBiomes;
+            if (biomeIndex < 0) biomeIndex += totalBiomes;
+            const nextBiomeIndex = (biomeIndex + 1) % totalBiomes;
+            const progress = zScaled - Math.floor(zScaled);
+            let blend = 0;
+            if (progress > 0.85) blend = (progress - 0.85) * 6.66;
+
+            const typeA = BIOMES[biomeIndex].type;
+            const typeB = BIOMES[nextBiomeIndex].type;
+
+            // Safe Path Logic (with optional tunnel obstacles)
+            const path = getSafePath(z);
+            const distSq = (x - path.x) ** 2 + (y - path.y) ** 2;
+            // Standard safety radius, shrunk inside collapsed tunnel segments
+            let safetyRadius = 25;
+            if (typeA === 'tunnel' || typeB === 'tunnel') {
+                const obstacleFactor = getTunnelObstacleFactor(z);
+                if (obstacleFactor > 0) {
+                    // Shrink radius down to ~40% (area ~16%) at peak of obstacle
+                    const minShrink = 0.4;
+                    const shrink = minShrink + (1 - minShrink) * (1 - obstacleFactor);
+                    safetyRadius *= shrink;
+                }
+            }
+            if (distSq < safetyRadius * safetyRadius) return -1.0;
+
+            const calcDen = (type, tx, ty, tz) => {
+                if (type === 'tunnel') return getTunnelDensity(tx, ty, tz);
+                if (type === 'canyon') return getCanyonDensity(tx, ty, tz);
+                if (type === 'city') return getCityDensity(tx, ty, tz);
+                if (type === 'gardens') return getGardenDensity(tx, ty, tz);
+                if (type === 'skeletal') return getSkeletalDensity(tx, ty, tz);
+                return 0;
+            };
+
+            let denA = calcDen(typeA, x, y, z);
+            let denB = (blend > 0) ? calcDen(typeB, x, y, z) : denA;
+            let finalDen = denA * (1 - blend) + denB * blend;
+
+            // Far Distance Cull
+            const distFromPath = Math.sqrt(distSq);
+            if (distFromPath > CONFIG.viewDistance) finalDen -= 1.0;
+
+            return finalDen;
+        }
+
+        // Raycast helper to check for voxel obstructions
+        function checkVoxelLineOfSight(start, end) {
+            const dist = start.distanceTo(end);
+            const step = 4.0; // Step size slightly smaller than voxel size (5.0)
+            const steps = Math.floor(dist / step);
+            const dir = new THREE.Vector3().subVectors(end, start).normalize();
+            const temp = new THREE.Vector3();
+
+            // Start at 1 to avoid checking the drone's own position
+            // End before the very last step to avoid checking the target's exact center (which might be inside a hitbox)
+            for (let i = 1; i < steps; i++) {
+                temp.copy(start).add(dir.clone().multiplyScalar(i * step));
+                // 0.1 is the visual threshold used in updateVoxels
+                if (getDensity(temp.x, temp.y, temp.z) > 0.1) {
+                    return false; // Blocked
+                }
+            }
+            return true; // Clear
+        }
+
+        // --- AUDIO ENGINE ---
+        const AudioEngine = (() => {
+            let ctx, masterGain;
+            let nextNoteTime = 0;
+            let beatCount = 0;
+            let droneFilter;
+
+            // Cached state from the game for generative logic
+            const defaultState = {
+                biomeType: 'tunnel',
+                geoIntensity: 0,
+                combatDanger: 0,
+                hasWater: false,
+                hasTunnelLights: false,
+                hasCityNeon: false,
+                hasGardens: false,
+                hasSkeletal: false,
+                miningDroneAlive: false,
+                miningDroneExploding: false,
+                miningDroneDestroyed: false,
+                attackDroneActive: false,
+                attackDroneState: 'idle',
+                attackDroneIsTargetingGlider: false
+            };
+            let lastState = { ...defaultState };
+            let prevState = { ...defaultState };
+
+            const BIOME_SCALES = {
+                tunnel: [130.81, 155.56, 174.61, 196.0, 233.08], // C minor-ish
+                canyon: [130.81, 138.59, 164.81, 196.0, 207.65], // C Dorian-ish
+                city: [146.83, 174.61, 196.0, 220.0, 261.63],  // D minor-ish
+                gardens: [146.83, 185.0, 220.0, 246.94, 293.66], // D Lydian-ish
+                skeletal: [123.47, 130.81, 155.56, 174.61, 207.65] // B Locrian-ish (Dark/Dissonant)
+            };
+
+            // Central mixer configuration so layer loudness and density are easy to tweak
+            const MIXER = {
+                master: 0.35,
+                layers: {
+                    drone: 0.07,
+                    baseMelody: 0.15,
+                    pedal: 0.15,
+                    tunnelTicks: 0.03,
+                    water: 0.18,
+                    miningMotif: 0.22,
+                    attackStabs: 0.28,
+                    cityNeon: 0.25,
+                    gardens: 0.25,
+                    skeletal: 0.35, // Loud, heavy impacts
+                    volleyStart: 0.32,
+                    miningExplosion: 0.3,
+                    nearMiss: 0.3
+                },
+                probs: {
+                    baseMelodyBase: 0.2,
+                    tunnelTicksBase: 0.3,
+                    waterBase: 0.6,
+                    cityNeonBase: 0.5,
+                    gardensBase: 0.3,
+                    skeletalBase: 0.25,
+                    attackStabsBase: 0.45
+                },
+                proximitySensitivity: 0.5
+            };
+
+            let currentScale = BIOME_SCALES.tunnel;
+
+            function init() {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                ctx = new AudioContext();
+                masterGain = ctx.createGain();
+                masterGain.gain.value = MIXER.master;
+                masterGain.connect(ctx.destination);
+                createDrone();
+                scheduleNextNote();
+            }
+
+            function createDrone() {
+                const osc = ctx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.value = 65.41; // C2
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 200;
+                droneFilter = filter;
+                const gain = ctx.createGain();
+                gain.gain.value = MIXER.layers.drone;
+                const lfo = ctx.createOscillator();
+                lfo.type = 'sine';
+                lfo.frequency.value = 0.1;
+                const lfoGain = ctx.createGain();
+                lfoGain.gain.value = 50;
+                lfo.connect(lfoGain);
+                lfoGain.connect(filter.frequency);
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(masterGain);
+                osc.start();
+                lfo.start();
+            }
+
+            function playNoteCore(freq, time, duration, opts = {}) {
+                if (!ctx) return;
+                const osc = ctx.createOscillator();
+                osc.type = opts.type || 'triangle';
+                osc.frequency.value = freq;
+
+                const gain = ctx.createGain();
+                const attack = opts.attack || 0.05;
+                const peakGain = opts.gain != null ? opts.gain : 0.1;
+                const release = opts.release || duration;
+
+                gain.gain.setValueAtTime(0, time);
+                gain.gain.linearRampToValueAtTime(peakGain, time + attack);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + release);
+
+                const panner = ctx.createStereoPanner();
+                const pan =
+                    typeof opts.pan === 'number'
+                        ? opts.pan
+                        : (Math.random() * 2) - 1;
+                panner.pan.setValueAtTime(pan, time);
+
+                const delay = ctx.createDelay();
+                delay.delayTime.value = opts.delayTime != null ? opts.delayTime : 0.25;
+                const delayGain = ctx.createGain();
+                delayGain.gain.value = opts.delayGain != null ? opts.delayGain : 0.3;
+
+                osc.connect(gain);
+                gain.connect(panner);
+                panner.connect(masterGain);
+                if (!opts.noEcho) {
+                    panner.connect(delay);
+                    delay.connect(delayGain);
+                    delayGain.connect(delay);
+                    delayGain.connect(masterGain);
+                }
+
+                osc.start(time);
+                osc.stop(time + duration + 1);
+            }
+
+            function playNote(freq, time, duration) {
+                playNoteCore(freq, time, duration, {});
+            }
+
+            function computeCombinedIntensity(state) {
+                return Math.max(
+                    0,
+                    Math.min(
+                        1,
+                        state.geoIntensity * 0.6 * MIXER.proximitySensitivity + state.combatDanger * 0.9
+                    )
+                );
+            }
+
+            function applyContinuousState() {
+                if (!ctx || !droneFilter) return;
+                const state = lastState || defaultState;
+                const combinedIntensity = computeCombinedIntensity(state);
+                const targetFreq = 200 + Math.sqrt(combinedIntensity) * 2500;
+                droneFilter.frequency.setTargetAtTime(
+                    targetFreq,
+                    ctx.currentTime,
+                    0.08
+                );
+            }
+
+            function scheduleMiningDroneExplosion(time) {
+                // Descending, slightly dissonant cadence
+                const base = currentScale[0] || 130.81;
+                const g = MIXER.layers.miningExplosion;
+                playNoteCore(base * 2, time, 0.4, {
+                    type: 'sawtooth',
+                    gain: g,
+                    pan: 0,
+                    delayGain: 0.25
+                });
+                playNoteCore(base * 1.5, time + 0.15, 0.6, {
+                    type: 'sawtooth',
+                    gain: g * 0.9,
+                    pan: -0.2
+                });
+                playNoteCore(base, time + 0.35, 0.9, {
+                    type: 'triangle',
+                    gain: g * 0.8,
+                    pan: 0.15
+                });
+            }
+
+            function scheduleVolleyStartHit(time) {
+                const base = currentScale[currentScale.length - 1] || 196.0;
+                playNoteCore(base * 3, time, 0.25, {
+                    type: 'square',
+                    gain: MIXER.layers.volleyStart,
+                    pan: 0,
+                    noEcho: true,
+                    attack: 0.01,
+                    release: 0.2
+                });
+            }
+
+            function scheduleNextNote() {
+                if (!ctx) return;
+                const secondsPerBeat = 0.25;
+                const lookahead = 0.1;
+
+                if (isPlaying && ctx.currentTime + lookahead >= nextNoteTime) {
+                    const state = lastState || defaultState;
+                    const time = nextNoteTime;
+
+                    // Combined danger drives harmonic tension and brightness
+                    const combinedIntensity = computeCombinedIntensity(state);
+
+                    // Base melodic notes ÔÇô sparser at rest, denser in danger
+                    const baseProb =
+                        MIXER.probs.baseMelodyBase +
+                        state.geoIntensity * 0.25 +
+                        state.combatDanger * 0.3;
+                    if (beatCount % 2 === 0 && Math.random() < baseProb) {
+                        const noteIdx = Math.floor(Math.random() * currentScale.length);
+                        const octave =
+                            Math.random() > (state.combatDanger > 0.5 ? 0.6 : 0.8)
+                                ? 2
+                                : 1;
+                        playNoteCore(
+                            currentScale[noteIdx] * octave,
+                            time,
+                            0.4,
+                            { gain: MIXER.layers.baseMelody }
+                        );
+                    }
+
+                    // Occasional low pedal note to anchor harmony
+                    if (beatCount % 8 === 0 && Math.random() < 0.9) {
+                        playNoteCore(
+                            currentScale[0] / 2,
+                            time,
+                            0.9,
+                            { gain: MIXER.layers.pedal }
+                        );
+                    }
+
+                    // Tunnel warning lights: bright ticks hugging the walls
+                    if (state.hasTunnelLights && state.biomeType === 'tunnel') {
+                        const tickProb =
+                            MIXER.probs.tunnelTicksBase + state.geoIntensity * 0.4;
+                        if (Math.random() < tickProb) {
+                            const high = currentScale[currentScale.length - 1] * 4;
+                            const pan = Math.random() < 0.5 ? -0.7 : 0.7;
+                            playNoteCore(high, time, 0.18, {
+                                type: 'square',
+                                gain:
+                                    MIXER.layers.tunnelTicks *
+                                    (0.7 + state.geoIntensity * 0.8),
+                                pan,
+                                noEcho: true,
+                                attack: 0.01,
+                                release: 0.16
+                            });
+                        }
+                    }
+
+                    // Canyon water: soft, wide ripples underneath
+                    if (state.hasWater && state.biomeType === 'canyon') {
+                        const waterProb = MIXER.probs.waterBase;
+                        if (Math.random() < waterProb) {
+                            const root = currentScale[0];
+                            const wobble = (Math.random() * 0.12) - 0.06;
+                            playNoteCore(root * (1 + wobble), time, 1.0, {
+                                type: 'sine',
+                                gain: MIXER.layers.water,
+                                pan: 0,
+                                delayTime: 0.35,
+                                delayGain: 0.35,
+                                attack: 0.08,
+                                release: 1.2
+                            });
+                        }
+                    }
+
+                    // Mining drone: friendly motif guiding the player
+                    if (state.miningDroneAlive && !state.miningDroneExploding) {
+                        if (beatCount % 4 === 0) {
+                            const root = currentScale[0];
+                            playNoteCore(root * 2, time, 0.35, {
+                                type: 'triangle',
+                                gain: MIXER.layers.miningMotif,
+                                pan: -0.1
+                            });
+                            playNoteCore(root * 2.5, time + 0.18, 0.35, {
+                                type: 'triangle',
+                                gain: MIXER.layers.miningMotif * 0.9,
+                                pan: 0.1
+                            });
+                        }
+                    }
+
+                    // Attack drone present: add tense stabs
+                    if (
+                        state.attackDroneActive &&
+                        state.attackDroneIsTargetingGlider &&
+                        (state.attackDroneState === 'engage' ||
+                            state.attackDroneState === 'fire')
+                    ) {
+                        const stabProb =
+                            MIXER.probs.attackStabsBase +
+                            (state.combatDanger || 0) * 0.5;
+                        if (Math.random() < stabProb) {
+                            const idx =
+                                Math.floor(Math.random() * currentScale.length);
+                            const base = currentScale[idx];
+                            const dissonant = base * Math.pow(2, 1 / 12); // +1 semitone
+                            playNoteCore(dissonant * 3, time, 0.22, {
+                                type: 'sawtooth',
+                                gain: MIXER.layers.attackStabs,
+                                pan: 0,
+                                noEcho: true,
+                                attack: 0.01,
+                                release: 0.21
+                            });
+                        }
+                    }
+
+                    // City neon strips: light buzzing flickers
+                    if (state.hasCityNeon && state.biomeType === 'city') {
+                        const neonProb =
+                            MIXER.probs.cityNeonBase + state.geoIntensity * 0.3;
+                        if (Math.random() < neonProb) {
+                            const high = currentScale[currentScale.length - 1] * 4;
+                            playNoteCore(high, time, 0.12, {
+                                type: 'sawtooth',
+                                gain: MIXER.layers.cityNeon,
+                                pan: (Math.random() * 1.6) - 0.8,
+                                noEcho: true,
+                                attack: 0.01,
+                                release: 0.12
+                            });
+                        }
+                    }
+
+                    // Marble gardens: sparse bell-like chimes
+                    if (state.hasGardens && state.biomeType === 'gardens') {
+                        const gardenProb = MIXER.probs.gardensBase;
+                        if (Math.random() < gardenProb) {
+                            const noteIdx = Math.floor(
+                                Math.random() * currentScale.length
+                            );
+                            const base = currentScale[noteIdx];
+                            playNoteCore(base * 2, time, 1.4, {
+                                type: 'sine',
+                                gain: MIXER.layers.gardens,
+                                pan: (Math.random() * 1.4) - 0.7,
+                                delayTime: 0.45,
+                                delayGain: 0.4,
+                                attack: 0.02,
+                                release: 1.6
+                            });
+                        }
+                    }
+
+                    // Skeletal Structure: Metallic, dissonant clanks
+                    if (state.hasSkeletal && state.biomeType === 'skeletal') {
+                        const skeletalProb = MIXER.probs.skeletalBase;
+                        // Low probability, heavy impact
+                        if (Math.random() < skeletalProb) {
+                            const noteIdx = Math.floor(Math.random() * currentScale.length);
+                            const base = currentScale[noteIdx];
+                            // Use a very low frequency for "structure groans" or high for "metallic pings"
+                            const isLow = Math.random() > 0.6;
+                            const freq = isLow ? base / 2 : base * 4;
+
+                            playNoteCore(freq, time, isLow ? 0.8 : 0.1, {
+                                type: isLow ? 'sawtooth' : 'square',
+                                gain: MIXER.layers.skeletal,
+                                pan: (Math.random() * 1.8) - 0.9,
+                                delayTime: 0.15,
+                                delayGain: 0.5, // High feedback for metallic ring
+                                attack: 0.01,
+                                release: isLow ? 0.8 : 0.2,
+                            });
+                        }
+                    }
+
+                    nextNoteTime += secondsPerBeat;
+                    beatCount++;
+                }
+
+                // Keep the scheduler running regardless of isPlaying so that
+                // starting / stopping the game later still produces notes.
+                requestAnimationFrame(scheduleNextNote);
+            }
+
+            function update(state) {
+                // Accept either legacy (biomeType, intensity) or new state object
+                if (typeof state === 'string') {
+                    state = {
+                        biomeType: state,
+                        geoIntensity: arguments[1] || 0,
+                        combatDanger: 0
+                    };
+                }
+
+                prevState = lastState;
+                lastState = { ...defaultState, ...lastState, ...state };
+
+                const biomeKey = lastState.biomeType;
+                if (BIOME_SCALES[biomeKey]) {
+                    currentScale = BIOME_SCALES[biomeKey];
+                }
+
+                if (!ctx || !droneFilter) return;
+
+                // Event: mining drone just died
+                if (
+                    !prevState.miningDroneDestroyed &&
+                    lastState.miningDroneDestroyed
+                ) {
+                    scheduleMiningDroneExplosion(ctx.currentTime + 0.02);
+                }
+
+                // Event: attack volley just started against the player
+                if (
+                    prevState.attackDroneState !== 'fire' &&
+                    lastState.attackDroneState === 'fire' &&
+                    lastState.attackDroneIsTargetingGlider
+                ) {
+                    scheduleVolleyStartHit(ctx.currentTime + 0.02);
+                }
+
+                // Per-frame continuous updates (drone brightness, etc.)
+                applyContinuousState();
+            }
+
+            function nearMiss(pan) {
+                if (!ctx) return;
+                const clampedPan = Math.max(-1, Math.min(1, pan || 0));
+                const base = currentScale[currentScale.length - 1] || 196.0;
+                playNoteCore(base * 4, ctx.currentTime + 0.01, 0.18, {
+                    type: 'triangle',
+                    gain: MIXER.layers.nearMiss,
+                    pan: clampedPan,
+                    noEcho: true,
+                    attack: 0.01,
+                    release: 0.17
+                });
+            }
+
+            return { init, update, nearMiss };
+        })();
+
+        // --- GAME ENGINE ---
+        function initGame() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(BIOMES[0].fog);
+            // Reintroduce fog with balanced density
+            scene.fog = new THREE.FogExp2(BIOMES[0].fog, 0.018);
+
+            camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, CONFIG.viewDistance);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 3);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffaa00, 1.5);
+            dirLight.position.set(50, 50, -50);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            scene.add(dirLight);
+
+            const sunGeo = new THREE.CircleGeometry(100, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xff00aa });
+            const sun = new THREE.Mesh(sunGeo, sunMat);
+            sun.position.z = -300;
+            scene.add(sun);
+            menuSun = sun;
+
+            randomizeRunSeed();
+            createPlayer();
+            createVoxelSystem();
+            createWarningLights();
+            createWater();
+            createTunnelDebris();
+            createCityProps();
+            createMiningDrone();
+            createAttackDrone();
+
+            // Initial Positioning
+            const startPos = getSafePath(0);
+            player.position.set(startPos.x, startPos.y, 0);
+            camera.position.set(startPos.x, startPos.y + 5, -25);
+            camera.lookAt(startPos.x, startPos.y, 50);
+
+            window.addEventListener('resize', onWindowResize, false);
+            document.addEventListener('mousemove', onMouseMove, false);
+            clock = new THREE.Clock();
+            animate();
+        }
+
+        function createPlayer() {
+            const geometry = new THREE.ConeGeometry(1, 4, 3);
+            geometry.rotateX(Math.PI / 2);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0x00ffff, emissive: 0x0088aa, emissiveIntensity: 0.8, roughness: 0.2
+            });
+            player.mesh = new THREE.Mesh(geometry, material);
+            player.mesh.castShadow = true;
+            scene.add(player.mesh);
+
+            const glowGeo = new THREE.SphereGeometry(0.5);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            glow.position.z = 2;
+            player.mesh.add(glow);
+        }
+
+        function createVoxelSystem() {
+            const geometry = new THREE.BoxGeometry(CONFIG.voxelSize, CONFIG.voxelSize, CONFIG.voxelSize);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xffffff
+            });
+
+            const count = CONFIG.gridWidth * CONFIG.gridHeight * CONFIG.gridDepth;
+            voxelMesh = new THREE.InstancedMesh(geometry, material, count);
+            voxelMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            voxelMesh.castShadow = true;
+            voxelMesh.receiveShadow = true;
+            scene.add(voxelMesh);
+
+            // Initialize instanceColor buffer explicitly
+            const colorArray = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                colorArray[i * 3 + 0] = 1.0;
+                colorArray[i * 3 + 1] = 1.0;
+                colorArray[i * 3 + 2] = 1.0;
+            }
+            voxelMesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
+
+            let i = 0;
+            for (let x = 0; x < CONFIG.gridWidth; x++) {
+                for (let y = 0; y < CONFIG.gridHeight; y++) {
+                    for (let z = 0; z < CONFIG.gridDepth; z++) {
+                        voxels.push({
+                            id: i++,
+                            vx: x - CONFIG.gridWidth / 2,
+                            vy: y - CONFIG.gridHeight / 2,
+                            vz: z
+                        });
+                    }
+                }
+            }
+        }
+
+        // Tunnel wall warning lights (voxel-art fixtures)
+        function createWarningLights() {
+            const lightGeom = new THREE.BoxGeometry(0.6, 0.6, 1.6);
+            const lightMat = new THREE.MeshStandardMaterial({
+                color: 0x050505,
+                emissive: 0xff4400,
+                emissiveIntensity: 1.4,
+                roughness: 0.3,
+                metalness: 0.0
+            });
+            const count = 12;
+            warningLightMesh = new THREE.InstancedMesh(lightGeom, lightMat, count);
+            warningLightMesh.castShadow = false;
+            warningLightMesh.receiveShadow = false;
+            scene.add(warningLightMesh);
+
+            for (let i = 0; i < count; i++) {
+                warningLights.push({
+                    id: i,
+                    angle: Math.random() * Math.PI * 2,
+                    // Place just inside the tunnel wall, hugging the inner surface
+                    radialOffset: 23 + Math.random() * 3,
+                    // Offset within a repeating tunnel segment along Z
+                    zOffset: Math.random() * 800,
+                    flickerOffset: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        // Tunnel floor debris as tiny voxel chunks
+        function createTunnelDebris() {
+            const debrisGeom = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+            const debrisMat = new THREE.MeshStandardMaterial({
+                color: 0x444444,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const count = 240;
+            tunnelDebrisMesh = new THREE.InstancedMesh(debrisGeom, debrisMat, count);
+            tunnelDebrisMesh.castShadow = true;
+            tunnelDebrisMesh.receiveShadow = true;
+            scene.add(tunnelDebrisMesh);
+
+            for (let i = 0; i < count; i++) {
+                tunnelDebris.push({
+                    id: i,
+                    offsetX: (Math.random() * 2 - 1) * 45,   // scatter across floor width
+                    offsetY: -50 + Math.random() * 10,       // around tunnel floor
+                    zOffset: (Math.random() * 2 - 1) * 220,
+                    scaleJitter: 0.5 + Math.random() * 0.8,
+                    rotOffset: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        // Canyon water plane with animated ripples
+        function createWater() {
+            const width = 120;
+            const length = 420;
+            const segmentsX = 40;
+            const segmentsZ = 80;
+            const geom = new THREE.PlaneGeometry(width, length, segmentsX, segmentsZ);
+            geom.rotateX(-Math.PI / 2);
+
+            // Store original positions for wave animation
+            waterBasePositions = new Float32Array(geom.attributes.position.array.length);
+            waterBasePositions.set(geom.attributes.position.array);
+
+            waterMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1e90ff,
+                roughness: 0.15,
+                metalness: 0.8,
+                transparent: true,
+                opacity: 0.85
+            });
+            waterMaterial.color.getHSL(waterBaseHSL);
+            waterMesh = new THREE.Mesh(geom, waterMaterial);
+            waterMesh.receiveShadow = true;
+            scene.add(waterMesh);
+            waterMesh.visible = false;
+        }
+
+        // Canyon mining drone: floating indicator of the safe passage
+        function createMiningDrone() {
+            miningDrone = new THREE.Group();
+
+            // Dodecahedral metallic body (about half the previous visual size)
+            const bodyGeom = new THREE.DodecahedronGeometry(1.5, 0);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0x777777,
+                metalness: 0.9,
+                roughness: 0.25,
+                emissive: 0x111122,
+                emissiveIntensity: 0.4
+            });
+            const body = new THREE.Mesh(bodyGeom, bodyMat);
+            miningDrone.add(body);
+
+            // Magenta scanning light cones on left/right
+            const coneGeom = new THREE.ConeGeometry(1.2, 14, 20);
+            // Move cone so the tip is at the origin and the base extends outward
+            coneGeom.translate(0, -7, 0);
+            const coneMat = new THREE.MeshStandardMaterial({
+                color: 0xff00ff,
+                emissive: 0xff55ff,
+                emissiveIntensity: 3.5,
+                roughness: 0.2,
+                metalness: 0.3,
+                transparent: true,
+                opacity: 0.35
+            });
+
+            miningDroneLeft = new THREE.Mesh(coneGeom, coneMat);
+            miningDroneLeft.position.set(0, 0, 0);
+            miningDrone.add(miningDroneLeft);
+
+            miningDroneRight = new THREE.Mesh(coneGeom, coneMat.clone());
+            miningDroneRight.position.set(0, 0, 0);
+            miningDrone.add(miningDroneRight);
+
+            // Explosion effect (additive glowing sphere, initially hidden)
+            const expGeom = new THREE.SphereGeometry(1, 16, 16);
+            const expMat = new THREE.MeshBasicMaterial({
+                color: 0xffaa55,
+                transparent: true,
+                opacity: 0.0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            miningDroneExplosionMesh = new THREE.Mesh(expGeom, expMat);
+            miningDroneExplosionMesh.visible = false;
+            miningDrone.add(miningDroneExplosionMesh);
+
+            miningDrone.visible = false;
+            scene.add(miningDrone);
+        }
+
+        // Hostile attack drone: emerges near cyber city transition and attacks the mining drone
+        function createAttackDrone() {
+            attackDrone = new THREE.Group();
+
+            // Angular hostile body
+            const bodyGeom = new THREE.DodecahedronGeometry(2.0, 0);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0x222228,
+                metalness: 0.9,
+                roughness: 0.2,
+                emissive: 0xff3300,
+                emissiveIntensity: 1.6
+            });
+            const body = new THREE.Mesh(bodyGeom, bodyMat);
+            attackDrone.add(body);
+
+            // Three small projectile meshes (reused bullets)
+            attackDroneBullets = [];
+            // Bright, luminous bullets
+            const bulletGeom = new THREE.SphereGeometry(1.0, 16, 16);
+            const bulletMat = new THREE.MeshBasicMaterial({
+                color: 0xffee88,
+                transparent: true,
+                opacity: 0.95,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            for (let i = 0; i < 3; i++) {
+                const b = new THREE.Mesh(bulletGeom, bulletMat.clone());
+                b.visible = false;
+                b.userData = {
+                    active: false,
+                    vel: new THREE.Vector3(),
+                    life: 0,
+                    nearMissPlayed: false,
+                    lastDistToPlayer: Infinity
+                };
+                // Add bullets to the scene so they move in world space
+                scene.add(b);
+                attackDroneBullets.push(b);
+            }
+
+            attackDrone.visible = false;
+            scene.add(attackDrone);
+        }
+
+        // Cyber city voxel-art props: neon strips and industrial roof clutter
+        function createCityProps() {
+            // Neon strips hugging building sides
+            const neonGeom = new THREE.BoxGeometry(0.5, 3.0, 0.4);
+            const neonMat = new THREE.MeshStandardMaterial({
+                color: 0x020509,
+                emissive: 0x00ffff, // Cyan/White hot
+                emissiveIntensity: 4.0, // Much brighter
+                roughness: 0.2,
+                metalness: 0.4
+            });
+            const neonCount = 300;
+            cityNeonMesh = new THREE.InstancedMesh(neonGeom, neonMat, neonCount);
+            cityNeonMesh.castShadow = false;
+            cityNeonMesh.receiveShadow = false;
+            scene.add(cityNeonMesh);
+
+            for (let i = 0; i < neonCount; i++) {
+                cityNeons.push({
+                    id: i,
+                    // Offset relative to safe path center; wider coverage
+                    offsetX: (Math.random() * 2 - 1) * 110,
+                    zOffset: (Math.random() * 2 - 1) * 360,
+                    // Vertical anchor fraction along building height (from mid to near top)
+                    heightFrac: 0.3 + Math.random() * 0.6,
+                    tilt: (Math.random() * 0.5 - 0.25)
+                });
+            }
+
+            // Industrial equipment blocks on rooftops
+            const equipGeom = new THREE.BoxGeometry(3.5, 2.0, 3.5);
+            const equipMat = new THREE.MeshStandardMaterial({
+                color: 0x202226,
+                emissive: 0x002244,
+                emissiveIntensity: 0.4,
+                roughness: 0.5,
+                metalness: 0.6
+            });
+            const equipCount = 160;
+            cityIndustrialMesh = new THREE.InstancedMesh(equipGeom, equipMat, equipCount);
+            cityIndustrialMesh.castShadow = true;
+            cityIndustrialMesh.receiveShadow = true;
+            scene.add(cityIndustrialMesh);
+
+            for (let i = 0; i < equipCount; i++) {
+                cityIndustrials.push({
+                    id: i,
+                    offsetX: (Math.random() * 2 - 1) * 80,
+                    zOffset: (Math.random() * 2 - 1) * 260,
+                    jitter: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function updateEnvironment() {
+            const z = player.position.z;
+            const zScaled = z / CONFIG.biomeLength;
+            let idx = Math.floor(zScaled) % BIOMES.length;
+            if (idx < 0) idx += BIOMES.length;
+            const nextIdx = (idx + 1) % BIOMES.length;
+            const progress = zScaled - Math.floor(zScaled);
+            let blend = 0;
+            if (progress > 0.85) blend = (progress - 0.85) * 6.66;
+
+            const b1 = BIOMES[idx];
+            const b2 = BIOMES[nextIdx];
+
+            if (currentBiomeName !== b1.name) {
+                currentBiomeName = b1.name;
+                const disp = document.getElementById('biome-display');
+                disp.innerText = `SECTOR: ${currentBiomeName}`;
+                disp.style.display = 'block';
+                disp.style.transform = "scale(1.5)";
+                setTimeout(() => disp.style.transform = "scale(1)", 200);
+            }
+
+            const c1 = new THREE.Color(b1.fog);
+            const c2 = new THREE.Color(b2.fog);
+            scene.fog.color.lerpColors(c1, c2, blend);
+            scene.background.copy(scene.fog.color);
+
+            return { b1, b2, blend };
+        }
+
+        // Helper for detailed coloring logic based on biome type
+        function getVoxelStyle(x, y, z, den, biome) {
+            const color = new THREE.Color();
+            const h = biome.colorBase.h; const s = biome.colorBase.s; const l = biome.colorBase.l;
+
+            if (biome.type === 'tunnel') {
+                // Debris check (must match geometry logic)
+                const path = getSafePath(z);
+                const relY = y - path.y;
+                const debrisNoise = noise3D(x * 0.15, y * 0.15, z * 0.15);
+
+                if (relY > -45 && relY < -20 && debrisNoise > 0.2) {
+                    // Debris is darker and less saturated
+                    color.setHSL(h, s * 0.5, l * 0.4);
+                } else {
+                    // Standard wall
+                    color.setHSL(h, s, l + den * 0.2);
+                }
+            } else if (biome.type === 'canyon') {
+                // Stratified warm rock faces (no blue tints ÔÇô water plane handles all blue)
+                const strata = Math.sin((y + z * 0.2) * 0.12) * 0.2
+                    + noise3D(x * 0.03, y * 0.03, z * 0.03) * 0.2;
+                const bandChoice = noise3D(x * 0.01, y * 0.02, z * 0.01);
+                const hue = THREE.MathUtils.clamp(0.05 + strata * 0.06, 0.03, 0.13); // warm ochreÔÇôrust
+                const sat = 0.7 + bandChoice * 0.15;
+                const light = THREE.MathUtils.clamp(
+                    0.26 + den * 0.24 + strata * 0.06,
+                    0.16,
+                    0.78
+                );
+                color.setHSL(hue, sat, light);
+            } else if (biome.type === 'city') {
+                const blockSize = 120;
+                const gx = Math.floor(x / blockSize);
+                const gz = Math.floor(z / blockSize);
+
+                // Tower ID hash for color variation
+                const towerHash = hash3(gx, 0, gz);
+
+                // Base Color: PITCH BLACK / HYPER DARK
+                // "Hypermodern slick" = almost no diffuse color, just specular highlights (simulated)
+                const baseHue = 0.6; // Blue-ish tint
+                const baseSat = 0.2;
+                const baseLight = 0.08 + den * 0.03; // Lightness range: very dark
+
+                color.setHSL(baseHue, baseSat, baseLight);
+
+                // Neon Stripes: Blue / Green / Teal
+                // Vertical stripes for slickness - VERY SPARSE (2% coverage)
+                const stripeNoise = noise3D(x * 0.05, 0, z * 0.05); // Low freq vertical
+                // Increase spacing to 40, reduce width to 1.0
+                const isStripe = Math.abs(x % 40) < 1.0 || Math.abs(z % 40) < 1.0;
+
+                // Neon stripe threshold
+                if (isStripe && stripeNoise > 0.3) {
+                    // Palette: Blue (0.6), Cyan (0.5), Green (0.33), Teal (0.45)
+                    const neonChoice = hash3(gx, Math.floor(y / 40), gz);
+                    let neonH = 0.6; // Blue
+                    if (neonChoice > 0.4) neonH = 0.5; // Cyan
+                    if (neonChoice > 0.7) neonH = 0.35; // Green
+
+                    color.setHSL(neonH, 1.0, 0.55); // Bright neon
+                }
+
+                // Occasional "Data Lights" (sparse points)
+                const pointNoise = noise3D(x * 0.4, y * 0.4, z * 0.4);
+                if (pointNoise > 0.95) {
+                    color.setHSL(0.5, 1.0, 0.9); // White-blue glint
+                }
+
+                // Warning lights (Red) - keep them sparse
+                if (y > 200 && y % 100 > 98) {
+                    const cornerDist = Math.max(Math.abs((x % blockSize) - blockSize / 2), Math.abs((z % blockSize) - blockSize / 2));
+                    if (cornerDist > blockSize * 0.3) {
+                        color.setHSL(0.0, 1.0, 0.5);
+                    }
+                }
+            } else if (biome.type === 'gardens') {
+                const path = getSafePath(z);
+                const ceiling = path.y + 80 + Math.sin(z * 0.003) * 6;
+                const marbleVein = noise3D(x * 0.08, y * 0.08, z * 0.08);
+
+                const colSpacing = 70;
+                const gx = Math.abs((x + colSpacing / 2) % colSpacing - colSpacing / 2);
+                const gz = Math.abs((z + colSpacing / 2) % colSpacing - colSpacing / 2);
+                const nearColumn = gx < 6 && gz < 6 && y < ceiling;
+
+                if (y > ceiling - 6) {
+                    color.setHSL(0.09, 0.08, 0.9 - marbleVein * 0.05);
+                } else {
+                    const lawnNoise = noise3D(x * 0.03, z * 0.03, y * 0.02);
+                    if (lawnNoise > 0.35 && y < path.y + 8) {
+                        color.setHSL(0.32, 0.6, 0.55 + lawnNoise * 0.1);
+                    } else {
+                        color.setHSL(0.08, 0.08, 0.86 - marbleVein * 0.08);
+                    }
+
+                    if (nearColumn) {
+                        color.setHSL(0.07, 0.16, 0.82);
+                    }
+                }
+            } else if (biome.type === 'skeletal') {
+                // Black/Dark Gray variation (Alien/Cybernetic)
+                // Vary from pure black to dark gray (~15-20% lightness)
+                // Use noise to create "panels" or "structure"
+                const structureNoise = noise3D(x * 0.1, y * 0.1, z * 0.1);
+                let lightness = 0.02; // Base black
+
+                if (structureNoise > 0.2) {
+                    lightness += structureNoise * 0.12; // Up to ~0.14
+                }
+
+                // Occasional "active" elements (faint red glow on edges)
+                const glowNoise = noise3D(x * 0.3, y * 0.3, z * 0.3);
+                if (glowNoise > 0.7) {
+                    color.setHSL(0.0, 0.8, 0.15); // Dark red glow
+                } else {
+                    color.setHSL(0.0, 0.0, lightness);
+                }
+            } else {
+                // Fallback for other biomes (simple density gradient)
+                color.setHSL(h, s, l + den * 0.2);
+            }
+            return color;
+        }
+
+        function updateVoxels(envData) {
+            const px = player.position.x; const py = player.position.y; const pz = player.position.z;
+            const rangeX = (CONFIG.gridWidth * CONFIG.voxelSize) / 2;
+            const rangeY = (CONFIG.gridHeight * CONFIG.voxelSize) / 2;
+            const rangeZ = CONFIG.gridDepth * CONFIG.voxelSize;
+            const gridStep = CONFIG.voxelSize;
+
+            const snapX = Math.floor(px / gridStep) * gridStep;
+            const snapY = Math.floor(py / gridStep) * gridStep;
+            const snapZ = Math.floor(pz / gridStep) * gridStep;
+
+            voxels.forEach(v => {
+                let x = v.vx * gridStep; let y = v.vy * gridStep; let z = v.vz * gridStep;
+                while (z < snapZ - 20) { z += rangeZ; }
+                while (z > snapZ - 20 + rangeZ) { z -= rangeZ; }
+                while (x < snapX - rangeX) { x += rangeX * 2; }
+                while (x > snapX + rangeX) { x -= rangeX * 2; }
+                while (y < snapY - rangeY) { y += rangeY * 2; }
+                while (y > snapY + rangeY) { y -= rangeY * 2; }
+
+                const den = getDensity(x, y, z);
+                dummy.position.set(x, y, z);
+
+                // Threshold for rendering
+                const threshold = isMenuPreview ? 0.2 : 0.1;
+                if (den > threshold) {
+                    dummy.scale.set(1, 1, 1);
+
+                    // Detailed biome-aware coloring with smooth blending
+                    const colA = getVoxelStyle(x, y, z, den, envData.b1);
+                    voxelColorHelper.copy(colA);
+                    if (envData.blend > 0) {
+                        const colB = getVoxelStyle(x, y, z, den, envData.b2);
+                        voxelColorHelper.lerp(colB, envData.blend);
+                    }
+                    voxelMesh.setColorAt(v.id, voxelColorHelper);
+                } else {
+                    dummy.scale.set(0, 0, 0);
+                }
+                dummy.updateMatrix();
+                voxelMesh.setMatrixAt(v.id, dummy.matrix);
+            });
+
+            voxelMesh.instanceMatrix.needsUpdate = true;
+            if (voxelMesh.instanceColor) voxelMesh.instanceColor.needsUpdate = true;
+        }
+
+        // Update wall-mounted tunnel warning lights
+        function updateWarningLightInstances(envData, time) {
+            if (!warningLightMesh) return;
+
+            const isTunnel = envData.b1.type === 'tunnel';
+            const count = warningLights.length;
+            const segmentLength = 800;
+            const baseBand = Math.floor(player.position.z / segmentLength);
+
+            for (let i = 0; i < count; i++) {
+                const info = warningLights[i];
+
+                // Position lights only in tunnel; hide elsewhere
+                if (!isTunnel) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    warningLightMesh.setMatrixAt(info.id, dummy.matrix);
+                    continue;
+                }
+
+                const worldZ = baseBand * segmentLength + info.zOffset;
+                const path = getSafePath(worldZ);
+                const radius = info.radialOffset;
+
+                const lx = path.x + Math.cos(info.angle) * radius;
+                const ly = path.y + Math.sin(info.angle) * radius;
+
+                dummy.position.set(lx, ly, worldZ);
+
+                // Aim fixture toward tunnel center
+                dummy.lookAt(path.x, path.y, worldZ);
+
+                // Subtle flicker via scale pulsing
+                const flicker = 0.85 + 0.25 * Math.max(0, Math.sin(time * 6 + info.flickerOffset));
+                dummy.scale.set(flicker, flicker, flicker);
+
+                dummy.updateMatrix();
+                warningLightMesh.setMatrixAt(info.id, dummy.matrix);
+            }
+
+            warningLightMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        // Update tunnel floor debris instances
+        function updateTunnelDebrisInstances(envData, time) {
+            if (!tunnelDebrisMesh) return;
+
+            const isTunnel = envData.b1.type === 'tunnel';
+            const count = tunnelDebris.length;
+            const segmentLength = 800;
+            const baseBand = Math.floor(player.position.z / segmentLength);
+
+            for (let i = 0; i < count; i++) {
+                const info = tunnelDebris[i];
+
+                if (!isTunnel) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    tunnelDebrisMesh.setMatrixAt(info.id, dummy.matrix);
+                    continue;
+                }
+
+                const worldZ = baseBand * segmentLength + info.zOffset;
+                const path = getSafePath(worldZ);
+
+                const dx = info.offsetX;
+                const dy = info.offsetY;
+
+                dummy.position.set(path.x + dx, path.y + dy, worldZ);
+
+                // Small random rotation and breathing scale so piles feel varied
+                const wobble = 0.1 * Math.sin(time * 1.5 + info.rotOffset);
+                dummy.rotation.set(0, wobble, info.rotOffset);
+
+                const s = info.scaleJitter;
+                dummy.scale.set(s, s, s);
+
+                dummy.updateMatrix();
+                tunnelDebrisMesh.setMatrixAt(info.id, dummy.matrix);
+            }
+
+            tunnelDebrisMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        // Update canyon water surface and placement
+        function updateWaterInstance(envData, time) {
+            if (!waterMesh || !waterMaterial) return;
+
+            const isCanyon = envData.b1.type === 'canyon';
+            waterMesh.visible = isCanyon;
+            if (!isCanyon) return;
+
+            // Place water ribbon in a repeating world-space band under the safe path canyon floor
+            const segmentLength = 1200;
+            const baseBand = Math.floor(player.position.z / segmentLength);
+            const centerZ = baseBand * segmentLength + segmentLength * 0.5;
+            const path = getSafePath(centerZ);
+            const waterY = path.y - 52;
+            waterMesh.position.set(path.x, waterY, centerZ);
+
+            // Animate surface waves
+            const posAttr = waterMesh.geometry.attributes.position;
+            const arr = posAttr.array;
+            for (let i = 0; i < posAttr.count; i++) {
+                const idx = i * 3;
+                const baseX = waterBasePositions[idx];
+                const baseY = waterBasePositions[idx + 1];
+                const baseZ = waterBasePositions[idx + 2];
+
+                const wave1 = Math.sin(baseX * 0.08 + time * 2.0) * 0.6;
+                const wave2 = Math.cos(baseZ * 0.12 + time * 1.3) * 0.4;
+                arr[idx] = baseX;
+                arr[idx + 1] = baseY + wave1 + wave2;
+                arr[idx + 2] = baseZ;
+            }
+            posAttr.needsUpdate = true;
+            waterMesh.geometry.computeVertexNormals();
+
+            // Slight color shimmer
+            const shimmer = 0.05 * Math.sin(time * 1.7);
+            const newL = THREE.MathUtils.clamp(waterBaseHSL.l + shimmer, 0, 1);
+            waterMaterial.color.setHSL(waterBaseHSL.h, waterBaseHSL.s, newL);
+        }
+
+        // Update canyon mining drone (safe passage indicator)
+        function updateMiningDrone(envData, dt, time) {
+            if (!miningDrone) return;
+
+            const mainBiome = envData.b1.type;
+
+            // Once fully destroyed and done exploding, keep hidden.
+            if (miningDroneDestroyed && !miningDroneExploding) {
+                miningDrone.visible = false;
+                return;
+            }
+
+            // Before the player ever reaches the canyon biome, keep the drone hidden.
+            // It should "enter the scene" only once the glider is in canyon.
+            if (!miningDroneActivated) {
+                if (mainBiome !== 'canyon') {
+                    miningDrone.visible = false;
+                    return;
+                }
+                miningDroneActivated = true;
+            }
+
+            // From here on, keep the mining drone alive across biome transitions
+            // so the attack drone can still destroy it near the canyon->city handoff.
+            miningDrone.visible = true;
+
+            // Explosion animation takes over when triggered
+            if (miningDroneExploding) {
+                miningDroneExplosionTime += dt;
+                const tNorm = miningDroneExplosionTime / 0.9;
+                const scale = THREE.MathUtils.lerp(1, 55, Math.min(tNorm, 1));
+                miningDroneExplosionMesh.visible = true;
+                miningDroneExplosionMesh.scale.set(scale, scale, scale);
+                miningDroneExplosionMesh.material.opacity = Math.max(0, 1 - tNorm);
+
+                // Drone falls out of the scene while exploding
+                miningDrone.position.y -= 45 * dt;
+                miningDrone.position.z += 10 * dt;
+
+                if (miningDroneExplosionTime > 0.9) {
+                    miningDrone.visible = false;
+                    miningDroneExploding = false;
+                }
+                return;
+            }
+
+            // Place the drone ahead, slightly closer for better visibility
+            const droneDist = 50 + Math.sin(time * 2 + player.position.z * 0.01) * 3;
+            const baseZ = player.position.z + droneDist;
+            const path = getSafePath(baseZ);
+
+            // Janky, slightly unpredictable wobble tightly around the safe path center
+            const wobbleX = (Math.sin(time * 1.9 + baseZ * 0.01) * 3
+                + noise3D(baseZ * 0.03, 0, time * 0.8) * 3);
+            const wobbleY = (Math.cos(time * 1.3 + baseZ * 0.007) * 2
+                + noise3D(0, baseZ * 0.025, time * 0.6) * 3);
+
+            const droneX = path.x + wobbleX;
+            const droneY = path.y - 6 + wobbleY;
+
+            miningDrone.position.set(droneX, droneY, baseZ);
+
+            // Orient the drone to look roughly back toward the glider
+            miningDrone.lookAt(player.position.x, player.position.y, player.position.z);
+
+            // Add a small roll/pitch jitter
+            miningDrone.rotation.z += (Math.sin(time * 2.3 + baseZ * 0.02) * 0.15 - miningDrone.rotation.z) * 0.2;
+            miningDrone.rotation.x += (Math.cos(time * 1.7 + baseZ * 0.015) * 0.12 - miningDrone.rotation.x) * 0.2;
+
+            // Animate magenta light cones scanning the canyon walls
+            if (miningDroneLeft && miningDroneRight) {
+                // Aim laterally and sweep gently like wall-scanning sensors
+                const scan = Math.sin(time * 1.4 + baseZ * 0.02) * 0.35; // ~20┬░ sweep
+                const baseAngle = Math.PI / 2; // sideways relative to forward (Z+)
+                miningDroneLeft.position.set(-1.5, 0, 0);
+                miningDroneRight.position.set(1.5, 0, 0);
+                miningDroneLeft.rotation.set(0, -baseAngle + scan, 0);  // left points to -X
+                miningDroneRight.rotation.set(0, baseAngle - scan, 0);  // right points to +X
+            }
+        }
+
+        // Hostile attack drone logic:
+        //  - appears near canyon->city transition to kill the mining drone
+        //  - appears 2ÔÇô3 more times in the city to attack the glider
+        function updateAttackDrone(envData, dt, time) {
+            if (!attackDrone) return;
+
+            const mainBiome = envData.b1.type;
+            const nextBiome = envData.b2.type;
+
+            // Trigger spawn:
+            // 1) Once when transitioning to city (mining drone target)
+            // 2) Then repeatedly in the city biome targeting the glider, roughly every 10 seconds
+            if (!attackDroneActive) {
+                if (!miningDroneDestroyed &&
+                    nextBiome === 'city' &&
+                    envData.blend > 0.1) {
+                    const engageZ = player.position.z + 180;
+                    const path = getSafePath(engageZ);
+                    attackDrone.position.set(path.x + 40, path.y + 20, engageZ);
+                    attackDrone.visible = true;
+                    attackDroneState = 'approach';
+                    attackDroneTimer = 0;
+                    attackDroneShotsFired = 0;
+                    attackDroneActive = true;
+                } else if (miningDroneDestroyed &&
+                    mainBiome === 'city' &&
+                    time - lastCityAttackTime > 10.0) {
+                    // Vary spawn distance randomly to ensure visibility chances
+                    const engageZ = player.position.z + 120 + Math.random() * 120;
+                    const path = getSafePath(engageZ);
+                    attackDrone.position.set(path.x + (Math.random() * 2 - 1) * 50,
+                        path.y + 25,
+                        engageZ);
+                    attackDrone.visible = true;
+                    attackDroneState = 'approach';
+                    attackDroneTimer = 0;
+                    attackDroneShotsFired = 0;
+                    attackDroneActive = true;
+                    lastCityAttackTime = time;
+                }
+
+                if (attackDroneActive) {
+                    // Reset bullets on each new engagement
+                    attackDroneBullets.forEach(b => {
+                        b.visible = false;
+                        b.userData.active = false;
+                        b.userData.life = 0;
+                        b.userData.nearMissPlayed = false;
+                        b.userData.lastDistToPlayer = Infinity;
+                        b.position.set(0, 0, 0);
+                        b.userData.vel.set(0, 0, 0);
+                    });
+                }
+            }
+
+            // Determine target:
+            //  - mining drone if present and alive (canyon phase)
+            //  - glider in city re-engagements
+            //  - otherwise fall back to safe path ahead
+            const hasMiningDrone = miningDrone && miningDrone.visible && !miningDroneExploding;
+            let targetPos = new THREE.Vector3();
+            let targetType = 'path';
+            if (hasMiningDrone) {
+                targetPos.copy(miningDrone.position);
+                targetType = 'mining';
+            } else if (mainBiome === 'city' && !player.isDead) {
+                targetPos.copy(player.position);
+                targetType = 'glider';
+            } else {
+                const tz = player.position.z + 80;
+                const pathAhead = getSafePath(tz);
+                targetPos.set(pathAhead.x, pathAhead.y, tz);
+            }
+
+            // Reset velocity estimation when switching targets to avoid stale velocities
+            if (targetType !== attackTargetLastType) {
+                attackTargetHasPrev = false;
+                attackTargetLastType = targetType;
+            }
+
+            // Estimate target velocity for smarter leading shots
+            if (attackTargetHasPrev && dt > 0) {
+                attackTargetVel.copy(targetPos).sub(attackTargetLastPos).divideScalar(dt);
+            } else {
+                attackTargetVel.set(0, 0, CONFIG.speed);
+            }
+            attackTargetLastPos.copy(targetPos);
+            attackTargetHasPrev = true;
+
+            let isTargetingGlider = (!hasMiningDrone && mainBiome === 'city' && !player.isDead);
+
+            // Move bullets and check collision with mining drone / glider (independent of drone state)
+            attackDroneBullets.forEach(b => {
+                if (!b.userData.active) return;
+                b.userData.life += dt;
+                b.position.add(b.userData.vel.clone().multiplyScalar(dt));
+
+                // Collision with mining drone
+                if (hasMiningDrone && !miningDroneExploding && miningDrone && miningDrone.visible) {
+                    const distToDrone = b.position.distanceTo(miningDrone.position);
+                    if (distToDrone < 5) {
+                        // Trigger explosion on the canyon drone
+                        miningDroneExploding = true;
+                        miningDroneExplosionTime = 0;
+                        miningDroneDestroyed = true;
+                        // Hide normal drone meshes, keep only explosion mesh
+                        miningDrone.children.forEach(child => {
+                            if (child !== miningDroneExplosionMesh) {
+                                child.visible = false;
+                            }
+                        });
+                        // Abort volley and retreat after successful kill
+                        attackDroneState = 'retreat';
+                        attackDroneTimer = 0;
+                        b.userData.active = false;
+                        b.visible = false;
+                        return;
+                    }
+                }
+                // Glider interactions (only if glider is current target)
+                if (isTargetingGlider && !player.isDead) {
+                    const distToPlayer = b.position.distanceTo(player.position);
+
+                    // Near-miss "zing" if the bullet passes close but not a direct hit
+                    if (!b.userData.nearMissPlayed && distToPlayer < 10 && distToPlayer > 4) {
+                        const pan = (b.position.x - player.position.x) / 40;
+                        if (typeof AudioEngine !== 'undefined' && AudioEngine.nearMiss) {
+                            AudioEngine.nearMiss(pan);
+                        }
+                        b.userData.nearMissPlayed = true;
+                    }
+
+                    // Direct hit
+                    if (distToPlayer < 4) {
+                        gameOver();
+                        // Abort volley and retreat after killing the player
+                        attackDroneState = 'retreat';
+                        attackDroneTimer = 0;
+                        b.userData.active = false;
+                        b.visible = false;
+                        return;
+                    }
+                }
+
+                // Simple timed "hit": after some time, consider bullets spent
+                // Lifetime extended to compensate for slower bullets (70u/s) so they can still reach targets ahead
+                if (b.userData.life > 3.0) {
+                    b.userData.active = false;
+                    b.visible = false;
+                }
+            });
+
+            if (!attackDroneActive) return;
+
+            attackDroneTimer += dt;
+
+            // Simple state machine
+            // Compute a "matched" position near the target with a small menacing hover offset
+            attackDroneIsTargetingGlider = isTargetingGlider;
+            const dangerHud = document.getElementById('danger-display');
+            if (dangerHud) {
+                const inDangerPhase = attackDroneActive && isTargetingGlider &&
+                    (attackDroneState === 'engage' || attackDroneState === 'fire');
+                dangerHud.style.display = inDangerPhase ? 'block' : 'none';
+            }
+
+            const baseOffset = new THREE.Vector3(0, 18, isTargetingGlider ? 60 : -15); // stay in front of glider
+            const hoverOffset = new THREE.Vector3(
+                Math.sin(time * 2.1 + targetPos.z * 0.03) * 2.0,
+                Math.cos(time * 1.7 + targetPos.z * 0.025) * 2.0,
+                Math.sin(time * 1.3 + targetPos.z * 0.02) * 1.5
+            );
+            const matchedPos = targetPos.clone().add(baseOffset).add(hoverOffset);
+            if (isTargetingGlider) {
+                // Ensure the attack drone remains ahead of the player for visibility/dodging
+                const minFrontZ = player.position.z + 20;
+                if (matchedPos.z < minFrontZ) matchedPos.z = minFrontZ;
+            }
+
+            if (attackDroneState === 'approach') {
+                // Move aggressively toward the matched position from the fog
+                const toTarget = matchedPos.clone().sub(attackDrone.position);
+                const dist = toTarget.length();
+                if (dist > 1) {
+                    toTarget.normalize();
+                    const speed = 100;
+                    attackDrone.position.add(toTarget.multiplyScalar(speed * dt));
+                }
+                // Once sufficiently close, switch to engage
+                if (dist < 30 || attackDroneTimer > 3.0) {
+                    attackDroneState = 'engage';
+                    attackDroneTimer = 0;
+                }
+            } else if (attackDroneState === 'engage') {
+                // Hover near the target, matching its speed and adding a menacing wobble
+                attackDrone.position.lerp(matchedPos, 6 * dt);
+                if (attackDroneTimer > 1.0) {
+                    attackDroneState = 'fire';
+                    attackDroneTimer = 0;
+                    attackDroneShotsFired = 0;
+                }
+            } else if (attackDroneState === 'fire') {
+                // Maintain matched hover while firing; never stop moving
+                attackDrone.position.lerp(matchedPos, 6 * dt);
+
+                // Fire three bullets toward current target (mining drone or glider). 
+                // Only abort if there is no valid target (e.g., player dead).
+                const canFire = (hasMiningDrone) || (mainBiome === 'city' && !player.isDead);
+                if (!canFire) {
+                    attackDroneState = 'retreat';
+                    attackDroneTimer = 0;
+                } else {
+                    const fireInterval = 0.25;
+                    while (attackDroneShotsFired < 3 && attackDroneTimer > fireInterval * attackDroneShotsFired) {
+
+                        // NEW: Line of Sight Check
+                        // Only fire if the path to the target is clear of voxels
+                        const hasLOS = checkVoxelLineOfSight(attackDrone.position, targetPos);
+
+                        if (hasLOS) {
+                            const b = attackDroneBullets[attackDroneShotsFired];
+                            if (b) {
+                                b.visible = true;
+                                const origin = attackDrone.position.clone();
+                                // Spawn slightly in front of the attack drone along a leading shot direction
+                                const bulletSpeed = 120;
+                                const toTarget = targetPos.clone().sub(origin);
+                                const dist = toTarget.length();
+                                let dir;
+                                if (dist > 0.0001) {
+                                    // Relative-velocity intercept (solves |r + (v_rel)*t| = s*t)
+                                    const relVel = attackTargetVel.clone(); // shooter motion after firing does not affect the projectile
+                                    const a = relVel.dot(relVel) - bulletSpeed * bulletSpeed;
+                                    const bq = 2 * toTarget.dot(relVel);
+                                    const c = toTarget.dot(toTarget);
+                                    let tHit = null;
+                                    if (Math.abs(a) < 1e-4) {
+                                        if (Math.abs(bq) > 1e-4) {
+                                            const t = -c / bq;
+                                            if (t > 0) tHit = t;
+                                        }
+                                    } else {
+                                        const disc = bq * bq - 4 * a * c;
+                                        if (disc >= 0) {
+                                            const sqrtDisc = Math.sqrt(disc);
+                                            const t1 = (-bq - sqrtDisc) / (2 * a);
+                                            const t2 = (-bq + sqrtDisc) / (2 * a);
+                                            const candidates = [t1, t2].filter(t => t > 0);
+                                            if (candidates.length) tHit = Math.min(...candidates);
+                                        }
+                                    }
+                                    if (!tHit || tHit <= 0) {
+                                        tHit = dist / bulletSpeed;
+                                    }
+                                    const predicted = targetPos.clone().add(relVel.multiplyScalar(tHit));
+                                    dir = predicted.sub(origin).normalize();
+                                } else {
+                                    dir = toTarget.normalize();
+                                }
+                                if (dir.lengthSq() === 0) {
+                                    dir = new THREE.Vector3(0, -1, 0).normalize();
+                                }
+
+                                b.position.copy(origin).add(dir.clone().multiplyScalar(3));
+                                b.userData.vel.copy(dir.multiplyScalar(bulletSpeed));
+                                b.userData.active = true;
+                                b.userData.life = 0;
+                            }
+                        }
+
+                        // We increment shots fired even if blocked, consuming the "slot" in the volley sequence.
+                        // This prevents the drone from hanging or rapid-firing later.
+                        attackDroneShotsFired++;
+                    }
+                }
+
+                if (attackDroneTimer > 1.5) {
+                    attackDroneState = 'retreat';
+                    attackDroneTimer = 0;
+                }
+            } else if (attackDroneState === 'retreat') {
+                // Drift off into the fog and then deactivate
+                attackDrone.position.z += 80 * dt;
+                attackDrone.position.y += 20 * dt;
+                if (attackDroneTimer > 2.0) {
+                    attackDrone.visible = false;
+                    attackDroneActive = false;
+                    attackDroneState = 'idle';
+                }
+            }
+
+            // Always face roughly toward the target
+            attackDrone.lookAt(targetPos);
+        }
+
+        // Update cyber city neon strips and industrial rooftop blocks
+        function updateCityProps(envData, time) {
+            const isCity = envData.b1.type === 'city';
+
+            if (!cityNeonMesh || !cityIndustrialMesh) return;
+
+            const segmentLength = 1200;
+            const baseBand = Math.floor(player.position.z / segmentLength);
+
+            // Replicate geometry constants
+            const blockSize = 120;
+
+            // Neon strips
+            for (let i = 0; i < cityNeons.length; i++) {
+                const info = cityNeons[i];
+
+                if (!isCity) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    cityNeonMesh.setMatrixAt(info.id, dummy.matrix);
+                    continue;
+                }
+
+                const worldZ = baseBand * segmentLength + info.zOffset;
+                const path = getSafePath(worldZ);
+
+                // Determine which tower we are on
+                const bx = Math.floor((path.x + info.offsetX) / blockSize);
+                const bz = Math.floor(worldZ / blockSize);
+                const blockHash = hash3(bx, 0, bz);
+                const towerHeight = 300 + blockHash * 1200;
+
+                // Calculate Height first to get Taper
+                const neonY = path.y - 20 + info.heightFrac * (towerHeight - (path.y - 20));
+
+                if (neonY > towerHeight) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    cityNeonMesh.setMatrixAt(info.id, dummy.matrix);
+                    continue;
+                }
+
+                // Calculate Taper and Width at this height
+                const taper = 1.0 - (neonY / 1600) * 0.3;
+                const W = (blockSize * 0.4 + blockHash * 5) * taper;
+
+                // Solve for surface X given Z
+                // Equation: 0.6 u^2 + 0.4 W u + (0.64 z^2 - W^2) = 0
+                // where u = |localX|
+
+                const towerCenterX = (bx + 0.5) * blockSize;
+                const towerCenterZ = (bz + 0.5) * blockSize; // Center of the block in Z
+
+                // We need to use the actual worldZ relative to the block center
+                // But wait, worldZ is just the position along the track.
+                // The tower is grid-aligned.
+                const localZ = Math.abs((worldZ % blockSize) - blockSize / 2);
+
+                // Quadratic coeffs
+                const a = 0.6;
+                const b = 0.4 * W;
+                const c = 0.64 * localZ * localZ - W * W;
+
+                let localX = 0;
+                const disc = b * b - 4 * a * c;
+                if (disc >= 0) {
+                    localX = (-b + Math.sqrt(disc)) / (2 * a);
+                } else {
+                    // If discriminant is negative, it means localZ is already outside the shape?
+                    // Or we are near the corner.
+                    // Fallback to simple box edge
+                    localX = W;
+                }
+
+                // Decide side based on original offset
+                const distToCenter = (path.x + info.offsetX) - towerCenterX;
+                const sign = distToCenter > 0 ? 1 : -1;
+
+                const neonX = towerCenterX + sign * localX;
+
+                dummy.position.set(neonX, neonY, worldZ);
+
+                // Rotation: Face outward
+                // Calculate normal vector at this point for perfect rotation?
+                // Normal of f(x,z) = 0.2 max(|x|,|z|) + 0.8 length(x,z)
+                // Approximate: just face away from center
+                const dx = neonX - towerCenterX;
+                const dz = worldZ - towerCenterZ;
+                const angle = Math.atan2(dx, dz);
+                dummy.rotation.set(0, angle, 0);
+
+                // Tilt
+                dummy.rotateX(info.tilt);
+
+                const pulse = 0.75 + 0.35 * Math.sin(time * 8.0 + info.zOffset * 0.1);
+                dummy.scale.set(pulse, pulse, pulse);
+
+                dummy.updateMatrix();
+                cityNeonMesh.setMatrixAt(info.id, dummy.matrix);
+            }
+
+            // Rooftop industrial clutter
+            for (let i = 0; i < cityIndustrials.length; i++) {
+                const info = cityIndustrials[i];
+
+                if (!isCity) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    cityIndustrialMesh.setMatrixAt(info.id, dummy.matrix);
+                    continue;
+                }
+
+                const worldZ = baseBand * segmentLength + info.zOffset;
+                const path = getSafePath(worldZ);
+
+                // Find tower top
+                const bx = Math.floor((path.x + info.offsetX) / blockSize);
+                const bz = Math.floor(worldZ / blockSize);
+                const blockHash = hash3(bx, 0, bz);
+                const towerHeight = 300 + blockHash * 1200;
+
+                // Place on roof
+                // Clamp X/Z to be within the tapered top
+                const taperAtTop = 1.0 - (towerHeight / 1600) * 0.3;
+                const W_top = (blockSize * 0.4 + blockHash * 5) * taperAtTop;
+
+                const towerCenterX = (bx + 0.5) * blockSize;
+                const towerCenterZ = (bz + 0.5) * blockSize; // We need to snap Z too for the check
+
+                // Original intended position
+                let ex = path.x + info.offsetX;
+
+                // Clamp relative to center
+                let dx = ex - towerCenterX;
+                // Simple box clamp for props is fine, just keep them inside W_top
+                // Maybe pull them in a bit (0.8 factor) so they don't hang off edge
+                const safeW = W_top * 0.8;
+                if (Math.abs(dx) > safeW) {
+                    dx = Math.sign(dx) * safeW;
+                }
+                ex = towerCenterX + dx;
+
+                dummy.position.set(ex, towerHeight, worldZ);
+
+                const wobble = 0.05 * Math.sin(time * 1.5 + info.jitter);
+                dummy.rotation.set(0, wobble, 0);
+
+                dummy.scale.set(1, 1, 1);
+                dummy.updateMatrix();
+                cityIndustrialMesh.setMatrixAt(info.id, dummy.matrix);
+            }
+
+            cityNeonMesh.instanceMatrix.needsUpdate = true;
+            cityIndustrialMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function checkCollision() {
+            const den = getDensity(player.position.x, player.position.y, player.position.z + 2);
+            if (den > 0.1) {
+                gameOver();
+            }
+        }
+
+        function updatePlayer(dt) {
+            if (player.isDead) return;
+
+            // More direct, snappy mapping from mouse to glider orientation
+            // Increase lateral (roll) range by ~10 degrees
+            const targetRotZ = mouse.x * 1.97;
+            const targetRotX = (player.invertPitch ? -1 : 1) * mouse.y * 1.5;
+
+            player.rotation.z += (targetRotZ - player.rotation.z) * 8 * dt;
+            player.rotation.x += (targetRotX - player.rotation.x) * 8 * dt;
+
+            player.mesh.rotation.z = player.rotation.z;
+            player.mesh.rotation.x = player.rotation.x;
+            player.mesh.rotation.y = -player.rotation.z * 0.3;
+
+            // Forward direction based on current glider orientation (for camera look-ahead)
+            const forwardDir = new THREE.Vector3(0, 0, 1).applyEuler(player.mesh.rotation).normalize();
+
+            // Base movement
+            let forwardSpeed = CONFIG.speed;
+            let xSpeed = -player.rotation.z * 65;
+            let ySpeed = -player.rotation.x * 55;
+
+            // Lift-off easing: ramp from hover to full speed and gently pull toward the safe path
+            if (isLiftOff) {
+                liftOffTime += dt;
+                const duration = 1.8;
+                const tNorm = Math.min(liftOffTime / duration, 1.0);
+                const easeOut = 1 - Math.pow(1 - tNorm, 3); // cubic ease-out
+
+                forwardSpeed *= 0.3 + 0.7 * easeOut;
+                xSpeed *= easeOut * 0.4;
+                ySpeed *= easeOut * 0.4;
+
+                const path = getSafePath(player.position.z + 30);
+                const targetY = THREE.MathUtils.lerp(path.y - 8, path.y - 3, easeOut);
+                player.position.y += (targetY - player.position.y) * 2.0 * dt;
+
+                if (tNorm >= 1.0) {
+                    isLiftOff = false;
+                }
+            }
+
+            player.position.x += xSpeed * dt;
+            player.position.y += ySpeed * dt;
+            player.position.z += forwardSpeed * dt;
+
+            // Camera: strictly follow the glider heading (no path blending).
+            // This reflects yaw/pitch/roll immediately in the view.
+            const camOffsetY = 7;
+            const camBack = 25;
+            const camPos = new THREE.Vector3().copy(player.position)
+                .add(forwardDir.clone().multiplyScalar(-camBack));
+            camPos.y += camOffsetY;
+            camera.position.copy(camPos);
+
+            const lookAheadDist = 80;
+            const lookTarget = new THREE.Vector3().copy(player.position)
+                .add(forwardDir.clone().multiplyScalar(lookAheadDist));
+            camera.lookAt(lookTarget);
+
+            player.mesh.position.copy(player.position);
+
+            const sun = scene.children.find(c => c.type === "Mesh" && c.geometry.type === "CircleGeometry");
+            if (sun) {
+                sun.position.z = player.position.z + 400;
+                sun.position.x = player.position.x;
+                sun.position.y = player.position.y + 50;
+            }
+
+            player.score = Math.floor(player.position.z / 10);
+            document.getElementById('score-display').innerText = `SCORE: ${player.score}`;
+        }
+
+        function gameOver() {
+            player.isDead = true;
+            isPlaying = false;
+            document.getElementById('crash-overlay').style.display = 'flex';
+            document.getElementById('final-score').innerText = `FINAL SCORE: ${player.score}`;
+            document.getElementById('score-display').style.display = 'none';
+            const danger = document.getElementById('danger-display');
+            if (danger) danger.style.display = 'none';
+        }
+
+        function resetGame() {
+            player.isDead = false;
+            randomizeRunSeed();
+            // Spawn location
+            const spawnZ = 0;
+            const spawnPath = getSafePath(spawnZ);
+            player.position.set(spawnPath.x, spawnPath.y - 20, spawnZ);
+            player.rotation.set(0, 0, 0);
+            camera.position.set(spawnPath.x, spawnPath.y + 10, spawnZ - 40);
+            camera.lookAt(spawnPath.x, spawnPath.y - 5, spawnZ + 60);
+            player.score = 0;
+            document.getElementById('crash-overlay').style.display = 'none';
+            document.getElementById('score-display').style.display = 'block';
+            const danger = document.getElementById('danger-display');
+            if (danger) danger.style.display = 'none';
+            isPlaying = true;
+            isMenuPreview = false;
+            isLiftOff = true;
+            liftOffTime = 0;
+            attackDroneActive = false;
+            attackDroneState = 'idle';
+            attackDroneCityEngages = 0;
+            attackDroneCityMaxEngages = 0;
+            lastCityAttackTime = -Infinity;
+            miningDroneDestroyed = false;
+            miningDroneExploding = false;
+            miningDroneExplosionTime = 0;
+            miningDroneActivated = false;
+            if (miningDrone) {
+                miningDrone.visible = false;
+                // Restore all children except explosion mesh in case they were hidden
+                miningDrone.children.forEach(child => {
+                    if (child === miningDroneExplosionMesh) {
+                        child.visible = false;
+                    } else {
+                        child.visible = true;
+                    }
+                });
+            }
+            attackTargetHasPrev = false;
+            if (attackDrone) {
+                attackDrone.visible = false;
+                attackDroneBullets.forEach(b => {
+                    b.visible = false;
+                    b.userData.active = false;
+                    b.userData.life = 0;
+                });
+            }
+            if (player.mesh) {
+                player.mesh.visible = true;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+            const t = performance.now() * 0.001;
+
+            isMenuPreview = false;
+
+            if (isPlaying) {
+                updatePlayer(dt);
+                checkCollision();
+                const envData = updateEnvironment();
+                updateVoxels(envData);
+                updateWarningLightInstances(envData, t);
+                updateWaterInstance(envData, t);
+                updateCityProps(envData, t);
+                updateTunnelDebrisInstances(envData, t);
+                updateMiningDrone(envData, dt, t);
+                updateAttackDrone(envData, dt, t);
+
+                // Audio Reactivity
+                const path = getSafePath(player.position.z);
+                const dx = player.position.x - path.x;
+                const dy = player.position.y - path.y;
+                const distFromSafeCenter = Math.sqrt(dx * dx + dy * dy);
+                let geoIntensity = Math.max(0, (distFromSafeCenter - 10) / 25);
+
+                const lookAheadDist = 30;
+                const forwardZ = player.position.z + lookAheadDist;
+                const densityAhead = getDensity(player.position.x, player.position.y, forwardZ);
+                if (densityAhead > -0.5) geoIntensity += (densityAhead + 0.5);
+
+                geoIntensity = Math.min(1.0, Math.max(0.0, geoIntensity));
+
+                // Combat danger driven by attack drone and targeting state
+                let combatDanger = 0;
+                if (attackDroneActive && attackDroneIsTargetingGlider) {
+                    if (attackDroneState === 'approach') {
+                        combatDanger = 0.35;
+                    } else if (attackDroneState === 'engage') {
+                        combatDanger = 0.6;
+                    } else if (attackDroneState === 'fire') {
+                        const firePhase = Math.min(attackDroneTimer / 1.5, 1.0);
+                        const midEmphasis = 1 - Math.abs(0.5 - firePhase) * 2;
+                        combatDanger = 0.7 + 0.3 * midEmphasis;
+                    }
+                }
+
+                const biomeType = envData.b1.type;
+                const audioState = {
+                    biomeType,
+                    geoIntensity,
+                    combatDanger,
+                    hasWater: biomeType === 'canyon',
+                    hasTunnelLights: biomeType === 'tunnel',
+                    hasCityNeon: biomeType === 'city',
+                    hasGardens: biomeType === 'gardens',
+                    hasSkeletal: biomeType === 'skeletal',
+                    miningDroneAlive: !miningDroneDestroyed && !miningDroneExploding,
+                    miningDroneExploding,
+                    miningDroneDestroyed,
+                    attackDroneActive,
+                    attackDroneState,
+                    attackDroneIsTargetingGlider
+                };
+
+                AudioEngine.update(audioState);
+            } else if (voxelMesh && !player.isDead) {
+                // Stylized menu background: static neon-synth abstract landscape
+                updateMenuPreview();
+                updateMenuAbstractVoxels();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('ui-layer').style.display = 'none';
+            document.getElementById('score-display').style.display = 'block';
+            AudioEngine.init();
+            resetGame();
+        });
+        document.getElementById('restart-btn').addEventListener('click', resetGame);
+
+        initGame();
+
+    </script>
+</body>
+
+</html>

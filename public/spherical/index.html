@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sicilia Sferica - Un Viaggio Culturale</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --color-bg: #0a0a0a;
+            --color-text: #f0f0f0;
+            --color-accent: #d4af37;
+            /* Gold */
+            --color-glass: rgba(255, 255, 255, 0.1);
+            --color-glass-border: rgba(255, 255, 255, 0.2);
+            --font-heading: 'Playfair Display', serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-family: var(--font-body);
+            overflow: hidden;
+            /* Prevent body scroll, handle in panels */
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            /* Let clicks pass through to canvas */
+        }
+
+        .main-header {
+            position: absolute;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: auto;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .main-header h1 {
+            font-family: var(--font-heading);
+            font-size: 4rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--color-accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .main-header p {
+            font-size: 1.2rem;
+            font-weight: 300;
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }
+
+        .instructions {
+            font-size: 0.9rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+        }
+
+        /* 3D Panel Styling */
+        .panel-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 600px;
+            max-width: 90vw;
+            height: 70vh;
+            transform-style: preserve-3d;
+            transform: translate(-50%, -50%) perspective(1000px) rotateX(10deg) scale(0.8);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            z-index: 10;
+        }
+
+        .panel-container.active {
+            opacity: 1;
+            transform: translate(-50%, -50%) perspective(1000px) rotateX(0deg) scale(1);
+            pointer-events: auto;
+        }
+
+        .panel-content {
+            width: 100%;
+            height: 100%;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--color-glass-border);
+            border-radius: 16px;
+            padding: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+            color: #fff;
+
+            /* Scrollbar styling */
+            scrollbar-width: thin;
+            scrollbar-color: var(--color-accent) transparent;
+        }
+
+        .panel-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .panel-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .panel-content::-webkit-scrollbar-thumb {
+            background-color: var(--color-accent);
+            border-radius: 20px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: none;
+            border: none;
+            color: var(--color-text);
+            font-size: 2rem;
+            cursor: pointer;
+            transition: color 0.3s;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: var(--color-accent);
+        }
+
+        #panel-title {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            color: var(--color-accent);
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--color-glass-border);
+            padding-bottom: 1rem;
+        }
+
+        #panel-body {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            font-weight: 300;
+        }
+
+        #panel-body h3 {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #ddd;
+        }
+
+        #panel-body p {
+            margin-bottom: 1.5rem;
+        }
+
+        /* Cinematic Media Styling */
+        .panel-media {
+            width: 100%;
+            height: 250px;
+            overflow: hidden;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            position: relative;
+            border: 1px solid var(--color-glass-border);
+        }
+
+        .panel-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            animation: panZoom 20s infinite alternate linear;
+        }
+
+        @keyframes panZoom {
+            0% {
+                transform: scale(1) translate(0, 0);
+            }
+
+            100% {
+                transform: scale(1.2) translate(-2%, -2%);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <header class="main-header">
+            <h1>Sicilia</h1>
+            <p>Un'esplorazione sferica</p>
+            <div class="instructions">Trascina per ruotare &bull; Clicca sui marcatori</div>
+        </header>
+
+        <!-- Panels will be injected here or managed via JS -->
+        <div id="panel-container" class="panel-container">
+            <div class="panel-content">
+                <button class="close-btn" aria-label="Chiudi">&times;</button>
+                <h2 id="panel-title">Titolo</h2>
+                <div id="panel-body">Contenuto...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Configuration ---
+        const CONFIG = {
+            sphereRadius: 5,
+            cameraZ: 12,
+            colors: {
+                sphere: 0x111111,
+                sphereWireframe: 0x333333,
+                marker: 0xd4af37, // Gold
+                markerHover: 0xffffff
+            }
+        };
+
+        // --- State ---
+        const state = {
+            isPanelOpen: false,
+            activeTopic: null
+        };
+
+        // --- Content Data (Formal Italian) ---
+        // Helper to generate positions on a sphere (Fibonacci Sphere)
+        function getFibonacciSpherePoints(samples, radius) {
+            const points = [];
+            const phi = Math.PI * (3 - Math.sqrt(5)); // Golden angle
+            for (let i = 0; i < samples; i++) {
+                const y = 1 - (i / (samples - 1)) * 2; // y goes from 1 to -1
+                const radiusAtY = Math.sqrt(1 - y * y);
+                const theta = phi * i;
+                const x = Math.cos(theta) * radiusAtY;
+                const z = Math.sin(theta) * radiusAtY;
+                points.push(new THREE.Vector3(x, y, z).normalize());
+            }
+            return points;
+        }
+
+        const topicKeys = [
+            'arte', 'storia', 'cucina', 'etna', 'valle_templi',
+            'barocco', 'mercati', 'ceramica', 'vini', 'pupi',
+            'archimede', 'gattopardo', 'feste', 'eolie', 'cioccolato', 'arabo_normanno'
+        ];
+
+        const positions = getFibonacciSpherePoints(topicKeys.length, 1);
+
+        const TOPICS = {
+            arte: {
+                title: 'Arte e Letteratura',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicily%20greek%20theatre%20taormina%20art%20sunset%20cinematic',
+                content: `
+                    <p>La Sicilia è musa ispiratrice. Terra di Luigi Pirandello e Giovanni Verga, ha dato i natali al Verismo e ha ospitato la corte poetica di Federico II.</p>
+                    <h3>Il Teatro</h3>
+                    <p>I teatri greci di Siracusa e Taormina non sono rovine, ma palcoscenici vivi dove ancora oggi risuonano le tragedie di Eschilo e Euripide.</p>
+                `
+            },
+            storia: {
+                title: 'Storia Antica',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicily%20ancient%20greek%20temple%20ruins%20history%20cinematic',
+                content: `
+                    <p>Cuore del Mediterraneo, la Sicilia è stata fenicia, greca, romana, bizantina, araba, normanna, sveva, angioina, aragonese e spagnola.</p>
+                    <h3>La Magna Grecia</h3>
+                    <p>Siracusa fu la più grande città del mondo antico, rivale di Atene e Cartagine. I suoi tiranni dominarono i mari e promossero le arti.</p>
+                `
+            },
+            cucina: {
+                title: 'Gastronomia',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20food%20pasta%20cannoli%20feast%20cinematic',
+                content: `
+                    <p>Un trionfo di sapori: la dolcezza della ricotta, l'acidità degli agrumi, la sapidità del mare. Arancini, caponata e pasta alla Norma sono icone globali.</p>
+                    <h3>I Dolci</h3>
+                    <p>La pasticceria siciliana è un'arte barocca: Cassata, Cannoli e la Granita con brioche sono esperienze mistiche per il palato.</p>
+                `
+            },
+            etna: {
+                title: 'L\'Etna',
+                imageUrl: 'https://image.pollinations.ai/prompt/mount%20etna%20volcano%20eruption%20lava%20night%20cinematic',
+                content: `
+                    <p>'A Muntagna', come la chiamano i catanesi, è il vulcano attivo più alto d'Europa. Patrimonio UNESCO, è una divinità capricciosa che fertilizza la terra e disegna il paesaggio.</p>
+                    <h3>Mito e Natura</h3>
+                    <p>Qui si dice che Efesto avesse la sua fucina. Oggi è un paradiso per escursionisti e amanti del vino, grazie ai vigneti che crescono sulle sue pendici laviche.</p>
+                `
+            },
+            valle_templi: {
+                title: 'Valle dei Templi',
+                imageUrl: 'https://image.pollinations.ai/prompt/agrigento%20valley%20of%20temples%20concordia%20sunset%20cinematic',
+                content: `
+                    <p>Ad Agrigento sorge una delle più straordinarie testimonianze dell'architettura dorica nel mondo. Il Tempio della Concordia è giunto a noi quasi intatto.</p>
+                    <h3>Akragas</h3>
+                    <p>Pindaro la definì "la più bella città dei mortali". Passeggiare tra questi giganti di pietra al tramonto è un viaggio indietro nel tempo di 2500 anni.</p>
+                `
+            },
+            barocco: {
+                title: 'Barocco Siciliano',
+                imageUrl: 'https://image.pollinations.ai/prompt/noto%20sicily%20baroque%20cathedral%20architecture%20golden%20hour%20cinematic',
+                content: `
+                    <p>Dopo il terremoto del 1693, il Val di Noto risorse in uno stile unico: esuberante, teatrale, dorato. Noto, Modica e Ragusa Ibla sono gioielli di pietra.</p>
+                    <h3>Mascheroni e Putti</h3>
+                    <p>Le facciate delle chiese e i balconi dei palazzi nobiliari sono animati da figure grottesche e floreali che sembrano danzare alla luce del sole.</p>
+                `
+            },
+            mercati: {
+                title: 'I Mercati Storici',
+                imageUrl: 'https://image.pollinations.ai/prompt/palermo%20street%20market%20food%20vibrant%20colors%20cinematic',
+                content: `
+                    <p>Vucciria, Ballarò, Il Capo a Palermo; la Pescheria a Catania. Luoghi dove il tempo si ferma e i sensi vengono assaliti da colori, odori e "abbanniate" (grida) dei venditori.</p>
+                    <h3>Cibo di Strada</h3>
+                    <p>È qui che nasce lo street food: panelle, crocchè, stigghiola e pani ca' meusa. Un rito quotidiano di socialità e gusto.</p>
+                `
+            },
+            ceramica: {
+                title: 'Ceramica di Caltagirone',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20ceramics%20caltagirone%20majolica%20art%20cinematic',
+                content: `
+                    <p>Da millenni a Caltagirone si modella l'argilla. Le sue scalinate maiolicate e le Teste di Moro sono simboli di un artigianato che si fa arte.</p>
+                    <h3>Le Teste di Moro</h3>
+                    <p>Dietro questi vasi iconici si cela una leggenda di amore, gelosia e vendetta risalente al periodo della dominazione araba.</p>
+                `
+            },
+            vini: {
+                title: 'Vini di Sicilia',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20vineyard%20wine%20grapes%20sunset%20cinematic',
+                content: `
+                    <p>Terra di vigneti baciati dal sole. Dal robusto Nero d'Avola ai minerali bianchi dell'Etna, fino al dolce Marsala e al Passito di Pantelleria.</p>
+                    <h3>Rinascimento Enologico</h3>
+                    <p>Negli ultimi decenni la Sicilia si è affermata come eccellenza mondiale, valorizzando i vitigni autoctoni come il Grillo e il Frappato.</p>
+                `
+            },
+            pupi: {
+                title: 'I Pupi Siciliani',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20puppet%20theatre%20knights%20armor%20cinematic',
+                content: `
+                    <p>L'Opera dei Pupi non è un semplice spettacolo di marionette, ma un rito epico che narra le gesta di Orlando e dei Paladini di Francia.</p>
+                    <h3>Patrimonio Immateriale</h3>
+                    <p>Riconosciuta dall'UNESCO, questa tradizione tramanda valori di onore, giustizia e amore attraverso l'abilità dei "pupari".</p>
+                `
+            },
+            archimede: {
+                title: 'Archimede',
+                imageUrl: 'https://image.pollinations.ai/prompt/archimedes%20syracuse%20geometry%20ancient%20greece%20cinematic',
+                content: `
+                    <p>Il più grande genio dell'antichità visse e morì a Siracusa. Matematico, fisico, inventore, difese la sua città dalle navi romane con i suoi specchi ustori.</p>
+                    <h3>Eureka!</h3>
+                    <p>La sua eredità permea ancora la scienza moderna. Siracusa lo ricorda con orgoglio come il suo figlio più illustre.</p>
+                `
+            },
+            gattopardo: {
+                title: 'Il Gattopardo',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicily%2019th%20century%20ballroom%20dance%20elegant%20cinematic',
+                content: `
+                    <p>Il capolavoro di Tomasi di Lampedusa è l'affresco definitivo della Sicilia nel momento del passaggio dai Borbone all'Italia.</p>
+                    <h3>"Tutto cambi..."</h3>
+                    <p>"Se vogliamo che tutto rimanga come è, bisogna che tutto cambi". Una frase che racchiude l'anima contraddittoria e affascinante dell'isola.</p>
+                `
+            },
+            feste: {
+                title: 'Feste Religiose',
+                imageUrl: 'https://image.pollinations.ai/prompt/sicily%20religious%20procession%20festival%20crowd%20night%20cinematic',
+                content: `
+                    <p>La devozione in Sicilia è spettacolo. Il Festino di Santa Rosalia a Palermo e la Festa di Sant'Agata a Catania sono eventi grandiosi che paralizzano le città.</p>
+                    <h3>Folklore e Fede</h3>
+                    <p>Processioni, "candelore", fuochi d'artificio e bande musicali creano un'atmosfera di misticismo collettivo unica al mondo.</p>
+                `
+            },
+            eolie: {
+                title: 'Le Isole Eolie',
+                imageUrl: 'https://image.pollinations.ai/prompt/aeolian%20islands%20stromboli%20sea%20volcano%20cinematic',
+                content: `
+                    <p>Sette perle vulcaniche nel Tirreno. Stromboli e Vulcano offrono spettacoli di fuoco, mentre Panarea e Salina incantano con la loro mondanità e natura.</p>
+                    <h3>Patrimonio UNESCO</h3>
+                    <p>Un paradiso per geologi e turisti, dove il mare blu cobalto incontra la roccia nera lavica.</p>
+                `
+            },
+            cioccolato: {
+                title: 'Cioccolato di Modica',
+                imageUrl: 'https://image.pollinations.ai/prompt/modica%20chocolate%20bar%20rustic%20sicily%20cinematic',
+                content: `
+                    <p>Un cioccolato unico, lavorato a freddo secondo un'antica ricetta azteca portata dagli spagnoli. Granuloso, aromatico, puro.</p>
+                    <h3>Tradizione Dolciaria</h3>
+                    <p>Non viene concato, mantenendo integri i cristalli di zucchero. Un'esperienza sensoriale diversa da qualsiasi altro cioccolato.</p>
+                `
+            },
+            arabo_normanno: {
+                title: 'Palermo Arabo-Normanna',
+                imageUrl: 'https://image.pollinations.ai/prompt/palermo%20arab%20norman%20palace%20mosaics%20gold%20cinematic',
+                content: `
+                    <p>Il Palazzo dei Normanni, la Cappella Palatina, la Zisa. Monumenti che testimoniano una convivenza pacifica e feconda tra culture diverse.</p>
+                    <h3>Sincretismo</h3>
+                    <p>Cupole rosse islamiche, mosaici bizantini e strutture romaniche si fondono in uno stile che rappresenta l'apice della civiltà medievale siciliana.</p>
+                `
+            }
+        };
+
+        // Assign positions to topics
+        topicKeys.forEach((key, index) => {
+            TOPICS[key].id = key;
+            TOPICS[key].position = positions[index];
+        });
+
+        // --- Initialization ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(CONFIG.colors.sphere); // Dark background matching CSS
+        scene.fog = new THREE.FogExp2(CONFIG.colors.sphere, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.z = CONFIG.cameraZ;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enableZoom = false;
+        controls.enablePan = false;
+        controls.minPolarAngle = Math.PI / 4;
+        controls.maxPolarAngle = Math.PI * 3 / 4;
+        controls.autoRotate = true; // Enable auto-rotation for better discovery
+        controls.autoRotateSpeed = 0.5;
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(5, 3, 5);
+        scene.add(dirLight);
+
+        const pointLight = new THREE.PointLight(CONFIG.colors.accent, 2, 20);
+        pointLight.position.set(-5, -2, 5);
+        scene.add(pointLight);
+
+        // --- Objects ---
+
+        // 1. The Globe
+        const sphereGeometry = new THREE.SphereGeometry(CONFIG.sphereRadius, 64, 64);
+
+        const sphereMaterial = new THREE.MeshStandardMaterial({
+            color: 0x000000,
+            roughness: 0.4,
+            metalness: 0.8,
+        });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        scene.add(sphere);
+
+        // Wireframe overlay
+        const wireframeGeo = new THREE.WireframeGeometry(sphereGeometry);
+        const wireframeMat = new THREE.LineBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.3 });
+        const wireframe = new THREE.LineSegments(wireframeGeo, wireframeMat);
+        sphere.add(wireframe);
+
+        // 2. Markers (The "Sides" / Topics)
+        const markersGroup = new THREE.Group();
+        sphere.add(markersGroup);
+
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.crossOrigin = 'anonymous'; // Important for external images
+
+        const markerGeometry = new THREE.RingGeometry(0.6, 0.65, 32); // Slightly larger frame
+        const markerMaterial = new THREE.MeshBasicMaterial({
+            color: CONFIG.colors.marker,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        // Helper to add markers
+        function addMarker(topicKey) {
+            const topic = TOPICS[topicKey];
+
+            // Group for the marker (Frame + Image)
+            const markerGroup = new THREE.Group();
+
+            // Position on sphere surface
+            const pos = topic.position.clone().multiplyScalar(CONFIG.sphereRadius + 0.05);
+            markerGroup.position.copy(pos);
+            markerGroup.lookAt(pos.clone().multiplyScalar(2)); // Face outwards
+
+            // 1. The Image Patch
+            const imageGeo = new THREE.CircleGeometry(0.6, 32);
+            const texture = textureLoader.load(topic.imageUrl);
+            // Fix color space if needed, but standard is usually fine for these
+            texture.colorSpace = THREE.SRGBColorSpace;
+
+            const imageMat = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.DoubleSide
+            });
+            const imageMesh = new THREE.Mesh(imageGeo, imageMat);
+            markerGroup.add(imageMesh);
+
+            // 2. The Gold Frame
+            const frameMesh = new THREE.Mesh(markerGeometry, markerMaterial.clone());
+            frameMesh.position.z = 0.01; // Slightly in front to avoid z-fighting
+            markerGroup.add(frameMesh);
+
+            // Store metadata on the group so raycaster finds it
+            // Raycaster intersects meshes, so we need to bubble up or attach data to meshes
+            imageMesh.userData = { isMarker: true, topicId: topicKey, parentGroup: markerGroup };
+            frameMesh.userData = { isMarker: true, topicId: topicKey, parentGroup: markerGroup };
+
+            markersGroup.add(markerGroup);
+        }
+
+        topicKeys.forEach(addMarker);
+
+
+        // --- Interaction ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // Hover effect
+            if (!state.isPanelOpen) {
+                raycaster.setFromCamera(mouse, camera);
+
+                // Intersect the sphere (which includes markers as children)
+                // This ensures we detect if the sphere blocks a marker
+                const intersects = raycaster.intersectObject(sphere, true);
+
+                // Filter out non-Mesh objects (like the wireframe LineSegments)
+                const meshIntersects = intersects.filter(hit => hit.object.isMesh);
+
+                let hoveredMarkerGroup = null;
+
+                if (meshIntersects.length > 0) {
+                    const firstHit = meshIntersects[0];
+                    // If the first thing we hit is a marker, then it's visible
+                    if (firstHit.object.userData.isMarker) {
+                        hoveredMarkerGroup = firstHit.object.userData.parentGroup;
+                    }
+                    // If the first thing is the sphere, then any marker behind it is occluded
+                }
+
+                // Reset all scales
+                markersGroup.children.forEach(group => {
+                    group.scale.setScalar(1.0);
+                });
+
+                // Apply hover
+                if (hoveredMarkerGroup) {
+                    hoveredMarkerGroup.scale.setScalar(1.2);
+                    document.body.style.cursor = 'pointer';
+                } else {
+                    document.body.style.cursor = 'default';
+                }
+            }
+        }
+
+        function onMouseClick(event) {
+            if (state.isPanelOpen) return; // Ignore clicks on sphere if panel is open
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(sphere, true);
+            const meshIntersects = intersects.filter(hit => hit.object.isMesh);
+
+            if (meshIntersects.length > 0) {
+                const firstHit = meshIntersects[0];
+                if (firstHit.object.userData.isMarker) {
+                    const topicId = firstHit.object.userData.topicId;
+                    if (topicId) {
+                        openPanel(topicId);
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('click', onMouseClick);
+        window.addEventListener('resize', onWindowResize);
+
+        // --- Panel Logic ---
+        const panelContainer = document.getElementById('panel-container');
+        const closeBtn = document.querySelector('.close-btn');
+        const panelTitle = document.getElementById('panel-title');
+        const panelBody = document.getElementById('panel-body');
+
+        function openPanel(topicId) {
+            state.isPanelOpen = true;
+            state.activeTopic = topicId;
+
+            const topic = TOPICS[topicId];
+
+            // Update Content
+            panelTitle.textContent = topic.title;
+
+            // Inject Media + Content
+            const mediaHtml = topic.imageUrl ? `<div class="panel-media"><img src="${topic.imageUrl}" alt="${topic.title}"></div>` : '';
+            panelBody.innerHTML = mediaHtml + topic.content;
+
+            // Animate Camera/Sphere to center the marker
+            // We want the marker to face the camera (0,0,1)
+            // So we need to rotate the sphere so that the marker's local position aligns with world Z
+
+            // Simple approach: Rotate sphere
+            // Better approach for OrbitControls: Move camera?
+            // Let's just freeze controls and show panel.
+            // Ideally we rotate the sphere to present the content.
+
+            const targetPos = topic.position.clone().multiplyScalar(CONFIG.cameraZ); // Where camera should be relative to sphere
+
+            // For simplicity with OrbitControls, let's just show the panel.
+            // The user has already clicked it, so it's likely visible.
+
+            panelContainer.classList.add('active');
+            controls.enabled = false; // Disable rotation while reading
+            controls.autoRotate = false; // Stop auto-rotation
+        }
+
+        function closePanel(event) {
+            event.stopPropagation();
+            state.isPanelOpen = false;
+            state.activeTopic = null;
+            panelContainer.classList.remove('active');
+            controls.enabled = true;
+            controls.autoRotate = true; // Resume auto-rotation
+        }
+
+        closeBtn.addEventListener('click', closePanel);
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Gentle rotation if idle?
+            if (!state.isPanelOpen) {
+                sphere.rotation.y += 0.0005;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        animate();
+    </script>
+</body>
+
+</html>

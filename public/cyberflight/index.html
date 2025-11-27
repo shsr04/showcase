@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyberflight</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #0ff;
+            text-shadow: 0 0 5px #0ff;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.8);
+            color: #0ff;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 20;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui">
+        <div>CYBERFLIGHT // SYSTEM ONLINE</div>
+        <div id="debug"></div>
+    </div>
+    <div id="overlay">
+        <div>CLICK TO ENGAGE NEURAL LINK</div>
+        <div style="font-size: 14px; margin-top: 10px; opacity: 0.7;">(Mouse to look, Audio enabled)</div>
+    </div>
+    <canvas id="glcanvas"></canvas>
+
+    <!-- SHADERS -->
+    <script type="x-shader/x-vertex" id="vertex-shader">
+        #version 300 es
+        
+        // Instanced attributes
+        layout(location = 0) in vec3 a_position;
+        layout(location = 1) in vec3 a_normal;
+        layout(location = 2) in vec3 a_instancePosition;
+        layout(location = 3) in vec3 a_instanceScale;
+        layout(location = 4) in vec3 a_instanceColor; // r,g,b, emission_strength
+        layout(location = 5) in float a_instanceType; // 0=building, 1=neon
+
+        uniform mat4 u_viewProjection;
+        uniform float u_time;
+
+        out vec3 v_normal;
+        out vec3 v_worldPosition;
+        out vec3 v_color;
+        out float v_type;
+
+        void main() {
+            vec3 pos = a_position * a_instanceScale + a_instancePosition;
+            v_worldPosition = pos;
+            v_normal = a_normal;
+            v_color = a_instanceColor;
+            v_type = a_instanceType;
+
+            gl_Position = u_viewProjection * vec4(pos, 1.0);
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="fragment-shader">
+        #version 300 es
+        precision highp float;
+
+        in vec3 v_normal;
+        in vec3 v_worldPosition;
+        in vec3 v_color;
+        in float v_type;
+
+        uniform vec3 u_cameraPosition;
+        uniform vec3 u_fogColor;
+        uniform float u_fogDensity;
+
+        out vec4 outColor;
+
+        // Pseudo-random helper (needs to be declared before use in GLSL)
+        float random(vec2 st) {
+            return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+        }
+
+        void main() {
+            vec3 normal = normalize(v_normal);
+            vec3 viewDir = normalize(u_cameraPosition - v_worldPosition);
+
+            // Basic lighting
+            vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
+            float diff = max(dot(normal, lightDir), 0.0);
+            
+            vec3 baseColor = v_color;
+            vec3 finalColor = baseColor * (0.2 + 0.8 * diff); // Ambient + Diffuse
+
+            // Emissive logic for neon
+            if (v_type > 0.5) {
+                finalColor = v_color * 2.0; // Boost brightness for neon
+            } else {
+                // Windows/Building texture procedural generation
+                // Simple grid pattern based on world position
+                float windowSize = 0.5;
+                float wx = step(0.1, mod(v_worldPosition.x, windowSize));
+                float wy = step(0.1, mod(v_worldPosition.y, windowSize));
+                float wz = step(0.1, mod(v_worldPosition.z, windowSize));
+                
+                // Only show windows on sides
+                float isWindow = wx * wy * wz;
+                if (isWindow > 0.5 && random(floor(v_worldPosition.xy/windowSize)) > 0.5) {
+                     finalColor += vec3(0.8, 0.9, 1.0) * 0.5; // Window light
+                }
+            }
+
+            // Fog
+            float dist = distance(u_cameraPosition, v_worldPosition);
+            float fogFactor = 1.0 - exp(-dist * u_fogDensity);
+            
+            // Height fog
+            float heightFactor = exp(-v_worldPosition.y * 0.02);
+            fogFactor = mix(fogFactor, 1.0, heightFactor * 0.5);
+            fogFactor = clamp(fogFactor, 0.0, 1.0);
+
+            finalColor = mix(finalColor, u_fogColor, fogFactor);
+
+            outColor = vec4(finalColor, 1.0);
+        }
+    </script>
+
+    <script>
+        // --- CONSTANTS & CONFIG ---
+        const CONFIG = {
+            fogColor: [0.02, 0.02, 0.05], // Dark blueish
+            fogDensity: 0.008,
+            speed: 20.0, // Base units per second (constant forward flight)
+            worldSize: 2000,
+            chunkSize: 200,
+            buildingCount: 5000
+        };
+
+        // --- STATE ---
+        const state = {
+            camera: {
+                x: 0, y: 50, z: 0,
+                pitch: 0, yaw: 0
+            },
+            lastTime: 0,
+            gl: null,
+            program: null,
+            audioCtx: null
+        };
+
+        // --- INITIALIZATION ---
+        function init() {
+            const canvas = document.getElementById('glcanvas');
+            const gl = canvas.getContext('webgl2');
+
+            if (!gl) {
+                document.body.innerHTML = '<h1>WebGL 2.0 is required but not supported.</h1>';
+                return;
+            }
+            state.gl = gl;
+
+            resize();
+            window.addEventListener('resize', resize);
+
+            // Compile Shaders
+            const vsSource = document.getElementById('vertex-shader').text.trim();
+            const fsSource = document.getElementById('fragment-shader').text.trim();
+            state.program = createProgram(gl, vsSource, fsSource);
+
+            // Setup Geometry (Instanced Cubes)
+            setupGeometry(gl);
+
+            // Input Handling
+            setupInput();
+
+            // Start Loop
+            requestAnimationFrame(render);
+        }
+
+        function resize() {
+            const canvas = state.gl.canvas;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            state.gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+
+        // --- INPUT & POINTER LOCK ---
+        function setupInput() {
+            const overlay = document.getElementById('overlay');
+            const canvas = document.getElementById('glcanvas');
+
+            function engage() {
+                overlay.classList.add('hidden');
+                // Start audio on user gesture
+                if (!state.audioCtx) {
+                    initAudio();
+                } else if (state.audioCtx.state === 'suspended') {
+                    state.audioCtx.resume();
+                }
+                // Enter pointer lock for mouse look
+                canvas.requestPointerLock();
+            }
+
+            overlay.addEventListener('click', engage);
+            canvas.addEventListener('click', () => {
+                if (document.pointerLockElement !== canvas) {
+                    canvas.requestPointerLock();
+                }
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement !== canvas) {
+                    overlay.classList.remove('hidden');
+                }
+            });
+
+            const sensitivity = 0.0025;
+            document.addEventListener('mousemove', (e) => {
+                if (document.pointerLockElement !== canvas) return;
+                state.camera.yaw += e.movementX * sensitivity;
+                state.camera.pitch -= e.movementY * sensitivity;
+                // Clamp pitch to avoid flipping
+                const limit = Math.PI / 2 - 0.1;
+                if (state.camera.pitch > limit) state.camera.pitch = limit;
+                if (state.camera.pitch < -limit) state.camera.pitch = -limit;
+            });
+        }
+
+        // --- WEBGL HELPERS ---
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vsSource, fsSource) {
+            const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+            if (!vs || !fs) {
+                console.error('Aborting program creation: shader compilation failed.');
+                return null;
+            }
+            const program = gl.createProgram();
+            gl.attachShader(program, vs);
+            gl.attachShader(program, fs);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.error('Program link error:', gl.getProgramInfoLog(program));
+                return null;
+            }
+            return program;
+        }
+
+        // --- MATRIX MATH HELPERS ---
+        const Mat4 = {
+            create: () => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+            perspective: (out, fovy, aspect, near, far) => {
+                const f = 1.0 / Math.tan(fovy / 2);
+                const nf = 1 / (near - far);
+                out[0] = f / aspect;
+                out[1] = 0;
+                out[2] = 0;
+                out[3] = 0;
+                out[4] = 0;
+                out[5] = f;
+                out[6] = 0;
+                out[7] = 0;
+                out[8] = 0;
+                out[9] = 0;
+                out[10] = (far + near) * nf;
+                out[11] = -1;
+                out[12] = 0;
+                out[13] = 0;
+                out[14] = (2 * far * near) * nf;
+                out[15] = 0;
+            },
+            lookAt: (out, eye, center, up) => {
+                const x0 = eye[0], x1 = eye[1], x2 = eye[2];
+                const y0 = center[0], y1 = center[1], y2 = center[2];
+                const z0 = up[0], z1 = up[1], z2 = up[2];
+                let len = 0;
+                let zx = x0 - y0, zy = x1 - y1, zz = x2 - y2;
+                len = 1 / Math.sqrt(zx * zx + zy * zy + zz * zz);
+                zx *= len; zy *= len; zz *= len;
+                let xx = z1 * zz - z2 * zy, xy = z2 * zx - z0 * zz, xz = z0 * zy - z1 * zx;
+                len = Math.sqrt(xx * xx + xy * xy + xz * xz);
+                if (!len) { xx = 0; xy = 0; xz = 0; } else { len = 1 / len; xx *= len; xy *= len; xz *= len; }
+                let yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+                len = Math.sqrt(yx * yx + yy * yy + yz * yz);
+                if (!len) { yx = 0; yy = 0; yz = 0; } else { len = 1 / len; yx *= len; yy *= len; yz *= len; }
+                out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
+                out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
+                out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
+                out[12] = -(xx * x0 + xy * x1 + xz * x2);
+                out[13] = -(yx * x0 + yy * x1 + yz * x2);
+                out[14] = -(zx * x0 + zy * x1 + zz * x2);
+                out[15] = 1;
+            },
+            multiply: (out, a, b) => {
+                const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+                const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+                const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+                const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+                let b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
+                out[0] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+                b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
+                out[4] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[5] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[6] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[7] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+                b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
+                out[8] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[9] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[10] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[11] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+                b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
+                out[12] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+                out[13] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+                out[14] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+                out[15] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+            }
+        };
+
+
+        // --- GEOMETRY & CITY GENERATION ---
+        function setupGeometry(gl) {
+            // 1. Define Cube Geometry (Vertices & Normals)
+            // 24 vertices for a cube (6 faces * 4 verts) - using separate verts for flat shading normals
+            const positions = new Float32Array([
+                // Front face
+                -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5,
+                // Back face
+                -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5,
+                // Top face
+                -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5,
+                // Bottom face
+                -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5,
+                // Right face
+                0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5,
+                // Left face
+                -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5,
+            ]);
+
+            const normals = new Float32Array([
+                // Front
+                0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
+                // Back
+                0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1,
+                // Top
+                0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+                // Bottom
+                0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0,
+                // Right
+                1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
+                // Left
+                -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0,
+            ]);
+
+            const indices = new Uint16Array([
+                0, 1, 2, 0, 2, 3,    // Front
+                4, 5, 6, 4, 6, 7,    // Back
+                8, 9, 10, 8, 10, 11,   // Top
+                12, 13, 14, 12, 14, 15,   // Bottom
+                16, 17, 18, 16, 18, 19,   // Right
+                20, 21, 22, 20, 22, 23    // Left
+            ]);
+
+            // Create VAO
+            const vao = gl.createVertexArray();
+            gl.bindVertexArray(vao);
+
+            // Position Buffer
+            const posBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+            // Normal Buffer
+            const normBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, normBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(1);
+            gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+
+            // Index Buffer
+            const indexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+            // --- INSTANCE DATA GENERATION ---
+            const instanceCount = CONFIG.buildingCount;
+            const instancePositions = new Float32Array(instanceCount * 3);
+            const instanceScales = new Float32Array(instanceCount * 3);
+            const instanceColors = new Float32Array(instanceCount * 3);
+            const instanceTypes = new Float32Array(instanceCount);
+
+            const gridSize = Math.sqrt(instanceCount);
+            const spacing = CONFIG.worldSize / gridSize;
+
+            for (let i = 0; i < instanceCount; i++) {
+                // Grid layout with some noise
+                const row = Math.floor(i / gridSize);
+                const col = i % gridSize;
+
+                let x = (col - gridSize / 2) * spacing;
+                let z = (row - gridSize / 2) * spacing;
+
+                // Add some randomness to position
+                x += (Math.random() - 0.5) * spacing * 0.5;
+                z += (Math.random() - 0.5) * spacing * 0.5;
+
+                // Create "Trenches" (Roads)
+                // If x or z is close to 0 or multiples of larger blocks, make it empty or low
+                const isMainRoad = Math.abs(x) < 20 || Math.abs(z) < 20;
+                const isSideRoad = (Math.abs(x) % 200 < 15) || (Math.abs(z) % 200 < 15);
+
+                let width = spacing * (0.5 + Math.random() * 0.5);
+                let depth = spacing * (0.5 + Math.random() * 0.5);
+                let height = 10 + Math.random() * 50; // Base height
+
+                // Skyscrapers
+                if (Math.random() > 0.95 && !isMainRoad) {
+                    height = 100 + Math.random() * 200;
+                    width *= 1.5;
+                    depth *= 1.5;
+                } else if (Math.random() > 0.8 && !isMainRoad) {
+                    height = 50 + Math.random() * 100;
+                }
+
+                if (isMainRoad || isSideRoad) {
+                    // Road or low structure
+                    height = 1;
+                    width = spacing * 0.9;
+                    depth = spacing * 0.9;
+                    // Maybe make it a neon road line?
+                    if (Math.random() > 0.5) {
+                        // Neon line
+                        instanceTypes[i] = 1.0; // Neon
+                        instanceColors[i * 3] = 0.0;
+                        instanceColors[i * 3 + 1] = 0.8;
+                        instanceColors[i * 3 + 2] = 1.0;
+                        height = 0.2;
+                        width = spacing * 0.1;
+                    } else {
+                        instanceTypes[i] = 0.0; // Pavement
+                        instanceColors[i * 3] = 0.1;
+                        instanceColors[i * 3 + 1] = 0.1;
+                        instanceColors[i * 3 + 2] = 0.1;
+                    }
+                } else {
+                    // Building
+                    instanceTypes[i] = 0.0;
+                    // Dark building colors
+                    const shade = 0.05 + Math.random() * 0.1;
+                    instanceColors[i * 3] = shade;
+                    instanceColors[i * 3 + 1] = shade;
+                    instanceColors[i * 3 + 2] = shade + 0.05; // Slight blue tint
+                }
+
+                // Neon Signs attached to buildings?
+                // For simplicity in this pass, we just make some random buildings glow or have neon bits
+                // A better way for instancing is to have separate neon instances, but let's just make some "neon pillars" for now
+                if (height > 50 && Math.random() > 0.8) {
+                    // Make this a "cyber" tower with neon edges (simulated by just being a neon block for now, or we could add a second instance)
+                    // Let's just make it a colored tower
+                    instanceColors[i * 3] = 0.0;
+                    instanceColors[i * 3 + 1] = Math.random();
+                    instanceColors[i * 3 + 2] = 1.0;
+                    instanceTypes[i] = 1.0; // Emissive
+                }
+
+                instancePositions[i * 3] = x;
+                instancePositions[i * 3 + 1] = height / 2; // Center y
+                instancePositions[i * 3 + 2] = z;
+
+                instanceScales[i * 3] = width;
+                instanceScales[i * 3 + 1] = height;
+                instanceScales[i * 3 + 2] = depth;
+            }
+
+            // Instance Position Buffer
+            const instPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, instPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, instancePositions, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(2);
+            gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(2, 1);
+
+            // Instance Scale Buffer
+            const instScaleBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, instScaleBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, instanceScales, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(3);
+            gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(3, 1);
+
+            // Instance Color Buffer
+            const instColorBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, instColorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, instanceColors, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(4);
+            gl.vertexAttribPointer(4, 3, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(4, 1);
+
+            // Instance Type Buffer
+            const instTypeBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, instTypeBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, instanceTypes, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(5);
+            gl.vertexAttribPointer(5, 1, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(5, 1);
+
+            state.vao = vao;
+            state.instanceCount = instanceCount;
+        }
+
+        // --- AUDIO ---
+        function initAudio() {
+            if (state.audioCtx) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            state.audioCtx = new AudioContext();
+            const ctx = state.audioCtx;
+
+            // Master Gain
+            const masterGain = ctx.createGain();
+            masterGain.gain.value = 0.5;
+            masterGain.connect(ctx.destination);
+
+            // 1. Low Drone (The "City Hum")
+            const droneOsc = ctx.createOscillator();
+            droneOsc.type = 'sawtooth';
+            droneOsc.frequency.value = 50;
+            const droneFilter = ctx.createBiquadFilter();
+            droneFilter.type = 'lowpass';
+            droneFilter.frequency.value = 120;
+            const droneGain = ctx.createGain();
+            droneGain.gain.value = 0.2;
+
+            droneOsc.connect(droneFilter);
+            droneFilter.connect(droneGain);
+            droneGain.connect(masterGain);
+            droneOsc.start();
+
+            // LFO for Drone Filter (breathing effect)
+            const lfo = ctx.createOscillator();
+            lfo.frequency.value = 0.1;
+            const lfoGain = ctx.createGain();
+            lfoGain.gain.value = 50;
+            lfo.connect(lfoGain);
+            lfoGain.connect(droneFilter.frequency);
+            lfo.start();
+
+            // 2. Pink Noise (Wind / Distant Traffic)
+            let lastOut = 0; // Define lastOut before its first use
+            const bufferSize = 2 * ctx.sampleRate;
+            const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                output[i] = (lastOut + (0.02 * white)) / 1.02;
+                lastOut = output[i];
+                output[i] *= 3.5;
+            }
+
+            const noiseNode = ctx.createBufferSource();
+            noiseNode.buffer = noiseBuffer;
+            noiseNode.loop = true;
+            const noiseFilter = ctx.createBiquadFilter();
+            noiseFilter.type = 'lowpass';
+            noiseFilter.frequency.value = 400;
+            const noiseGain = ctx.createGain();
+            noiseGain.gain.value = 0.1;
+
+            noiseNode.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(masterGain);
+            noiseNode.start();
+
+            // 3. Random "Flyby" sounds
+            function playFlyby() {
+                const osc = ctx.createOscillator();
+                osc.type = 'triangle';
+                // Doppler-ish pitch drop
+                osc.frequency.setValueAtTime(200 + Math.random() * 200, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 2);
+
+                const pan = ctx.createStereoPanner();
+                pan.pan.value = (Math.random() * 2) - 1;
+
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 1);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2);
+
+                osc.connect(pan);
+                pan.connect(gain);
+                gain.connect(masterGain);
+
+                osc.start();
+                osc.stop(ctx.currentTime + 2);
+
+                setTimeout(playFlyby, 2000 + Math.random() * 5000);
+            }
+            playFlyby();
+        }
+
+        // --- RENDER LOOP ---
+        function render(time) {
+            time *= 0.001; // seconds
+            const dt = time - state.lastTime;
+            state.lastTime = time;
+
+            const gl = state.gl;
+
+            // --- FLIGHT CONTROLS (PURE MOUSE: yaw/pitch; constant speed) ---
+            const cam = state.camera;
+
+            // Forward vector derived from yaw/pitch (rudder on mouse X, pitch on mouse Y)
+            const cosPitch = Math.cos(cam.pitch);
+            const forward = [
+                Math.sin(cam.yaw) * cosPitch,
+                Math.sin(cam.pitch),
+                -Math.cos(cam.yaw) * cosPitch
+            ];
+
+            // Constant forward movement
+            const speed = CONFIG.speed;
+            cam.x += forward[0] * speed * dt;
+            cam.y += forward[1] * speed * dt;
+            cam.z += forward[2] * speed * dt;
+
+            // Loop world to create infinite illusion
+            const halfSize = CONFIG.worldSize / 2;
+            if (state.camera.x > halfSize) state.camera.x -= CONFIG.worldSize;
+            if (state.camera.x < -halfSize) state.camera.x += CONFIG.worldSize;
+            if (state.camera.z > halfSize) state.camera.z -= CONFIG.worldSize;
+            if (state.camera.z < -halfSize) state.camera.z += CONFIG.worldSize;
+
+            // Clear
+            gl.clearColor(CONFIG.fogColor[0], CONFIG.fogColor[1], CONFIG.fogColor[2], 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.enable(gl.DEPTH_TEST);
+            gl.enable(gl.CULL_FACE);
+
+            gl.useProgram(state.program);
+
+            // Matrices
+            const projection = Mat4.create();
+            Mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 2000.0);
+
+            const view = Mat4.create();
+            const eye = [cam.x, cam.y, cam.z];
+            const center = [
+                cam.x + forward[0],
+                cam.y + forward[1],
+                cam.z + forward[2]
+            ];
+            Mat4.lookAt(view, eye, center, [0, 1, 0]); // Up remains world-up; no roll
+
+            const viewProjection = Mat4.create();
+            Mat4.multiply(viewProjection, projection, view);
+
+            // Uniforms
+            const uVP = gl.getUniformLocation(state.program, 'u_viewProjection');
+            gl.uniformMatrix4fv(uVP, false, viewProjection);
+
+            const uTime = gl.getUniformLocation(state.program, 'u_time');
+            gl.uniform1f(uTime, time);
+
+            const uCamPos = gl.getUniformLocation(state.program, 'u_cameraPosition');
+            gl.uniform3fv(uCamPos, eye);
+
+            const uFogColor = gl.getUniformLocation(state.program, 'u_fogColor');
+            gl.uniform3fv(uFogColor, CONFIG.fogColor);
+
+            const uFogDensity = gl.getUniformLocation(state.program, 'u_fogDensity');
+            gl.uniform1f(uFogDensity, CONFIG.fogDensity);
+
+            // Draw Instanced
+            gl.bindVertexArray(state.vao);
+            gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, state.instanceCount);
+
+            requestAnimationFrame(render);
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+
+</html>
