@@ -367,6 +367,12 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="input-group">
+                    <label>Noise Threshold: <span id="noise-threshold-val">150</span></label>
+                    <input type="range" id="noise-threshold-slider" min="0" max="255" value="150"
+                        oninput="app.updateNoiseThreshold(this.value)">
+                </div>
             </div>
         </div>
     </main>
@@ -388,30 +394,40 @@
 
 
         // --- CONSTANTS & CONFIG ---
+        const AUDIO_CONTEXT = new (window.AudioContext || window.webkitAudioContext)();
+
         const CONFIG = {
-            TONE_DURATION: 0.02, // Active tone time
-            SILENCE_DURATION: 0.04, // Gap time (Silence)
-            RAMP_DURATION: 0.01, // Smoother ramp
-            SAMPLE_RATE: 44100,
+            TONE_DURATION: 0.1, // Active tone time
+            SILENCE_DURATION: 0.2, // Gap time (Silence)
+            RAMP_DURATION: 0.02, // Smoother ramp
+            SAMPLE_RATE: AUDIO_CONTEXT.sampleRate, // Native sample rate (e.g. 48000 on mobile)
             FFT_SIZE: 1024, // 23.2ms window
-            BASE_FREQ: 500,
+            BASE_FREQ: 1500,
             FREQ_STEP: 75,
             FREQUENCIES: [], // Computed below
             PREAMBLE: [16, 17, 16], // Reserved START Sequence
-            POSTAMBLE: [17, 16, 17] // Reserved END Sequence
+            POSTAMBLE: [17, 16, 17], // Reserved END Sequence
+            NOISE_THRESHOLD: 150, // 0-255, Silence floor
         };
 
-        // Compute Frequencies (Linear Grid)
-        // 0-15 (Payload) + 16 (Start) + 17 (End)
-        for (let i = 0; i < 18; i++) {
-            CONFIG.FREQUENCIES.push(CONFIG.BASE_FREQ + (i * CONFIG.FREQ_STEP));
+        function getNoteFreq(n) {
+            return 440 * Math.pow(2, (n - 69) / 12);
         }
 
-        function validateAudioPhysics() {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            // Update CONFIG to match native sample rate (e.g. 48000 on mobile)
-            CONFIG.SAMPLE_RATE = audioCtx.sampleRate;
+        // Compute Frequencies (Real musical note frequencies)
+        // 0-15 (Payload) + 16 (Start) + 17 (End)
+        let nextNote = Math.ceil(69 + 12 * Math.log2(CONFIG.BASE_FREQ / 440))
+        for (let i = 0; i < 18; i++) {
+            let noteFreq = getNoteFreq(nextNote++)
+            while (noteFreq < CONFIG.BASE_FREQ + (i * CONFIG.FREQ_STEP)) {
+                noteFreq = getNoteFreq(nextNote++)
+            }
+            console.log("Found note", nextNote, noteFreq)
+            CONFIG.FREQUENCIES.push(noteFreq);
+        }
+        console.log("Found frequencies", CONFIG.FREQUENCIES)
 
+        function validateAudioPhysics() {
             const binWidth = CONFIG.SAMPLE_RATE / CONFIG.FFT_SIZE;
             const fftWindow = CONFIG.FFT_SIZE / CONFIG.SAMPLE_RATE;
 
@@ -421,12 +437,18 @@
             console.log(`[Physics Check] Freq Step: ${CONFIG.FREQ_STEP} Hz`);
 
             // 1. Silence must be > FFT Window (with margin)
-            if (CONFIG.SILENCE_DURATION <= fftWindow) {
+            if (CONFIG.SILENCE_DURATION <= fftWindow * 1.5) {
                 console.error("CRITICAL: Silence duration is shorter than FFT window! Detection will fail.");
                 alert("Physics Error: Silence < FFT Window");
             }
 
-            // 2. Frequency Step must be > Bin Width * 1.5 (Resolution check)
+            // 2. Tone must be > FFT Window (with margin)
+            if (CONFIG.TONE_DURATION <= fftWindow * 2) {
+                console.error("CRITICAL: Tone duration is shorter than 2 * FFT window! Detection will fail.");
+                alert("Physics Error: Tone < 2 * FFT Window");
+            }
+
+            // 3. Frequency Step must be > Bin Width * 1.5 (Resolution check)
             if (CONFIG.FREQ_STEP < binWidth * 1.5) {
                 console.error("CRITICAL: Frequency step is too small for FFT resolution!");
                 alert("Physics Error: Freq Step < Resolution");
@@ -577,7 +599,7 @@
 
             initAudio() {
                 if (!this.audioCtx) {
-                    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.audioCtx = AUDIO_CONTEXT;
                 }
                 if (this.audioCtx.state === 'suspended') {
                     this.audioCtx.resume();
@@ -590,7 +612,6 @@
                     this.analyser.smoothingTimeConstant = 0; // Fast response
                     this.analyser.minDecibels = -90;
                     this.analyser.maxDecibels = -10;
-                    this.analyser.connect(this.audioCtx.destination);
                 }
             }
 
@@ -710,7 +731,7 @@
                     this.sourceNode.buffer = this.generatedBuffer;
                     this.sourceNode.loop = true; // Loop for "generative stream" effect
                     this.sourceNode.connect(this.analyser); // Connect to visualizer
-                    // Analyser already connected to destination (speakers)
+                    this.sourceNode.connect(this.audioCtx.destination); // Connect to speakers
 
                     this.sourceNode.start();
                     this.isPlaying = true;
@@ -843,7 +864,7 @@
                 document.getElementById('signal-meter').style.width = signalPercent + '%';
 
                 // Threshold check (noise gate)
-                if (maxVal < 20) { // Silence (Increased threshold to ignore reverb/ringing)
+                if (maxVal < CONFIG.NOISE_THRESHOLD) { // Silence (Configurable)
                     this.processDetectedNibble(-1);
                     return;
                 }
@@ -877,9 +898,9 @@
                     state.stableStartTime = now;
                 }
 
-                // Check if stable for half of tone duration
-                // This handles high refresh rate monitors correctly
-                if ((now - state.stableStartTime) > (CONFIG.TONE_DURATION * 1000 * 0.5)) {
+                // Check if stable for configurable threshold
+                const stableThreshold = CONFIG.TONE_DURATION * 1000 * 0.5;
+                if ((now - state.stableStartTime) > stableThreshold) {
                     this.handleStableNibble(nibble);
                 }
             }
@@ -887,16 +908,16 @@
             handleStableNibble(nibble) {
                 const state = this.decoderState;
 
-                // If silence
-                if (nibble === -1) {
-                    state.lastStableNibble = -1;
-                    return;
-                }
-
                 if (nibble === state.lastStableNibble) return; // Ignore sustained tone
                 state.lastStableNibble = nibble;
 
                 console.log("Detected Stable Nibble:", nibble, performance.now());
+
+                // If silence
+                if (nibble === -1) {
+                    return;
+                }
+
 
                 // --- PREAMBLE DETECTION (IDLE & PAYLOAD) ---
                 if (nibble === CONFIG.PREAMBLE[state.preambleIndex]) {
@@ -1025,9 +1046,17 @@
                     }, 2000); // 2 seconds tail
                 };
             }
+
+            updateNoiseThreshold(val) {
+                CONFIG.NOISE_THRESHOLD = parseInt(val);
+                document.getElementById('noise-threshold-val').innerText = val;
+            }
         }
 
         const app = new App();
+        // Init Slider
+        document.getElementById('noise-threshold-slider').value = CONFIG.NOISE_THRESHOLD;
+        document.getElementById('noise-threshold-val').innerText = CONFIG.NOISE_THRESHOLD;
 
     </script>
 </body>
