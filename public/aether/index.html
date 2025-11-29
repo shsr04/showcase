@@ -292,6 +292,10 @@
         .controls {
             display: flex;
             gap: 1rem;
+            @media (max-width: 768px) {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
         }
 
         .hidden {
@@ -397,9 +401,9 @@
         const AUDIO_CONTEXT = new (window.AudioContext || window.webkitAudioContext)();
 
         const CONFIG = {
-            TONE_DURATION: 0.1, // Active tone time
-            SILENCE_DURATION: 0.2, // Gap time (Silence)
-            RAMP_DURATION: 0.02, // Smoother ramp
+            TONE_DURATION: 0.05, // Active tone time
+            SILENCE_DURATION: 0.05, // Gap time (Silence)
+            RAMP_DURATION: 0.01, // Smoother ramp
             SAMPLE_RATE: AUDIO_CONTEXT.sampleRate, // Native sample rate (e.g. 48000 on mobile)
             FFT_SIZE: 1024, // 23.2ms window
             BASE_FREQ: 1500,

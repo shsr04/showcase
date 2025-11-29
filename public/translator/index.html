@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Translator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1a1b26;
+            --bg-secondary: #24283b;
+            --bg-elevated: #414868;
+            --accent: #7aa2f7;
+            --accent-secondary: #bb9af7;
+            --text-primary: #c0caf5;
+            --text-secondary: #565f89;
+            --success: #9ece6a;
+            --warning: #e0af68;
+            --error: #f7768e;
+            --border-radius: 16px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1e2030 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--text-primary);
+        }
+
+        .app-container {
+            background: var(--bg-secondary);
+            border-radius: 24px;
+            width: 100%;
+            max-width: 1000px;
+            padding: 28px;
+            box-shadow:
+                0 4px 6px -1px rgba(0, 0, 0, 0.3),
+                0 10px 20px -2px rgba(0, 0, 0, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            display: grid;
+            grid-template-rows: auto 1fr auto auto;
+            gap: 24px;
+            min-height: 520px;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .cost-display {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .cost-display svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .api-key-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+
+        .api-key-box:focus-within {
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+
+        .api-key-box.has-key {
+            background: rgba(158, 206, 106, 0.15);
+        }
+
+        .api-key-box input {
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 14px;
+            width: 180px;
+            font-family: inherit;
+            color: var(--text-primary);
+        }
+
+        .api-key-box input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .api-key-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+        }
+
+        /* Main Controls Grid */
+        .main-controls {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 32px;
+            align-items: center;
+            padding: 10px 0;
+        }
+
+        /* Language Sections */
+        .lang-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .lang-section.my-langs {
+            align-items: flex-end;
+        }
+
+        .lang-section.target-langs {
+            align-items: flex-start;
+        }
+
+        .lang-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .lang-header svg {
+            width: 18px;
+            height: 18px;
+            opacity: 0.7;
+        }
+
+        .lang-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .my-langs .lang-buttons {
+            align-items: flex-end;
+        }
+
+        .target-langs .lang-buttons {
+            align-items: flex-start;
+        }
+
+        .lang-btn {
+            padding: 12px 22px;
+            border: 2px solid var(--bg-elevated);
+            border-radius: 12px;
+            background: var(--bg-primary);
+            font-size: 14px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+            min-width: 130px;
+            text-align: center;
+        }
+
+        .lang-btn:hover {
+            border-color: var(--accent);
+            background: rgba(122, 162, 247, 0.1);
+        }
+
+        .lang-btn.selected {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
+            border-color: transparent;
+            color: var(--bg-primary);
+            font-weight: 600;
+        }
+
+        .more-btn {
+            padding: 10px 22px;
+            border: 2px dashed var(--bg-elevated);
+            border-radius: 12px;
+            background: transparent;
+            font-size: 18px;
+            font-family: inherit;
+            cursor: pointer;
+            color: var(--text-secondary);
+            min-width: 130px;
+            transition: all 0.2s;
+        }
+
+        .more-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Translate Button */
+        .translate-btn-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .translate-btn {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 3px solid var(--bg-elevated);
+            background: var(--bg-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: inherit;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: all 0.3s;
+            color: var(--text-primary);
+            position: relative;
+        }
+
+        .translate-btn::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            opacity: 0;
+            z-index: -1;
+            transition: opacity 0.3s;
+        }
+
+        .translate-btn:hover {
+            border-color: var(--accent);
+            transform: scale(1.03);
+        }
+
+        .translate-btn:hover::before {
+            opacity: 0.3;
+        }
+
+        .translate-btn.active {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
+            border-color: transparent;
+            color: var(--bg-primary);
+            animation: pulse-glow 2s infinite;
+        }
+
+        .translate-btn.connecting {
+            background: var(--warning);
+            border-color: transparent;
+            color: var(--bg-primary);
+            animation: pulse-connecting 1s infinite;
+        }
+
+        .translate-btn.error {
+            background: var(--error);
+            border-color: transparent;
+            color: var(--bg-primary);
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(122, 162, 247, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 0 20px rgba(122, 162, 247, 0);
+            }
+        }
+
+        @keyframes pulse-connecting {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .status-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-text.active {
+            color: var(--success);
+        }
+
+        .status-text.error {
+            color: var(--error);
+        }
+
+        /* Transcript Section */
+        .transcript-section {
+            background: var(--bg-primary);
+            border-radius: var(--border-radius);
+            padding: 16px 20px;
+            min-height: 90px;
+            max-height: 130px;
+            overflow-y: auto;
+        }
+
+        .transcript-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .transcript-content .placeholder {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .transcript-content p {
+            margin-bottom: 8px;
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border-left: 3px solid var(--text-secondary);
+        }
+
+        .transcript-content p.translated {
+            background: rgba(122, 162, 247, 0.1);
+            border-left-color: var(--accent);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 380px;
+            width: 90%;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal h3 svg {
+            width: 22px;
+            height: 22px;
+            color: var(--accent);
+        }
+
+        .modal-langs {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .modal-lang-option {
+            padding: 12px 16px;
+            border: 2px solid var(--bg-elevated);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .modal-lang-option:hover {
+            border-color: var(--accent);
+            background: rgba(122, 162, 247, 0.1);
+        }
+
+        .modal-lang-option.selected {
+            border-color: var(--accent);
+            background: rgba(122, 162, 247, 0.2);
+        }
+
+        .modal-close {
+            margin-top: 16px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
+            color: var(--bg-primary);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .modal-close:hover {
+            transform: translateY(-1px);
+            opacity: 0.9;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-controls {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+                gap: 24px;
+            }
+
+            .lang-section.my-langs,
+            .lang-section.target-langs {
+                align-items: center;
+            }
+
+            .my-langs .lang-buttons,
+            .target-langs .lang-buttons {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .translate-btn-container {
+                order: -1;
+            }
+
+            .translate-btn {
+                width: 140px;
+                height: 140px;
+                font-size: 14px;
+            }
+
+            .top-bar {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-elevated);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="cost-display" id="costDisplay">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v12M9 9h6M9 15h6" />
+                </svg>
+                <span id="costValue">$0.00</span>
+            </div>
+            <div class="api-key-box" id="apiKeyBox">
+                <span class="api-key-label">API Key</span>
+                <input type="password" id="apiKey" placeholder="sk-..." onchange="saveApiKey()" oninput="saveApiKey()">
+            </div>
+        </div>
+
+        <!-- Main Controls -->
+        <div class="main-controls">
+            <!-- My Languages - Left -->
+            <div class="lang-section my-langs">
+                <div class="lang-header">
+                    <!-- Ear icon -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10.5" />
+                        <path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 0 0 4 0" />
+                        <circle cx="13" cy="21" r="1" />
+                    </svg>
+                    <span>I understand</span>
+                </div>
+                <div class="lang-buttons" id="myLangsContainer">
+                    <!-- Populated by JS -->
+                </div>
+                <button class="more-btn" onclick="openMyLangModal()">...</button>
+            </div>
+
+            <!-- Translate Button - Center -->
+            <div class="translate-btn-container">
+                <button class="translate-btn" id="translateBtn" onclick="toggleTranslation()">
+                    Translate
+                </button>
+                <div class="status-text" id="statusText">Ready</div>
+            </div>
+
+            <!-- Target Languages - Right -->
+            <div class="lang-section target-langs">
+                <div class="lang-header">
+                    <!-- People with speech bubbles -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2" />
+                        <rect width="18" height="18" x="3" y="4" rx="2" />
+                        <circle cx="12" cy="10" r="2" />
+                        <path d="M8 2v2" />
+                        <path d="M16 2v2" />
+                    </svg>
+                    <span>Others speak</span>
+                </div>
+                <div class="lang-buttons" id="targetLangsContainer">
+                    <!-- Populated by JS -->
+                </div>
+                <button class="more-btn" onclick="openTargetLangModal()">...</button>
+            </div>
+        </div>
+
+        <!-- Transcript - Bottom -->
+        <div class="transcript-section">
+            <div class="transcript-content" id="transcriptContent">
+                <span class="placeholder">Transcript...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Languages Modal -->
+    <div class="modal-overlay" id="myLangModal" onclick="closeModal('myLangModal', event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10.5" />
+                    <path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 0 0 4 0" />
+                    <circle cx="13" cy="21" r="1" />
+                </svg>
+                Languages I understand
+            </h3>
+            <div class="modal-langs" id="myLangOptions"></div>
+            <button class="modal-close" onclick="closeModal('myLangModal')">Done</button>
+        </div>
+    </div>
+
+    <!-- Target Languages Modal -->
+    <div class="modal-overlay" id="targetLangModal" onclick="closeModal('targetLangModal', event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2" />
+                    <rect width="18" height="18" x="3" y="4" rx="2" />
+                    <circle cx="12" cy="10" r="2" />
+                    <path d="M8 2v2" />
+                    <path d="M16 2v2" />
+                </svg>
+                Languages others speak
+            </h3>
+            <div class="modal-langs" id="targetLangOptions"></div>
+            <button class="modal-close" onclick="closeModal('targetLangModal')">Done</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Configuration
+        // ============================================
+        const LANGUAGES = [
+            { code: 'en', name: 'English' },
+            { code: 'es', name: 'Spanish' },
+            { code: 'fr', name: 'French' },
+            { code: 'de', name: 'German' },
+            { code: 'zh', name: 'Chinese' },
+            { code: 'ja', name: 'Japanese' },
+            { code: 'ko', name: 'Korean' },
+            { code: 'pt', name: 'Portuguese' },
+            { code: 'it', name: 'Italian' },
+            { code: 'ru', name: 'Russian' },
+            { code: 'ar', name: 'Arabic' },
+            { code: 'hi', name: 'Hindi' },
+            { code: 'nl', name: 'Dutch' },
+            { code: 'pl', name: 'Polish' },
+            { code: 'tr', name: 'Turkish' },
+            { code: 'vi', name: 'Vietnamese' },
+            { code: 'th', name: 'Thai' },
+            { code: 'sv', name: 'Swedish' },
+            { code: 'uk', name: 'Ukrainian' },
+            { code: 'cs', name: 'Czech' },
+        ];
+
+        // ============================================
+        // Model Configuration (3-Stage Pipeline)
+        // ============================================
+        const MODELS = {
+            realtime: 'gpt-realtime-mini',        // Realtime model for transcription
+            transcription: 'gpt-4o-mini-transcribe', // Transcription engine within realtime
+            translation: 'gpt-4o-mini',           // Translation model (Responses API)
+            tts: 'gpt-4o-mini-tts',               // TTS model for audio playback
+            ttsVoice: 'alloy',                    // Voice: alloy, echo, fable, onyx, nova, shimmer
+            ttsSpeed: 1.1,                        // Speed: 0.25 to 4.0
+        };
+
+        // Pricing per 1M tokens
+        const PRICING = {
+            // Realtime (gpt-realtime-mini)
+            audioInput: 0.6,         // $0.60/1M audio input tokens
+            // Translation (gpt-4o-mini)
+            translationInput: 0.15,  // $0.15/1M input tokens
+            translationOutput: 0.60, // $0.60/1M output tokens
+            // TTS (gpt-4o-mini-tts)
+            ttsInput: 0.60,          // $0.60/1M input characters
+            ttsOutput: 12.0,         // $12.00/1M audio output tokens
+        };
+
+        const MAX_VISIBLE_LANGS = 3;
+
+        let state = {
+            isActive: false,
+            peerConnection: null,
+            dataChannel: null,
+            mediaStream: null,
+            myLangs: ['en'],
+            targetLangs: ['es', 'fr', 'de'],
+            sessionCost: 0,
+        };
+
+        // ============================================
+        // Initialization
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+            renderMyLangButtons();
+            renderTargetLangButtons();
+            renderMyLangModal();
+            renderTargetLangModal();
+            updateCostDisplay();
+        });
+
+        function loadSettings() {
+            const apiKey = localStorage.getItem('openai_api_key');
+            if (apiKey) {
+                document.getElementById('apiKey').value = apiKey;
+                document.getElementById('apiKeyBox').classList.add('has-key');
+            }
+
+            const myLangs = localStorage.getItem('my_languages');
+            if (myLangs) {
+                state.myLangs = JSON.parse(myLangs);
+            }
+
+            const targetLangs = localStorage.getItem('target_languages');
+            if (targetLangs) {
+                state.targetLangs = JSON.parse(targetLangs);
+            }
+        }
+
+        // ============================================
+        // Settings Management
+        // ============================================
+        function saveApiKey() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (apiKey) {
+                localStorage.setItem('openai_api_key', apiKey);
+                document.getElementById('apiKeyBox').classList.add('has-key');
+            } else {
+                localStorage.removeItem('openai_api_key');
+                document.getElementById('apiKeyBox').classList.remove('has-key');
+            }
+        }
+
+        function toggleMyLang(code) {
+            const index = state.myLangs.indexOf(code);
+            if (index === -1) {
+                state.myLangs.push(code);
+            } else if (state.myLangs.length > 1) {
+                state.myLangs.splice(index, 1);
+            }
+            localStorage.setItem('my_languages', JSON.stringify(state.myLangs));
+            renderMyLangButtons();
+            renderMyLangModal();
+            renderTargetLangModal();
+        }
+
+        function toggleTargetLang(code) {
+            const index = state.targetLangs.indexOf(code);
+            if (index === -1) {
+                state.targetLangs.push(code);
+            } else {
+                state.targetLangs.splice(index, 1);
+            }
+            localStorage.setItem('target_languages', JSON.stringify(state.targetLangs));
+            renderTargetLangButtons();
+            renderTargetLangModal();
+        }
+
+        // ============================================
+        // Cost Tracking (Single Realtime Session)
+        // ============================================
+        function updateCostDisplay() {
+            document.getElementById('costValue').textContent = `$${state.sessionCost.toFixed(4)}`;
+        }
+
+        function addRealtimeCost(usage) {
+            if (!usage) return;
+            // Realtime API usage from response.done event (transcription only)
+            const audioInputTokens = usage.input_token_details?.audio_tokens || 0;
+
+            const cost = (audioInputTokens / 1_000_000) * PRICING.audioInput;
+            state.sessionCost += cost;
+            updateCostDisplay();
+            console.log('Realtime cost:', { audioIn: audioInputTokens, cost: cost.toFixed(6) });
+        }
+
+        function addTranslationCost(inputTokens, outputTokens) {
+            const cost = (inputTokens / 1_000_000) * PRICING.translationInput +
+                (outputTokens / 1_000_000) * PRICING.translationOutput;
+            state.sessionCost += cost;
+            updateCostDisplay();
+            console.log('Translation cost:', { in: inputTokens, out: outputTokens, cost: cost.toFixed(6) });
+        }
+
+        function addTTSCost(text) {
+            // Estimate tokens: ~4 characters per token for English
+            const inputTokens = Math.ceil(text.length / 4);
+            // Audio output tokens: roughly 50 tokens per second of audio
+            const estimatedDuration = text.length / 12.5;
+            const outputTokens = Math.ceil(estimatedDuration * 50);
+
+            const cost = (inputTokens / 1_000_000) * PRICING.ttsInput +
+                (outputTokens / 1_000_000) * PRICING.ttsOutput;
+            state.sessionCost += cost;
+            updateCostDisplay();
+            console.log('TTS cost:', { chars: text.length, cost: cost.toFixed(6) });
+        }
+
+        function resetSessionCost() {
+            state.sessionCost = 0;
+            updateCostDisplay();
+        }
+
+        // ============================================
+        // UI Rendering
+        // ============================================
+        function renderMyLangButtons() {
+            const container = document.getElementById('myLangsContainer');
+            const visibleLangs = state.myLangs.slice(0, MAX_VISIBLE_LANGS);
+
+            container.innerHTML = visibleLangs.map(code => {
+                const lang = LANGUAGES.find(l => l.code === code);
+                return `<button class="lang-btn selected" onclick="toggleMyLang('${code}')">${lang?.name || code}</button>`;
+            }).join('');
+        }
+
+        function renderTargetLangButtons() {
+            const container = document.getElementById('targetLangsContainer');
+            const visibleLangs = state.targetLangs.slice(0, MAX_VISIBLE_LANGS);
+
+            container.innerHTML = visibleLangs.map(code => {
+                const lang = LANGUAGES.find(l => l.code === code);
+                return `<button class="lang-btn selected" onclick="toggleTargetLang('${code}')">${lang?.name || code}</button>`;
+            }).join('');
+        }
+
+        function renderMyLangModal() {
+            const container = document.getElementById('myLangOptions');
+            container.innerHTML = LANGUAGES.map(lang => `
+                <div class="modal-lang-option ${state.myLangs.includes(lang.code) ? 'selected' : ''}"
+                     onclick="toggleMyLang('${lang.code}')">
+                    ${lang.name}
+                </div>
+            `).join('');
+        }
+
+        function renderTargetLangModal() {
+            const container = document.getElementById('targetLangOptions');
+            container.innerHTML = LANGUAGES
+                .filter(lang => !state.myLangs.includes(lang.code))
+                .map(lang => `
+                    <div class="modal-lang-option ${state.targetLangs.includes(lang.code) ? 'selected' : ''}"
+                         onclick="toggleTargetLang('${lang.code}')">
+                        ${lang.name}
+                    </div>
+                `).join('');
+        }
+
+        // ============================================
+        // Modal Management
+        // ============================================
+        function openMyLangModal() {
+            renderMyLangModal();
+            document.getElementById('myLangModal').classList.add('show');
+        }
+
+        function openTargetLangModal() {
+            renderTargetLangModal();
+            document.getElementById('targetLangModal').classList.add('show');
+        }
+
+        function closeModal(id, event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById(id).classList.remove('show');
+            renderMyLangButtons();
+            renderTargetLangButtons();
+        }
+
+        // ============================================
+        // Translation Control
+        // ============================================
+        async function toggleTranslation() {
+            if (state.isActive) {
+                stopTranslation();
+            } else {
+                await startTranslation();
+            }
+        }
+
+        async function startTranslation() {
+            const apiKey = localStorage.getItem('openai_api_key');
+            if (!apiKey) {
+                setStatus('Enter API key first', 'error');
+                return;
+            }
+
+            if (state.targetLangs.length === 0) {
+                setStatus('Select languages others speak', 'error');
+                return;
+            }
+
+            resetSessionCost();
+            setButtonState('connecting');
+            setStatus('Connecting...');
+
+            try {
+                // Step 1: Get ephemeral token
+                const tokenResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session: {
+                            type: 'transcription',
+                        }
+                    }),
+                });
+
+                if (!tokenResponse.ok) {
+                    const error = await tokenResponse.json();
+                    throw new Error(error.error?.message || 'Failed to get session token');
+                }
+
+                const tokenData = await tokenResponse.json();
+                const ephemeralKey = tokenData.value;
+
+                // Step 2: Create RTCPeerConnection
+                state.peerConnection = new RTCPeerConnection();
+
+                // Step 3: Handle audio track (not used - we use separate TTS for playback control)
+                state.peerConnection.ontrack = () => {
+                    // Ignore incoming audio from realtime model - we control playback via TTS API
+                };
+
+                // Step 4: Get microphone and add track
+                state.mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true }
+                });
+                const [audioTrack] = state.mediaStream.getAudioTracks();
+                state.peerConnection.addTrack(audioTrack, state.mediaStream);
+
+                // Step 5: Create data channel
+                state.dataChannel = state.peerConnection.createDataChannel('oai-events');
+                state.dataChannel.onopen = () => sendSessionConfig();
+                state.dataChannel.onmessage = handleServerMessage;
+
+                // Step 6: Create SDP offer
+                await state.peerConnection.setLocalDescription(await state.peerConnection.createOffer());
+
+                // Step 7: Send offer to OpenAI
+                const sdpResponse = await fetch(
+                    `https://api.openai.com/v1/realtime/calls`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${ephemeralKey}`,
+                            'Content-Type': 'application/sdp',
+                        },
+                        body: state.peerConnection.localDescription.sdp,
+                    }
+                );
+
+                if (!sdpResponse.ok) {
+                    const errorText = await sdpResponse.text();
+                    throw new Error(`Failed to connect: ${errorText}`);
+                }
+
+                // Step 8: Set remote description
+                const answerSdp = await sdpResponse.text();
+                await state.peerConnection.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+                // Step 9: Wait for connection
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
+                    if (state.peerConnection.connectionState === 'connected') {
+                        clearTimeout(timeout);
+                        resolve();
+                        return;
+                    }
+                    state.peerConnection.addEventListener('connectionstatechange', () => {
+                        if (state.peerConnection.connectionState === 'connected') {
+                            clearTimeout(timeout);
+                            resolve();
+                        } else if (state.peerConnection.connectionState === 'failed') {
+                            clearTimeout(timeout);
+                            reject(new Error('Connection failed'));
+                        }
+                    });
+                });
+
+                state.isActive = true;
+                setButtonState('active');
+                setStatus('Listening...', 'active');
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                setStatus(`Error: ${error.message}`, 'error');
+                setButtonState('error');
+                stopTranslation();
+            }
+        }
+
+        function stopTranslation() {
+            // Stop microphone
+            if (state.mediaStream) {
+                state.mediaStream.getTracks().forEach(track => track.stop());
+                state.mediaStream = null;
+            }
+            // Close data channel
+            if (state.dataChannel) {
+                state.dataChannel.close();
+                state.dataChannel = null;
+            }
+            // Close peer connection
+            if (state.peerConnection) {
+                state.peerConnection.close();
+                state.peerConnection = null;
+            }
+            // Stop TTS playback
+            clearTTSQueue();
+
+            state.isActive = false;
+            setButtonState('idle');
+            setStatus('Ready');
+        }
+
+        function sendSessionConfig() {
+            if (!state.dataChannel || state.dataChannel.readyState !== 'open') return;
+
+            // Realtime for transcription only - translation handled by Responses API
+            const config = {
+                type: 'session.update',
+                session: {
+                    type: 'transcription',
+                    audio: {
+                        input: {
+                            transcription: {
+                                model: MODELS.transcription,
+                            },
+                            turn_detection: {
+                                type: 'server_vad',
+                                threshold: 0.5,
+                                prefix_padding_ms: 200,
+                                silence_duration_ms: 800,
+                            },
+                        },
+                    },
+                },
+            };
+
+            state.dataChannel.send(JSON.stringify(config));
+        }
+
+        // Simple filler detection for transcriptions
+        function isFillerTranscript(text) {
+            if (!text) return true;
+            const trimmed = text.trim();
+            if (trimmed.length < 3) return true;
+            // Just punctuation, fillers, or very short
+            return /^[,\s\.\-\?!]*$/.test(trimmed) ||
+                /^(um+|uh+|eh+|ah+|oh+|hm+|mm+)\.?$/i.test(trimmed);
+        }
+
+        // ============================================
+        // TTS Playback (Streaming PCM with Queue)
+        // ============================================
+        let audioContext = null;
+        let ttsPlaybackState = {
+            nextStartTime: 0,
+            queue: [],           // Queue of text chunks to speak
+            isProcessing: false, // Whether queue processor is running
+        };
+
+        function getAudioContext() {
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            return audioContext;
+        }
+
+        // Add text to TTS queue and start processing if needed
+        function queueTTS(text) {
+            if (!text || text.trim().length === 0) return;
+            ttsPlaybackState.queue.push(text.trim());
+            console.log('TTS queued:', text.trim().substring(0, 50) + '...');
+
+            // Start processing if not already running
+            if (!ttsPlaybackState.isProcessing) {
+                processTTSQueue();
+            }
+        }
+
+        // Process TTS queue - plays items sequentially
+        async function processTTSQueue() {
+            if (ttsPlaybackState.isProcessing) return;
+            ttsPlaybackState.isProcessing = true;
+
+            const apiKey = localStorage.getItem('openai_api_key');
+            const ctx = getAudioContext();
+
+            // Reset timing for new queue processing session
+            ttsPlaybackState.nextStartTime = ctx.currentTime;
+
+            while (ttsPlaybackState.queue.length > 0) {
+                const text = ttsPlaybackState.queue.shift();
+                if (!text) continue;
+
+                try {
+                    setStatus('Speaking...', 'active');
+                    addTTSCost(text);
+
+                    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: MODELS.tts,
+                            input: text,
+                            voice: MODELS.ttsVoice,
+                            speed: MODELS.ttsSpeed,
+                            response_format: 'pcm',
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        console.error('TTS API failed for chunk:', text);
+                        continue;
+                    }
+
+                    // Stream PCM audio
+                    const reader = response.body.getReader();
+                    let leftoverBytes = new Uint8Array(0);
+                    const SAMPLES_PER_CHUNK = Math.floor(24000 * 0.1);
+                    const BYTES_PER_CHUNK = SAMPLES_PER_CHUNK * 2;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+
+                        if (done) {
+                            if (leftoverBytes.length > 0) {
+                                const audioBuffer = pcmToAudioBuffer(ctx, leftoverBytes);
+                                if (audioBuffer) scheduleAudioBuffer(ctx, audioBuffer);
+                            }
+                            break;
+                        }
+
+                        const combined = new Uint8Array(leftoverBytes.length + value.length);
+                        combined.set(leftoverBytes);
+                        combined.set(value, leftoverBytes.length);
+
+                        let offset = 0;
+                        while (offset + BYTES_PER_CHUNK <= combined.length) {
+                            const chunk = combined.slice(offset, offset + BYTES_PER_CHUNK);
+                            const audioBuffer = pcmToAudioBuffer(ctx, chunk);
+                            if (audioBuffer) scheduleAudioBuffer(ctx, audioBuffer);
+                            offset += BYTES_PER_CHUNK;
+                        }
+
+                        leftoverBytes = combined.slice(offset);
+                    }
+
+                } catch (error) {
+                    console.error('TTS error:', error);
+                }
+            }
+
+            // Wait for all scheduled audio to finish
+            const remainingTime = ttsPlaybackState.nextStartTime - ctx.currentTime;
+            if (remainingTime > 0) {
+                await new Promise(resolve => setTimeout(resolve, remainingTime * 1000));
+            }
+
+            ttsPlaybackState.isProcessing = false;
+            setStatus('Listening...', 'active');
+        }
+
+        // Clear TTS queue (used when stopping)
+        function clearTTSQueue() {
+            ttsPlaybackState.queue = [];
+            ttsPlaybackState.isProcessing = false;
+        }
+
+        function pcmToAudioBuffer(ctx, pcmData) {
+            if (pcmData.length < 2) return null;
+            const numSamples = Math.floor(pcmData.length / 2);
+            const audioBuffer = ctx.createBuffer(1, numSamples, 24000);
+            const channelData = audioBuffer.getChannelData(0);
+            const dataView = new DataView(pcmData.buffer, pcmData.byteOffset, pcmData.byteLength);
+            for (let i = 0; i < numSamples; i++) {
+                channelData[i] = dataView.getInt16(i * 2, true) / 32768;
+            }
+            return audioBuffer;
+        }
+
+        function scheduleAudioBuffer(ctx, audioBuffer) {
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            const startTime = Math.max(ctx.currentTime, ttsPlaybackState.nextStartTime);
+            source.start(startTime);
+            ttsPlaybackState.nextStartTime = startTime + audioBuffer.duration;
+        }
+
+        // ============================================
+        // Translation (Responses API with Streaming)
+        // ============================================
+
+        // Sentence boundary detection - matches end of sentence
+        const SENTENCE_END_REGEX = /[.!?。！？]\s*/;
+
+        async function translateAndSpeak(transcript) {
+            if (!transcript || isFillerTranscript(transcript)) return;
+
+            const apiKey = localStorage.getItem('openai_api_key');
+            if (!apiKey) return;
+
+            // Get user's known languages
+            const myLangNames = state.myLangs
+                .map(code => LANGUAGES.find(l => l.code === code)?.name)
+                .filter(Boolean);
+            const primaryLang = myLangNames[0] || 'English';
+
+            setStatus('Translating...', 'active');
+
+            try {
+                const response = await fetch('https://api.openai.com/v1/responses', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: MODELS.translation,
+                        stream: true,
+                        input: `Detect the language and translate if needed.
+
+Rules:
+- If the input is in ${myLangNames.join(' or ')}: Output ONLY "[Language]" (no translation)
+- If the input is in ANY OTHER language: Output "[Language] " followed by the ${primaryLang} translation
+
+Examples:
+- Input (English speaker, user knows English): "Hello" → "[English]"
+- Input (French speaker, user knows English): "Bonjour" → "[French] Hello"
+- Input (Spanish speaker, user knows English): "Hola, ¿cómo estás?" → "[Spanish] Hello, how are you?"
+
+Input to process:
+"${transcript}"`,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Translation failed');
+                }
+
+                // Stream the response using SSE
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullText = '';
+                let detectedLang = null;
+                let isKnownLang = false;
+
+                // Sentence streaming state
+                let translationText = '';      // Text after [Language] prefix
+                let lastQueuedLength = 0;      // How much we've already queued to TTS
+                let displayedTranslation = false;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const event = JSON.parse(data);
+
+                            // Handle streaming text delta
+                            if (event.type === 'response.output_text.delta') {
+                                const delta = event.delta || '';
+                                fullText += delta;
+
+                                // Check for language prefix
+                                if (!detectedLang) {
+                                    const langMatch = fullText.match(/^\[([^\]]+)\]/);
+                                    if (langMatch) {
+                                        detectedLang = langMatch[1];
+
+                                        // Check if known language
+                                        isKnownLang = myLangNames.some(name =>
+                                            detectedLang.toLowerCase().includes(name.toLowerCase()) ||
+                                            name.toLowerCase().includes(detectedLang.toLowerCase())
+                                        );
+
+                                        if (isKnownLang) {
+                                            // OPTIMIZATION #2: Abort early for known language
+                                            console.log(`Skipping: detected ${detectedLang} (known language) - aborting stream`);
+                                            setStatus('Listening...', 'active');
+                                            reader.cancel();
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                // Extract translation text (after prefix)
+                                if (detectedLang && !isKnownLang) {
+                                    const afterPrefix = fullText.match(/^\[[^\]]+\]\s*(.*)/s);
+                                    if (afterPrefix) {
+                                        translationText = afterPrefix[1];
+
+                                        // OPTIMIZATION #1 & #3: Queue sentences as they complete
+                                        const unqueuedText = translationText.slice(lastQueuedLength);
+
+                                        // Look for sentence boundaries in the new text
+                                        const sentenceMatch = unqueuedText.match(SENTENCE_END_REGEX);
+                                        if (sentenceMatch) {
+                                            // Find all complete sentences
+                                            const parts = unqueuedText.split(SENTENCE_END_REGEX);
+                                            let processedLength = 0;
+
+                                            // Queue all complete sentences (all but the last part)
+                                            for (let i = 0; i < parts.length - 1; i++) {
+                                                const sentence = parts[i].trim();
+                                                if (sentence.length > 0) {
+                                                    // Show translation in UI on first sentence
+                                                    if (!displayedTranslation) {
+                                                        displayedTranslation = true;
+                                                        addTranscript(translationText, 'translated');
+                                                    }
+                                                    queueTTS(sentence);
+                                                }
+                                                // Account for the sentence + the delimiter that was split out
+                                                processedLength += parts[i].length;
+                                                // Find the actual delimiter length
+                                                const remaining = unqueuedText.slice(processedLength);
+                                                const delimMatch = remaining.match(/^[.!?。！？]\s*/);
+                                                if (delimMatch) {
+                                                    processedLength += delimMatch[0].length;
+                                                }
+                                            }
+
+                                            lastQueuedLength += processedLength;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Handle completion with usage stats
+                            if (event.type === 'response.completed') {
+                                const usage = event.response?.usage;
+                                if (usage) {
+                                    addTranslationCost(usage.input_tokens || 0, usage.output_tokens || 0);
+                                }
+                            }
+                        } catch (e) {
+                            // Ignore JSON parse errors for incomplete chunks
+                        }
+                    }
+                }
+
+                // Queue any remaining text that didn't end with sentence punctuation
+                if (!isKnownLang && translationText) {
+                    const remainingText = translationText.slice(lastQueuedLength).trim();
+                    if (remainingText.length > 0) {
+                        if (!displayedTranslation) {
+                            addTranscript(translationText, 'translated');
+                        }
+                        queueTTS(remainingText);
+                    }
+                    console.log('Translation complete:', translationText);
+                }
+
+                // If nothing was queued (e.g., very short response), just reset status
+                if (ttsPlaybackState.queue.length === 0 && !ttsPlaybackState.isProcessing) {
+                    setStatus('Listening...', 'active');
+                }
+
+            } catch (error) {
+                console.error('Translation error:', error);
+                setStatus('Listening...', 'active');
+            }
+        }
+
+        // ============================================
+        // Realtime Message Handler (Transcription Only)
+        // ============================================
+        function handleServerMessage(event) {
+            try {
+                const message = JSON.parse(event.data);
+
+                switch (message.type) {
+                    case 'session.created':
+                    case 'session.updated':
+                        console.log('Session configured:', message);
+                        break;
+
+                    case 'input_audio_buffer.speech_started':
+                        setStatus('Listening...', 'active');
+                        break;
+
+                    case 'input_audio_buffer.speech_stopped':
+                        setStatus('Processing...', 'active');
+                        break;
+
+                    case 'conversation.item.input_audio_transcription.completed':
+                        // Transcription complete - show and send to translation
+                        const transcript = message.transcript;
+                        if (transcript && !isFillerTranscript(transcript)) {
+                            addTranscript(transcript, 'original');
+                            // Send to Responses API for translation
+                            translateAndSpeak(transcript);
+                        }
+                        break;
+
+                    case 'response.done':
+                        // Track realtime API costs from response usage
+                        if (message.response?.usage) {
+                            addRealtimeCost(message.response.usage);
+                        }
+                        break;
+
+                    case 'error':
+                        console.error('Server error:', message.error);
+                        setStatus(`Error: ${message.error?.message || 'Unknown error'}`, 'error');
+                        break;
+
+                    default:
+                        // Silently ignore other events
+                        break;
+                }
+            } catch (e) {
+                console.error('Error parsing message:', e);
+            }
+        }
+
+        // ============================================
+        // UI Helpers
+        // ============================================
+        function setButtonState(newState) {
+            const btn = document.getElementById('translateBtn');
+            btn.classList.remove('active', 'connecting', 'error');
+            if (newState !== 'idle') btn.classList.add(newState);
+        }
+
+        function setStatus(text, type = '') {
+            const el = document.getElementById('statusText');
+            el.textContent = text;
+            el.classList.remove('active', 'error');
+            if (type) el.classList.add(type);
+        }
+
+        function addTranscript(text, type) {
+            const content = document.getElementById('transcriptContent');
+            const placeholder = content.querySelector('.placeholder');
+            if (placeholder) placeholder.remove();
+
+            const p = document.createElement('p');
+            p.className = type;
+            p.textContent = text;
+            content.appendChild(p);
+            content.parentElement.scrollTop = content.parentElement.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>
