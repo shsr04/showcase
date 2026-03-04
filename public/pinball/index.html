@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Pinball</title>
+    <style>
+        @font-face {
+            font-family: 'Pixel';
+            src: url('https://fonts.cdnfonts.com/css/arcade-classic') format('woff2');
+            /* Fallback or similar */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            /* Fallback */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #main-wrapper {
+            display: flex;
+            flex-direction: row;
+            background-color: #111;
+            border: 4px solid #444;
+            box-shadow: 0 0 20px #000;
+        }
+
+        #game-container {
+            position: relative;
+            border-right: 4px solid #444;
+            width: 600px;
+            height: 800px;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            /* Background will be drawn by JS */
+        }
+
+        #sidebar {
+            width: 300px;
+            height: 800px;
+            background-color: #000;
+            background-image: url('https://www.transparenttextures.com/patterns/stardust.png');
+            /* Subtle texture */
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ccc;
+            text-shadow: 2px 2px #000;
+            margin-bottom: 40px;
+            text-align: center;
+            font-family: sans-serif;
+            letter-spacing: 2px;
+            border-bottom: 2px solid #555;
+            padding-bottom: 10px;
+            width: 100%;
+        }
+
+        .score-box {
+            background: #000;
+            border: 4px inset #555;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            text-align: right;
+        }
+
+        .score-label {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .score-value {
+            font-size: 28px;
+            color: #aaddff;
+            font-family: monospace;
+            text-shadow: 0 0 5px #00f;
+        }
+
+        .info-box {
+            background: #111;
+            border: 2px solid #333;
+            width: 100%;
+            padding: 15px;
+            margin-top: auto;
+            color: #aaa;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .controls-hint {
+            margin-top: 10px;
+            font-size: 10px;
+            color: #555;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+
+<body>
+    <div id="main-wrapper">
+        <div id="game-container">
+            <canvas id="pinball-canvas"></canvas>
+        </div>
+        <div id="sidebar">
+            <div class="logo">SPACE<br>CADET</div>
+
+            <div class="score-box">
+                <div class="score-label">Player 1</div>
+                <div class="score-value" id="score">0</div>
+            </div>
+
+            <div class="score-box">
+                <div class="score-label">Ball</div>
+                <div class="score-value" id="lives">1</div>
+            </div>
+
+            <div class="info-box">
+                <div id="mission-text">Awaiting Launch...</div>
+            </div>
+
+            <div class="controls-hint">
+                Z / Left Arrow: Left Flipper<br>
+                / / Right Arrow: Right Flipper<br>
+                Space: Plunger (Hold)
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const CONFIG = {
+            width: 600,
+            height: 800,
+            wallThickness: 20,
+            ballRadius: 10,
+            flipperWidth: 120,
+            flipperHeight: 20,
+            gravity: 1.0 // Standard gravity
+        };
+
+        // --- Game State ---
+        let score = 0;
+        let lives = 3;
+
+        // --- Audio System ---
+        const AudioSys = {
+            ctx: null,
+            init: function () {
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+            },
+            playTone: function (freq, type, duration, vol = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            playFlipper: function () {
+                this.playTone(200, 'square', 0.1, 0.2);
+                this.playTone(100, 'sawtooth', 0.15, 0.2);
+            },
+            playBumper: function () {
+                this.playTone(800, 'sine', 0.2, 0.3);
+                this.playTone(1200, 'triangle', 0.1, 0.2);
+            },
+            playWall: function () {
+                this.playTone(100, 'triangle', 0.05, 0.3);
+            }
+        };
+
+        // --- Physics Setup ---
+        const Engine = Matter.Engine,
+            Render = Matter.Render,
+            Runner = Matter.Runner,
+            Bodies = Matter.Bodies,
+            Composite = Matter.Composite,
+            Events = Matter.Events,
+            Vector = Matter.Vector,
+            Body = Matter.Body;
+
+        const engine = Engine.create();
+        const world = engine.world;
+
+        // Improve physics stability
+        engine.positionIterations = 10;
+        engine.velocityIterations = 10;
+
+        // Disable Matter.js built-in renderer as we will use custom Canvas rendering
+        const canvas = document.getElementById('pinball-canvas');
+        canvas.width = CONFIG.width;
+        canvas.height = CONFIG.height;
+        const ctx = canvas.getContext('2d');
+
+        // --- Game Objects ---
+
+        // Groups for collision filtering
+        const GROUP_WALLS = 0x0001;
+        const GROUP_BALL = 0x0002;
+        const GROUP_FLIPPER = 0x0004;
+
+        // Table Geometry
+        const tableWidth = CONFIG.width;
+        const tableHeight = CONFIG.height;
+        const wallThick = 40; // Thicker walls to prevent tunneling
+
+        // Walls Container
+        const walls = [];
+
+        // 1. Outer Frame
+        // Left
+        walls.push(Bodies.rectangle(0, tableHeight / 2, wallThick * 2, tableHeight, { isStatic: true, render: { fillStyle: '#333' } }));
+        // Right
+        walls.push(Bodies.rectangle(tableWidth, tableHeight / 2, wallThick * 2, tableHeight, { isStatic: true, render: { fillStyle: '#333' } }));
+
+        // Top Arch - Rebuilt for smoothness
+        const curveRes = 40;
+        const curveRadius = tableWidth / 2 - 20;
+        const curveCenter = { x: tableWidth / 2, y: curveRadius + 20 };
+
+        for (let i = 0; i < curveRes; i++) {
+            // Semi-circle from PI to 2PI
+            const angle = Math.PI + (Math.PI) * (i / (curveRes - 1));
+            const x = curveCenter.x + Math.cos(angle) * curveRadius;
+            const y = curveCenter.y + Math.sin(angle) * curveRadius;
+
+            // Create segments tangent to the curve
+            const nextAngle = Math.PI + (Math.PI) * ((i + 1) / (curveRes - 1));
+            const nextX = curveCenter.x + Math.cos(nextAngle) * curveRadius;
+            const nextY = curveCenter.y + Math.sin(nextAngle) * curveRadius;
+
+            if (i < curveRes - 1) {
+                const midX = (x + nextX) / 2;
+                const midY = (y + nextY) / 2;
+                const len = Math.hypot(nextX - x, nextY - y);
+                const segAngle = Math.atan2(nextY - y, nextX - x);
+
+                walls.push(Bodies.rectangle(midX, midY, len + 2, wallThick, {
+                    isStatic: true,
+                    angle: segAngle,
+                    render: { fillStyle: '#444' },
+                    friction: 0 // Smooth wall
+                }));
+            }
+        }
+
+        // 2. Plunger Lane Wall
+        // Make it solid and continuous
+        const plungerWallX = tableWidth - 60;
+        walls.push(Bodies.rectangle(plungerWallX, tableHeight / 2 + 150, 20, tableHeight - 300, { isStatic: true, render: { fillStyle: '#556' }, chamfer: { radius: 10 } }));
+
+        // Guide at top of plunger lane to curve ball into play
+        // A small angled piece at the top right corner of the lane
+        walls.push(Bodies.rectangle(tableWidth - 20, 100, 40, 200, {
+            isStatic: true,
+            angle: -0.2,
+            render: { visible: false } // Invisible guide
+        }));
+
+        // 3. Left Ramp / Chute Area (Visual + Physics)
+        // A large block on the left side
+        walls.push(Bodies.fromVertices(100, 300, [
+            { x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 200 }, { x: 0, y: 250 }
+        ], { isStatic: true, render: { fillStyle: '#500' }, label: 'Wall' }));
+
+        // 4. Top Lanes (3 lanes at top)
+        // Vertical dividers
+        walls.push(Bodies.rectangle(tableWidth / 2 - 40, 120, 10, 80, { isStatic: true, render: { fillStyle: '#aaa' }, chamfer: { radius: 5 } }));
+        walls.push(Bodies.rectangle(tableWidth / 2 + 40, 120, 10, 80, { isStatic: true, render: { fillStyle: '#aaa' }, chamfer: { radius: 5 } }));
+
+        // Drain / Bottom
+        const drain = Bodies.rectangle(tableWidth / 2, tableHeight + 50, tableWidth, 100, { isStatic: true, isSensor: true, label: 'Drain' });
+        walls.push(drain);
+
+        // Slopes to flippers
+        walls.push(Bodies.rectangle(80, tableHeight - 140, 160, 20, { isStatic: true, angle: 0.7, label: 'Wall', render: { fillStyle: '#667' } }));
+        walls.push(Bodies.rectangle(tableWidth - 120, tableHeight - 140, 160, 20, { isStatic: true, angle: -0.7, label: 'Wall', render: { fillStyle: '#667' } }));
+
+        Composite.add(world, walls);
+
+        // Flippers
+        const flipperY = tableHeight - 80;
+        const flipperW = 80;
+        const flipperH = 20;
+
+        const leftFlipperBody = Bodies.trapezoid(tableWidth / 2 - 60, flipperY, flipperW, flipperH, 0.3, {
+            label: 'FlipperLeft',
+            angle: 0.5,
+            render: { fillStyle: '#d22' }, // Red flippers
+            chamfer: { radius: 5 }
+        });
+
+        const leftPivot = Matter.Constraint.create({
+            pointA: { x: tableWidth / 2 - 100, y: flipperY - 15 },
+            bodyB: leftFlipperBody,
+            pointB: { x: -flipperW / 2 + 10, y: 0 },
+            stiffness: 1,
+            length: 0
+        });
+
+        const rightFlipperBody = Bodies.trapezoid(tableWidth / 2 + 60, flipperY, flipperW, flipperH, 0.3, {
+            label: 'FlipperRight',
+            angle: -0.5,
+            render: { fillStyle: '#d22' }, // Red flippers
+            chamfer: { radius: 5 }
+        });
+
+        const rightPivot = Matter.Constraint.create({
+            pointA: { x: tableWidth / 2 + 60, y: flipperY - 15 },
+            bodyB: rightFlipperBody,
+            pointB: { x: flipperW / 2 - 10, y: 0 },
+            stiffness: 1,
+            length: 0
+        });
+
+        const leftStopper = Bodies.circle(tableWidth / 2 - 120, flipperY + 20, 10, { isStatic: true, render: { visible: false } });
+        const rightStopper = Bodies.circle(tableWidth / 2 + 80, flipperY + 20, 10, { isStatic: true, render: { visible: false } });
+        Composite.add(world, [leftFlipperBody, leftPivot, rightFlipperBody, rightPivot, leftStopper, rightStopper]);
+
+        // Bumpers (Triangle formation at top)
+        const bumperOptions = {
+            isStatic: true,
+            label: 'Bumper',
+            restitution: 1.5,
+            render: { fillStyle: '#d22' } // Red bumpers
+        };
+
+        const bumpers = [
+            // Top Center
+            Bodies.circle(tableWidth / 2, 200, 25, bumperOptions),
+            // Bottom Left
+            Bodies.circle(tableWidth / 2 - 50, 280, 25, bumperOptions),
+            // Bottom Right
+            Bodies.circle(tableWidth / 2 + 50, 280, 25, bumperOptions)
+        ];
+        Composite.add(world, bumpers);
+
+        // Slingshots
+        const slingshotOptions = {
+            isStatic: true,
+            label: 'Bumper',
+            restitution: 1.5,
+            render: { fillStyle: '#aaa' }
+        };
+
+        const leftSlingRect = Bodies.rectangle(tableWidth / 2 - 120, flipperY - 60, 15, 80, {
+            isStatic: true,
+            label: 'Bumper',
+            angle: -0.3,
+            render: { fillStyle: '#aaa' }
+        });
+
+        const rightSlingRect = Bodies.rectangle(tableWidth / 2 + 80, flipperY - 60, 15, 80, {
+            isStatic: true,
+            label: 'Bumper',
+            angle: 0.3,
+            render: { fillStyle: '#aaa' }
+        });
+
+        Composite.add(world, [leftSlingRect, rightSlingRect]);
+
+        // Plunger
+        const plunger = Bodies.rectangle(tableWidth - 25, tableHeight - 50, 30, 80, {
+            isStatic: true,
+            label: 'Plunger',
+            render: { fillStyle: '#888' }
+        });
+        Composite.add(world, plunger);
+
+        // Ball
+        let ball;
+        function spawnBall() {
+            if (ball) Composite.remove(world, ball);
+            // Center in the plunger lane (Width is ~40px, between 540 and 600)
+            // Plunger wall is at 540 (Width 20, so edge at 550). Right wall is at 600.
+            // Center is approx 575.
+            ball = Bodies.circle(tableWidth - 30, tableHeight - 150, CONFIG.ballRadius, {
+                restitution: 0.6,
+                friction: 0.0005,
+                frictionAir: 0.001,
+                density: 0.04,
+                label: 'Ball',
+                render: { fillStyle: '#silver' }
+            });
+            Composite.add(world, ball);
+        }
+
+        // --- Rendering ---
+
+        // Pre-render background
+        const bgCanvas = document.createElement('canvas');
+        bgCanvas.width = CONFIG.width;
+        bgCanvas.height = CONFIG.height;
+        const bgCtx = bgCanvas.getContext('2d');
+
+        // Dark Blue Space Background
+        const bgGrad = bgCtx.createRadialGradient(CONFIG.width / 2, CONFIG.height / 2, 100, CONFIG.width / 2, CONFIG.height / 2, 600);
+        bgGrad.addColorStop(0, '#0a0a2a');
+        bgGrad.addColorStop(1, '#000011');
+        bgCtx.fillStyle = bgGrad;
+        bgCtx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+
+        // Circuit/Tech lines (Subtle)
+        bgCtx.strokeStyle = '#111133';
+        bgCtx.lineWidth = 2;
+        for (let i = 0; i < 20; i++) {
+            bgCtx.beginPath();
+            bgCtx.moveTo(Math.random() * CONFIG.width, Math.random() * CONFIG.height);
+            bgCtx.lineTo(Math.random() * CONFIG.width, Math.random() * CONFIG.height);
+            bgCtx.stroke();
+        }
+
+        function drawBody(body, ctx) {
+            if (body.render.visible === false) return;
+
+            const vertices = body.vertices;
+            ctx.beginPath();
+            ctx.moveTo(vertices[0].x, vertices[0].y);
+            for (let j = 1; j < vertices.length; j += 1) {
+                ctx.lineTo(vertices[j].x, vertices[j].y);
+            }
+            ctx.lineTo(vertices[0].x, vertices[0].y);
+            ctx.closePath();
+
+            // Styling based on label
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#334';
+
+            if (body.label === 'Wall') {
+                ctx.fillStyle = '#223';
+                ctx.strokeStyle = '#556';
+            } else if (body.label === 'Bumper') {
+                // Red/White Bumpers
+                const grad = ctx.createRadialGradient(body.position.x, body.position.y, 2, body.position.x, body.position.y, 20);
+                grad.addColorStop(0, '#fff');
+                grad.addColorStop(0.3, '#f00');
+                grad.addColorStop(1, '#500');
+                ctx.fillStyle = grad;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#f00';
+                ctx.shadowBlur = 10;
+            } else if (body.label.startsWith('Flipper')) {
+                // Red Flippers
+                const grad = ctx.createLinearGradient(
+                    body.position.x - 40, body.position.y - 10,
+                    body.position.x + 40, body.position.y + 10
+                );
+                grad.addColorStop(0, '#f44');
+                grad.addColorStop(0.5, '#d00');
+                grad.addColorStop(1, '#800');
+                ctx.fillStyle = grad;
+                ctx.strokeStyle = '#fff';
+            } else if (body.label === 'Plunger') {
+                ctx.fillStyle = '#666';
+            } else if (body.label === 'Drain') {
+                ctx.fillStyle = 'transparent';
+                ctx.strokeStyle = 'transparent';
+            } else {
+                ctx.fillStyle = body.render.fillStyle || '#333';
+            }
+
+            ctx.fill();
+            ctx.stroke();
+
+            // Reset shadow
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = 1;
+        }
+
+        function draw() {
+            // Clear and draw background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(bgCanvas, 0, 0);
+
+            // Draw Bodies
+            const bodies = Composite.allBodies(world);
+            for (let i = 0; i < bodies.length; i += 1) {
+                drawBody(bodies[i], ctx);
+            }
+
+            // Draw Ball (Chrome)
+            if (ball) {
+                ctx.beginPath();
+                ctx.arc(ball.position.x, ball.position.y, CONFIG.ballRadius, 0, 2 * Math.PI);
+                const grad = ctx.createRadialGradient(
+                    ball.position.x - 3, ball.position.y - 3, 2,
+                    ball.position.x, ball.position.y, CONFIG.ballRadius
+                );
+                grad.addColorStop(0, '#fff');
+                grad.addColorStop(0.3, '#ccc');
+                grad.addColorStop(1, '#666');
+                ctx.fillStyle = grad;
+                ctx.shadowColor = '#fff';
+                ctx.shadowBlur = 5;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        // --- Loop ---
+        const runner = Runner.create();
+        Runner.run(runner, engine);
+        draw();
+        spawnBall();
+
+        // --- Inputs ---
+        const keys = {};
+        let plungerCharge = 0;
+        const MAX_PLUNGER_CHARGE = 1.0;
+
+        window.addEventListener('keydown', (e) => {
+            if (!AudioSys.ctx) AudioSys.init();
+            keys[e.code] = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+
+            if (e.code === 'Space') {
+                // Plunger release
+                if (ball && ball.position.x > tableWidth - 60 && ball.position.y > tableHeight - 250) {
+                    // Calculate force based on charge
+                    // Increased force significantly as per user feedback
+                    const force = 0.2 + (plungerCharge * 0.8);
+                    Body.applyForce(ball, ball.position, { x: 0, y: -force });
+
+                    // Sound based on power
+                    AudioSys.playTone(100 + (plungerCharge * 200), 'sawtooth', 0.5, 0.5);
+                    AudioSys.playTone(200 + (plungerCharge * 200), 'sine', 0.5, 0.5);
+                }
+                // Reset charge
+                plungerCharge = 0;
+                // Reset plunger graphic position
+                Body.setPosition(plunger, { x: plunger.position.x, y: tableHeight - 50 });
+            }
+        });
+
+        // --- Update Loop for Controls ---
+        Events.on(engine, 'beforeUpdate', () => {
+            // Plunger Charge
+            if (keys['Space']) {
+                if (plungerCharge < MAX_PLUNGER_CHARGE) {
+                    plungerCharge += 0.02;
+                }
+                // Visual feedback: move plunger down
+                // Original Y is tableHeight - 50. Max move down 50px.
+                Body.setPosition(plunger, {
+                    x: plunger.position.x,
+                    y: (tableHeight - 50) + (plungerCharge * 50)
+                });
+            }
+
+            // Left Flipper
+            if (keys['ArrowLeft'] || keys['KeyZ']) {
+                Body.setAngularVelocity(leftFlipperBody, -0.4);
+                // Clamp angle to prevent spinning
+                if (leftFlipperBody.angle < -0.8) {
+                    Body.setAngle(leftFlipperBody, -0.8);
+                    Body.setAngularVelocity(leftFlipperBody, 0);
+                }
+            } else {
+                // Return to rest
+                if (leftFlipperBody.angle < 0.5) {
+                    Body.setAngularVelocity(leftFlipperBody, 0.2);
+                } else {
+                    Body.setAngle(leftFlipperBody, 0.5);
+                    Body.setAngularVelocity(leftFlipperBody, 0);
+                }
+            }
+
+            // Right Flipper
+            if (keys['ArrowRight'] || keys['Slash']) {
+                Body.setAngularVelocity(rightFlipperBody, 0.4);
+                if (rightFlipperBody.angle > 0.8) {
+                    Body.setAngle(rightFlipperBody, 0.8);
+                    Body.setAngularVelocity(rightFlipperBody, 0);
+                }
+            } else {
+                if (rightFlipperBody.angle > -0.5) {
+                    Body.setAngularVelocity(rightFlipperBody, -0.2);
+                } else {
+                    Body.setAngle(rightFlipperBody, -0.5);
+                    Body.setAngularVelocity(rightFlipperBody, 0);
+                }
+            }
+        });
+
+        // --- Collision Events ---
+        Events.on(engine, 'collisionStart', (event) => {
+            const pairs = event.pairs;
+            for (let i = 0; i < pairs.length; i++) {
+                const bodyA = pairs[i].bodyA;
+                const bodyB = pairs[i].bodyB;
+
+                // Check for Bumper Hit
+                if ((bodyA.label === 'Bumper' && bodyB.label === 'Ball') || (bodyB.label === 'Bumper' && bodyA.label === 'Ball')) {
+                    AudioSys.playBumper();
+                    // Add score
+                    score += 100;
+                    document.getElementById('score').innerText = score;
+
+                    // Visual flash (optional, maybe later)
+                } else if (bodyA.label === 'Drain' || bodyB.label === 'Drain') {
+                    // Ball lost
+                    if (ball) {
+                        Composite.remove(world, ball);
+                        ball = null;
+                        lives--;
+                        document.getElementById('lives').innerText = lives;
+
+                        if (lives > 0) {
+                            document.getElementById('mission-text').innerText = "Deploying Ball...";
+                            setTimeout(() => {
+                                spawnBall();
+                                document.getElementById('mission-text').innerText = "Launch when ready";
+                            }, 1000);
+                        } else {
+                            // Game Over
+                            document.getElementById('mission-text').innerText = "GAME OVER";
+                            setTimeout(() => {
+                                alert('GAME OVER - Score: ' + score);
+                                score = 0;
+                                lives = 3;
+                                document.getElementById('score').innerText = score;
+                                document.getElementById('lives').innerText = lives;
+                                document.getElementById('mission-text').innerText = "New Game";
+                                spawnBall();
+                            }, 500);
+                        }
+                    }
+                } else if (bodyA.label === 'Ball' || bodyB.label === 'Ball') {
+                    // Simple collision sound for walls/flippers
+                    // Avoid spamming sound on rolling
+                    const speed = bodyA.label === 'Ball' ? bodyA.speed : bodyB.speed;
+                    if (speed > 1) {
+                        AudioSys.playWall();
+                    }
+                }
+            }
+        });
+
+    </script>
+</body>
+
+</html>
