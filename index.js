@@ -34,7 +34,22 @@ const ROUTES = {
       "access-control-allow-origin": "*",
       "cross-origin-resource-policy": "cross-origin",
     },
-  },
+    },
+    "/radio/api/stream/elvis": {
+      upstreamUrl: "https://stream.radiojar.com/vz5fpmm0azuvv",
+      requestHeaders: {
+        accept: STREAM_ACCEPT,
+        "accept-language": "de,en-US;q=0.9,en;q=0.8",
+        referer: "https://onlineradiobox.com/",
+        pragma: "no-cache",
+        "cache-control": "no-cache",
+      },
+      forwardRange: true,
+      responseHeaders: {
+        "access-control-allow-origin": "*",
+        "cross-origin-resource-policy": "cross-origin",
+      },
+    },
   "/radio/api/now-playing/radiosunbeat": {
     upstreamUrl: "https://api.radio.de/stations/now-playing?stationIds=radiosunbeat",
     requestHeaders: {
@@ -66,7 +81,23 @@ const ROUTES = {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
     },
-  },
+    },
+    "/radio/api/now-playing/elvis": {
+      upstreamUrl: "https://scraper2.onlineradiobox.com/es.perfectelvis?l=0",
+      requestHeaders: {
+        accept: "application/json, text/javascript, */*; q=0.01",
+        "accept-language": "de,en-US;q=0.9,en;q=0.8",
+        referer: "https://onlineradiobox.com/",
+        origin: "https://onlineradiobox.com",
+        pragma: "no-cache",
+        "cache-control": "no-cache",
+      },
+      responseHeaders: {
+        "access-control-allow-origin": "*",
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    },
 };
 
 function buildUpstreamHeaders(config, request) {

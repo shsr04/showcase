@@ -97,6 +97,50 @@
             --bg-halo-b: rgba(107, 127, 145, 0.18);
         }
 
+        body[data-theme="rocknroll"] {
+            --bg-top: #fff0c4;
+            --bg-mid: #d84f35;
+            --bg-bottom: #271325;
+            --text: #fff7ed;
+            --accent-a: #ffd24a;
+            --accent-b: #ff6b4a;
+            --accent-c: #6ee7d5;
+            --shadow: rgba(33, 9, 19, 0.44);
+            --body-glow-a: rgba(255, 227, 143, 0.3);
+            --body-glow-b: rgba(255, 95, 60, 0.26);
+            --skyline-a: rgba(31, 10, 17, 0);
+            --skyline-b: rgba(53, 13, 22, 0.24);
+            --skyline-c: rgba(28, 9, 20, 0.92);
+            --skyline-building: rgba(35, 10, 18, 0.95);
+            --skyline-window: rgba(255, 216, 128, 0.12);
+            --sun-start: rgba(255, 246, 201, 0.97);
+            --sun-end: rgba(255, 118, 73, 0.92);
+            --sun-glow-a: rgba(255, 233, 162, 0.58);
+            --sun-glow-b: rgba(255, 95, 60, 0.38);
+            --shell-bg: rgba(57, 17, 28, 0.22);
+            --shell-line: rgba(255, 237, 199, 0.14);
+            --panel-shine-a: rgba(255, 242, 216, 0.18);
+            --panel-shine-b: rgba(255, 242, 216, 0.04);
+            --panel-tint-a: rgba(113, 26, 23, 0.42);
+            --panel-tint-b: rgba(219, 91, 45, 0.18);
+            --panel-text-strong: rgba(255, 241, 225, 0.95);
+            --panel-text-mid: rgba(255, 224, 194, 0.76);
+            --panel-text-soft: rgba(255, 214, 182, 0.66);
+            --glass-bg: rgba(255, 239, 219, 0.09);
+            --glass-line: rgba(255, 239, 219, 0.2);
+            --button-bg-a: rgba(255, 219, 99, 0.95);
+            --button-bg-b: rgba(237, 101, 62, 0.95);
+            --button-text: rgba(58, 13, 19, 0.94);
+            --viz-top: rgba(255, 226, 130, 0.26);
+            --viz-bottom: rgba(130, 23, 42, 0.24);
+            --viz-shadow-top: rgba(43, 11, 18, 0.14);
+            --viz-shadow-bottom: rgba(18, 7, 12, 0.42);
+            --grid-tint: rgba(255, 194, 83, 0.22);
+            --hint: rgba(255, 241, 223, 0.74);
+            --bg-halo-a: rgba(255, 221, 124, 0.42);
+            --bg-halo-b: rgba(255, 117, 77, 0.18);
+        }
+
         body {
             margin: 0;
             min-height: 100vh;
@@ -521,7 +565,7 @@
         }
     </style>
 </head>
-<body data-theme="sunbeat">
+<body data-theme="">
     <div class="sun" aria-hidden="true"></div>
     <div class="skyline" aria-hidden="true"></div>
     <main class="frame">
@@ -594,13 +638,14 @@
                 nowPlayingUrl: "/radio/api/now-playing/radiosunbeat",
                 theme: "sunbeat",
                 metadataFallbackArtist: "Live broadcast",
-                spectrumLabels: ["Standby", "Soft shimmer", "Wideband", "Full bloom"],
-                rhythmLabels: ["Golden cruise", "Mid-tempo glow", "Pulse drive", "High-sun rush"],
+                spectrumLabels: ["Muted vibe", "Soft shimmer", "Open air", "Full bloom"],
+                rhythmLabels: ["After hours", "Lounge groove", "Driving beat", "Peak time"],
                 visualizerHues: {
                     low: 44,
                     mid: 330,
                     high: 190
-                }
+                },
+                visualizerMotion: "normal",
             },
             {
                 id: "topblues",
@@ -610,13 +655,31 @@
                 nowPlayingUrl: "/radio/api/now-playing/topblues",
                 theme: "blues",
                 metadataFallbackArtist: "Roadhouse broadcast",
-                spectrumLabels: ["At rest", "Dusty room", "Deep wood", "Juke joint"],
-                rhythmLabels: ["Front porch", "Easy stride", "Backbeat roll", "Midnight shuffle"],
+                spectrumLabels: ["Lights low", "Dusty room", "Open wood", "Smoke and brass"],
+                rhythmLabels: ["Slow burn", "Easy shuffle", "Walking groove", "Juke joint"],
                 visualizerHues: {
                     low: 36,
                     mid: 210,
                     high: 155
-                }
+                },
+                visualizerMotion: "muted",
+            },
+            {
+              id: "elvis",
+              name: "Perfect Elvis",
+              subtitle: "The king of rock'n'roll",
+              streamUrl: "/radio/api/stream/elvis",
+              nowPlayingUrl: "/radio/api/now-playing/elvis",
+              theme: "rocknroll",
+              metadataFallbackArtist: "Elvis Presley",
+              spectrumLabels: ["Back room", "Road house", "Stage lights", "Blazing high"],
+              rhythmLabels: ["Ballad", "Backbeat", "Rockabilly drive", "Rattle and roll"],
+              visualizerHues: {
+                  low: 50,
+                  mid: 275,
+                  high: 180
+              },
+              visualizerMotion: "normal",
             }
         ];
 
@@ -648,9 +711,75 @@
         let bpmEstimate = 0;
         let smoothedBass = 0;
         let smoothedTreble = 0;
+        let smoothedFlux = 0;
         let rhythmSpeed = 0.35;
         let spectrumEnergy = 0;
         let isPlaying = false;
+        let perceptualBands = [];
+        let previousBandEnergies = [];
+        let displayedRhythmLabel = "";
+        let displayedSpectrumLabel = "";
+        let lastRhythmLabelUpdateAt = 0;
+        let lastSpectrumLabelUpdateAt = 0;
+
+        const LABEL_DEBOUNCE_MS = 2000;
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function buildPerceptualBands(sampleRate, fftSize, binCount) {
+            const nyquist = sampleRate / 2;
+            const bandCount = 10;
+            const minFrequency = 32;
+            const maxFrequency = Math.min(16000, nyquist);
+            const edges = [];
+
+            for (let i = 0; i <= bandCount; i += 1) {
+                const position = i / bandCount;
+                const frequency = minFrequency * Math.pow(maxFrequency / minFrequency, position);
+                edges.push(frequency);
+            }
+
+            return Array.from({ length: bandCount }, (_, index) => {
+                const startFrequency = edges[index];
+                const endFrequency = edges[index + 1];
+                const startBin = clamp(Math.floor(startFrequency * fftSize / sampleRate), 0, binCount - 1);
+                const endBin = clamp(Math.ceil(endFrequency * fftSize / sampleRate), startBin + 1, binCount);
+
+                return {
+                    startBin,
+                    endBin,
+                    centerFrequency: Math.sqrt(startFrequency * endFrequency),
+                };
+            });
+        }
+
+        function updateDebouncedLabel(element, nextLabel, displayedLabel, lastUpdatedAt, now) {
+            if (!displayedLabel || nextLabel === displayedLabel) {
+                if (element.textContent !== nextLabel) {
+                    element.textContent = nextLabel;
+                }
+
+                return {
+                    label: nextLabel,
+                    timestamp: displayedLabel ? lastUpdatedAt : now,
+                };
+            }
+
+            if (now - lastUpdatedAt >= LABEL_DEBOUNCE_MS) {
+                element.textContent = nextLabel;
+                return {
+                    label: nextLabel,
+                    timestamp: now,
+                };
+            }
+
+            return {
+                label: displayedLabel,
+                timestamp: lastUpdatedAt,
+            };
+        }
 
         function getCurrentStation() {
             return stations[stationIndex];
@@ -671,13 +800,19 @@
 
             if (!sourceNode) {
                 analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
+                analyser.fftSize = 2048;
                 analyser.smoothingTimeConstant = 0.82;
                 sourceNode = audioContext.createMediaElementSource(audio);
                 sourceNode.connect(analyser);
                 analyser.connect(audioContext.destination);
                 frequencyData = new Uint8Array(analyser.frequencyBinCount);
-                waveformData = new Uint8Array(analyser.frequencyBinCount);
+                waveformData = new Uint8Array(analyser.fftSize);
+                perceptualBands = buildPerceptualBands(
+                    audioContext.sampleRate,
+                    analyser.fftSize,
+                    analyser.frequencyBinCount
+                );
+                previousBandEnergies = new Array(perceptualBands.length).fill(0);
             }
         }
 
@@ -694,6 +829,16 @@
             trackArtist.textContent = station.name;
             rhythmState.textContent = station.rhythmLabels[0];
             spectrumState.textContent = station.spectrumLabels[0];
+            displayedRhythmLabel = station.rhythmLabels[0];
+            displayedSpectrumLabel = station.spectrumLabels[0];
+            lastRhythmLabelUpdateAt = performance.now();
+            lastSpectrumLabelUpdateAt = performance.now();
+            smoothedBass = 0;
+            smoothedTreble = 0;
+            smoothedFlux = 0;
+            rhythmSpeed = 0.35;
+            spectrumEnergy = 0;
+            previousBandEnergies = new Array(perceptualBands.length).fill(0);
         }
 
         async function fetchNowPlaying() {
@@ -715,7 +860,7 @@
                     const splitIndex = fullTitle.indexOf(" - ");
                     artist = splitIndex >= 0 ? fullTitle.slice(0, splitIndex) : station.metadataFallbackArtist;
                     title = splitIndex >= 0 ? fullTitle.slice(splitIndex + 3) : fullTitle;
-                } else if (station.id === "topblues") {
+                } else if (station.id === "topblues" || station.id === "elvis") {
                     title = data?.iName || data?.title || station.name;
                     artist = data?.iArtist || station.metadataFallbackArtist;
                 }
@@ -729,16 +874,16 @@
         }
 
         function describeRhythm(speed, station) {
-            if (speed < 0.3) return station.rhythmLabels[0];
-            if (speed < 0.55) return station.rhythmLabels[1];
-            if (speed < 0.75) return station.rhythmLabels[2];
+            if (speed < 0.2) return station.rhythmLabels[0];
+            if (speed < 0.42) return station.rhythmLabels[1];
+            if (speed < 0.68) return station.rhythmLabels[2];
             return station.rhythmLabels[3];
         }
 
         function describeSpectrum(energy, station) {
-            if (energy < 0.18) return station.spectrumLabels[0];
-            if (energy < 0.36) return station.spectrumLabels[1];
-            if (energy < 0.62) return station.spectrumLabels[2];
+            if (energy < 0.22) return station.spectrumLabels[0];
+            if (energy < 0.44) return station.spectrumLabels[1];
+            if (energy < 0.7) return station.spectrumLabels[2];
             return station.spectrumLabels[3];
         }
 
@@ -749,34 +894,90 @@
             const height = canvas.clientHeight;
             const station = getCurrentStation();
             const palette = station.visualizerHues;
+            const usesMutedVisualizerMotion = station.visualizerMotion === "muted";
             ctx.clearRect(0, 0, width, height);
 
             if (analyser && frequencyData && waveformData) {
                 analyser.getByteFrequencyData(frequencyData);
                 analyser.getByteTimeDomainData(waveformData);
 
-                const lowBins = Math.max(4, Math.floor(frequencyData.length * 0.12));
-                const highStart = Math.floor(frequencyData.length * 0.42);
+                let weightedEnergy = 0;
+                let totalWeight = 0;
                 let bassEnergy = 0;
                 let trebleEnergy = 0;
-                let totalEnergy = 0;
+                let bassWeight = 0;
+                let trebleWeight = 0;
+                let occupiedBands = 0;
+                let spectralFlux = 0;
+                let fluxWeight = 0;
+                let bassTransient = 0;
+                const bandEnergies = [];
 
-                for (let i = 0; i < frequencyData.length; i += 1) {
-                    const value = frequencyData[i] / 255;
-                    totalEnergy += value;
-                    if (i < lowBins) bassEnergy += value;
-                    if (i >= highStart) trebleEnergy += value;
+                for (let bandIndex = 0; bandIndex < perceptualBands.length; bandIndex += 1) {
+                    const band = perceptualBands[bandIndex];
+                    let bandEnergy = 0;
+                    const bandSize = Math.max(1, band.endBin - band.startBin);
+
+                    for (let i = band.startBin; i < band.endBin; i += 1) {
+                        bandEnergy += frequencyData[i] / 255;
+                    }
+
+                    bandEnergy /= bandSize;
+
+                    const perceptualWeight = 1 / (1 + Math.log2(1 + (band.centerFrequency / 240)));
+                    weightedEnergy += bandEnergy * perceptualWeight;
+                    totalWeight += perceptualWeight;
+                    bandEnergies.push(bandEnergy);
+
+                    if (bandEnergy > 0.18) {
+                        occupiedBands += 1;
+                    }
+
+                    if (band.centerFrequency < 280) {
+                        bassEnergy += bandEnergy * perceptualWeight;
+                        bassWeight += perceptualWeight;
+                    }
+
+                    if (band.centerFrequency >= 2200) {
+                        trebleEnergy += bandEnergy * perceptualWeight;
+                        trebleWeight += perceptualWeight;
+                    }
+
+                    const previousEnergy = previousBandEnergies[bandIndex] || 0;
+                    const positiveDelta = Math.max(0, bandEnergy - previousEnergy);
+                    const bandFluxWeight = band.centerFrequency < 2000 ? 1.1 : 0.8;
+                    spectralFlux += positiveDelta * bandFluxWeight;
+                    fluxWeight += bandFluxWeight;
+
+                    if (band.centerFrequency < 280) {
+                        bassTransient += positiveDelta * perceptualWeight;
+                    }
                 }
 
-                bassEnergy /= lowBins;
-                trebleEnergy /= Math.max(1, frequencyData.length - highStart);
-                spectrumEnergy = totalEnergy / frequencyData.length;
+                bassEnergy = bassWeight > 0 ? bassEnergy / bassWeight : 0;
+                trebleEnergy = trebleWeight > 0 ? trebleEnergy / trebleWeight : 0;
+                bassTransient = bassWeight > 0 ? bassTransient / bassWeight : 0;
+                spectralFlux = fluxWeight > 0 ? spectralFlux / fluxWeight : 0;
+                previousBandEnergies = bandEnergies;
+
+                const bandOccupancy = occupiedBands / Math.max(1, perceptualBands.length);
+                const rawSpectrumEnergy = totalWeight > 0 ? weightedEnergy / totalWeight : 0;
+                const spectrumComposite = (
+                    rawSpectrumEnergy * 0.58 +
+                    bandOccupancy * 0.27 +
+                    trebleEnergy * 0.15
+                );
+                const compressedSpectrum = Math.pow(clamp(spectrumComposite, 0, 1), 1.45);
+
                 smoothedBass += (bassEnergy - smoothedBass) * 0.22;
                 smoothedTreble += (trebleEnergy - smoothedTreble) * 0.16;
+                smoothedFlux += (spectralFlux - smoothedFlux) * 0.18;
+                spectrumEnergy += (compressedSpectrum - spectrumEnergy) * 0.12;
 
                 const now = performance.now();
-                const beatThreshold = smoothedBass * 1.18 + 0.05;
-                if (bassEnergy > beatThreshold && now - lastBeatAt > 220) {
+                const onsetStrength = Math.max(0, spectralFlux - smoothedFlux * 0.92);
+                const beatThreshold = smoothedBass * 1.06 + 0.014;
+                if (bassTransient > beatThreshold && onsetStrength > 0.012 && now - lastBeatAt > 220) {
                     const interval = now - lastBeatAt;
                     if (lastBeatAt > 0 && interval < 1400) {
                         const instantBpm = 60000 / interval;
@@ -786,11 +987,19 @@
                 }
 
                 const normalizedBpm = Math.min(1, Math.max(0, (bpmEstimate - 70) / 90));
-                rhythmSpeed += ((normalizedBpm * 0.72) + (smoothedBass * 0.28) - rhythmSpeed) * 0.08;
+                const rhythmComposite = clamp(
+                    onsetStrength * 8.5 +
+                    bassTransient * 3.2 +
+                    smoothedBass * 0.35 +
+                    normalizedBpm * 0.25,
+                    0,
+                    1
+                );
+                rhythmSpeed += (rhythmComposite - rhythmSpeed) * 0.16;
 
-                const hueA = palette.low - rhythmSpeed * (station.theme === "blues" ? 8 : 18);
-                const hueB = palette.mid - rhythmSpeed * (station.theme === "blues" ? 18 : 52);
-                const hueC = palette.high - rhythmSpeed * (station.theme === "blues" ? 10 : 34);
+                const hueA = palette.low - rhythmSpeed * (usesMutedVisualizerMotion ? 8 : 18);
+                const hueB = palette.mid - rhythmSpeed * (usesMutedVisualizerMotion ? 18 : 52);
+                const hueC = palette.high - rhythmSpeed * (usesMutedVisualizerMotion ? 10 : 34);
 
                 const barWidth = width / frequencyData.length;
                 for (let i = 0; i < frequencyData.length; i += 1) {
@@ -825,12 +1034,31 @@
                 ctx.fillStyle = `hsla(${hueB}, 100%, 86%, 0.16)`;
                 ctx.fillRect(0, 0, width, height);
 
-                rhythmState.textContent = describeRhythm(rhythmSpeed, station);
-                spectrumState.textContent = describeSpectrum(spectrumEnergy, station);
+                const nextRhythmLabel = describeRhythm(rhythmSpeed, station);
+                const nextSpectrumLabel = describeSpectrum(spectrumEnergy, station);
+                const rhythmLabelState = updateDebouncedLabel(
+                    rhythmState,
+                    nextRhythmLabel,
+                    displayedRhythmLabel,
+                    lastRhythmLabelUpdateAt,
+                    now
+                );
+                const spectrumLabelState = updateDebouncedLabel(
+                    spectrumState,
+                    nextSpectrumLabel,
+                    displayedSpectrumLabel,
+                    lastSpectrumLabelUpdateAt,
+                    now
+                );
+
+                displayedRhythmLabel = rhythmLabelState.label;
+                displayedSpectrumLabel = spectrumLabelState.label;
+                lastRhythmLabelUpdateAt = rhythmLabelState.timestamp;
+                lastSpectrumLabelUpdateAt = spectrumLabelState.timestamp;
             } else {
                 const t = performance.now() * 0.001;
                 const bars = 32;
-                const baseHue = palette.low + Math.sin(t * 0.8) * (station.theme === "blues" ? 6 : 12);
+                const baseHue = palette.low + Math.sin(t * 0.8) * (usesMutedVisualizerMotion ? 6 : 12);
 
                 for (let i = 0; i < bars; i += 1) {
                     const x = (width / bars) * i;
@@ -850,7 +1078,7 @@
             await audio.play();
             isPlaying = true;
             playToggle.textContent = "Pause";
-            connectionBadge.textContent = station.theme === "blues" ? "Settled in" : "On air";
+            connectionBadge.textContent = "On air";
         }
 
         function pauseCurrentStation() {
