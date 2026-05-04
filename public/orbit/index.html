@@ -1,0 +1,2849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbital Navigator</title>
+    <style>
+        :root {
+            --bg: #030706;
+            --panel: rgba(5, 18, 15, 0.86);
+            --panel-hard: #06130f;
+            --line: rgba(124, 255, 190, 0.28);
+            --line-soft: rgba(124, 255, 190, 0.11);
+            --text: #bfffe0;
+            --muted: #668f7b;
+            --phosphor: #41ff9d;
+            --amber: #ffbf54;
+            --red: #ff625b;
+            --blue: #63d7ff;
+            --shadow: rgba(65, 255, 157, 0.22);
+            --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background:
+                radial-gradient(circle at 50% 50%, rgba(18, 74, 54, 0.22), transparent 54%),
+                linear-gradient(120deg, #020403 0%, #06120f 42%, #010302 100%);
+            color: var(--text);
+            font-family: var(--mono);
+            overflow: hidden;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 4;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    rgba(255, 255, 255, 0.035) 0,
+                    rgba(255, 255, 255, 0.035) 1px,
+                    transparent 1px,
+                    transparent 4px
+                ),
+                radial-gradient(circle at 50% 50%, transparent 54%, rgba(0, 0, 0, 0.62) 100%);
+            mix-blend-mode: screen;
+            opacity: 0.42;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 5;
+            box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.92);
+        }
+
+        button,
+        input,
+        select {
+            font: inherit;
+            color: var(--text);
+        }
+
+        button,
+        select,
+        input {
+            background: #020806;
+            border: 1px solid var(--line);
+            border-radius: 0;
+            min-height: 32px;
+            outline: none;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 0.45rem 0.55rem;
+        }
+
+        input:focus,
+        select:focus,
+        button:focus-visible {
+            border-color: var(--phosphor);
+            box-shadow: 0 0 0 1px rgba(65, 255, 157, 0.4), 0 0 18px var(--shadow);
+        }
+
+        button {
+            cursor: pointer;
+            padding: 0.46rem 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        button:hover,
+        button.active {
+            border-color: var(--phosphor);
+            background: rgba(65, 255, 157, 0.1);
+            box-shadow: inset 0 0 14px rgba(65, 255, 157, 0.1), 0 0 18px var(--shadow);
+        }
+
+        button.warn {
+            color: var(--amber);
+            border-color: rgba(255, 191, 84, 0.45);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.32rem;
+            color: var(--muted);
+            font-size: 0.68rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        #app {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 304px 1fr 292px;
+            grid-template-rows: 42px 1fr 42px;
+            height: 100vh;
+            padding: 10px;
+            gap: 10px;
+        }
+
+        .topbar,
+        .bottombar,
+        .panel,
+        #stage {
+            border: 1px solid var(--line);
+            background: var(--panel);
+            box-shadow: inset 0 0 24px rgba(65, 255, 157, 0.06), 0 0 28px rgba(0, 0, 0, 0.42);
+        }
+
+        .topbar {
+            grid-column: 1 / 4;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: baseline;
+            gap: 14px;
+            text-transform: uppercase;
+        }
+
+        .brand strong {
+            color: var(--phosphor);
+            font-size: 1rem;
+            letter-spacing: 0.18em;
+            text-shadow: 0 0 16px var(--shadow);
+        }
+
+        .brand span,
+        .signal {
+            color: var(--muted);
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+        }
+
+        .mission-state {
+            color: var(--amber);
+            font-size: 0.76rem;
+            letter-spacing: 0.16em;
+        }
+
+        .panel {
+            min-height: 0;
+            padding: 12px;
+            overflow: auto;
+        }
+
+        #stage {
+            position: relative;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            background:
+                linear-gradient(rgba(65, 255, 157, 0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(65, 255, 157, 0.035) 1px, transparent 1px),
+                radial-gradient(circle at 50% 50%, rgba(65, 255, 157, 0.07), transparent 60%),
+                #000907;
+            background-size: 34px 34px, 34px 34px, auto, auto;
+        }
+
+        #orbitCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+
+        .scope-corners::before,
+        .scope-corners::after {
+            content: "";
+            position: absolute;
+            width: 46px;
+            height: 46px;
+            pointer-events: none;
+        }
+
+        .scope-corners::before {
+            left: 10px;
+            top: 10px;
+            border-left: 2px solid var(--phosphor);
+            border-top: 2px solid var(--phosphor);
+        }
+
+        .scope-corners::after {
+            right: 10px;
+            bottom: 10px;
+            border-right: 2px solid var(--phosphor);
+            border-bottom: 2px solid var(--phosphor);
+        }
+
+        .readout {
+            position: absolute;
+            top: 12px;
+            left: 14px;
+            color: var(--muted);
+            font-size: 0.68rem;
+            line-height: 1.45;
+            letter-spacing: 0.08em;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
+
+        .section {
+            border-top: 1px solid var(--line-soft);
+            padding-top: 12px;
+            margin-top: 12px;
+        }
+
+        .section:first-child {
+            border-top: 0;
+            margin-top: 0;
+            padding-top: 0;
+        }
+
+        h1,
+        h2 {
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            font-size: 0.8rem;
+            color: var(--phosphor);
+        }
+
+        h2 {
+            margin-bottom: 10px;
+            font-size: 0.72rem;
+        }
+
+        .field {
+            margin-bottom: 10px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .row3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+        }
+
+        .tog {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 32px;
+            color: var(--muted);
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .tog input {
+            width: auto;
+            min-height: auto;
+            accent-color: var(--phosphor);
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 0.66rem;
+            line-height: 1.45;
+            margin-top: 8px;
+        }
+
+        .telemetry {
+            display: grid;
+            gap: 7px;
+        }
+
+        .stat {
+            display: grid;
+            grid-template-columns: 4ch 1fr;
+            gap: 8px;
+            align-items: baseline;
+            padding: 7px 0;
+            border-bottom: 1px solid var(--line-soft);
+            font-size: 0.78rem;
+        }
+
+        .stat code {
+            color: var(--amber);
+            font-family: inherit;
+        }
+
+        .stat span {
+            text-align: right;
+            color: var(--text);
+        }
+
+        .log {
+            min-height: 108px;
+            max-height: 180px;
+            overflow: auto;
+            border: 1px solid var(--line-soft);
+            padding: 8px;
+            color: var(--muted);
+            font-size: 0.67rem;
+            line-height: 1.5;
+            background: rgba(0, 0, 0, 0.22);
+        }
+
+        .catalog {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .pill {
+            border: 1px solid var(--line-soft);
+            color: var(--muted);
+            padding: 4px 5px;
+            font-size: 0.62rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .pill:hover {
+            border-color: var(--line);
+            color: var(--text);
+        }
+
+        .bottombar {
+            grid-column: 1 / 4;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 0 12px;
+            color: var(--muted);
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            overflow: hidden;
+        }
+
+        .strip {
+            color: var(--phosphor);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 1020px) {
+            body {
+                overflow: auto;
+            }
+
+            #app {
+                grid-template-columns: 1fr;
+                grid-template-rows: 42px minmax(58vh, 680px) auto auto 42px;
+                min-height: 100vh;
+                height: auto;
+            }
+
+            .topbar,
+            .bottombar,
+            .panel,
+            #stage {
+                grid-column: 1;
+            }
+
+            #stage {
+                grid-row: 2;
+            }
+
+            .panel {
+                max-height: none;
+            }
+        }
+
+        @media (max-width: 620px) {
+            #app {
+                padding: 6px;
+                gap: 6px;
+                grid-template-rows: auto minmax(52vh, 520px) auto auto auto;
+            }
+
+            .topbar,
+            .bottombar {
+                min-height: 42px;
+                height: auto;
+                align-items: flex-start;
+                flex-direction: column;
+                justify-content: center;
+                padding: 8px;
+            }
+
+            .row,
+            .row3 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header class="topbar">
+            <div class="brand">
+                <strong>Orbital Navigator</strong>
+                <span>Sol-centered transfer scope</span>
+            </div>
+            <div class="mission-state" id="missionState">STBY</div>
+        </header>
+
+        <aside class="panel" id="leftPanel">
+            <section class="section">
+                <h1>Mission</h1>
+                <div class="field">
+                    <label for="originInput">ORG</label>
+                    <input id="originInput" list="bodyList" value="Earth" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="destInput">DST</label>
+                    <input id="destInput" list="bodyList" value="Mars" autocomplete="off">
+                </div>
+                <datalist id="bodyList"></datalist>
+                <div class="row">
+                    <button id="pickOrigin">Click ORG</button>
+                    <button id="pickDest">Click DST</button>
+                </div>
+                <div class="hint">Type body names, <code>x,y AU</code>, <code>x,y,z AU</code>, or <code>r@deg AU</code>. Arm ORG/DST before clicking the map. For moons, target the moon name directly, e.g. <code>Ganymede</code>, not Jupiter.</div>
+            </section>
+
+            <section class="section">
+                <h2>Route</h2>
+                <div class="field">
+                    <label for="epochInput">DEP Epoch</label>
+                    <input id="epochInput" type="date">
+                </div>
+                <div class="row">
+                    <label class="tog"><input type="checkbox" id="syncWindow" checked> Auto win</label>
+                    <label class="tog"><input type="checkbox" id="trailToggle" checked> Trail</label>
+                </div>
+                <div class="row">
+                    <button id="planBtn">Plan</button>
+                    <button id="startBtn">Start</button>
+                </div>
+                <div class="row">
+                    <button id="pauseBtn" class="warn">Pause</button>
+                    <button id="resetBtn">Reset</button>
+                </div>
+                <div class="hint">STD SHIP: 100t dry/load, 20t fuel. Fuel energy: <code>1e16 J/kg</code>, 35% burn efficiency, 20m/s2 torch acceleration.</div>
+            </section>
+
+            <section class="section">
+                <h2>Scope</h2>
+                <div class="row">
+                    <div class="field">
+                        <label for="warpSelect">TWRP</label>
+                        <select id="warpSelect">
+                            <option value="0.05">0.05 d/s</option>
+                            <option value="0.25">0.25 d/s</option>
+                            <option value="1" selected>1 d/s</option>
+                            <option value="5">5 d/s</option>
+                            <option value="20">20 d/s</option>
+                            <option value="80">80 d/s</option>
+                            <option value="300">300 d/s</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="scaleSelect">SCL</label>
+                        <select id="scaleSelect">
+                            <option value="adaptive" selected>Adaptive</option>
+                            <option value="linear">Linear</option>
+                            <option value="log">Log</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="field">
+                        <label for="followSelect">FOL</label>
+                        <select id="followSelect">
+                            <option value="sol">SOL</option>
+                            <option value="ship" selected>SHIP</option>
+                            <option value="origin">ORG</option>
+                            <option value="dest">DST</option>
+                            <option value="free">FREE</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="labelSelect">LBL</label>
+                        <select id="labelSelect">
+                            <option value="major" selected>Major</option>
+                            <option value="all">All</option>
+                            <option value="none">None</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <main id="stage" class="scope-corners">
+            <canvas id="orbitCanvas"></canvas>
+            <div class="readout" id="scopeReadout"></div>
+        </main>
+
+        <aside class="panel" id="rightPanel">
+            <section class="section">
+                <h2>Telemetry</h2>
+                <div class="telemetry" id="telemetry"></div>
+            </section>
+            <section class="section">
+                <h2>Plan</h2>
+                <div class="telemetry" id="planStats"></div>
+            </section>
+            <section class="section">
+                <h2>Catalog</h2>
+                <div class="catalog" id="catalogPills"></div>
+            </section>
+            <section class="section">
+                <h2>Log</h2>
+                <div class="log" id="log"></div>
+            </section>
+        </aside>
+
+        <footer class="bottombar">
+            <span id="statusStrip" class="strip">Awaiting plan.</span>
+            <span class="signal">Mouse: drag pan / wheel zoom / arm ORG-DST to select</span>
+        </footer>
+    </div>
+
+    <script>
+        (() => {
+            "use strict";
+
+            const G = 6.67430e-11;
+            const AU = 149597870700;
+            const LY = 63241.077 * AU;
+            const DAY = 86400;
+            const J2000_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
+            const TAU = Math.PI * 2;
+            const DEG = Math.PI / 180;
+            const SHIP = {
+                dryMass: 100000,
+                fuelCapacity: 20000,
+                fuelEnergy: 1e16,
+                burnEfficiency: 0.35,
+                maxBurnAccel: 20
+            };
+
+            const els = {
+                canvas: document.getElementById("orbitCanvas"),
+                stage: document.getElementById("stage"),
+                originInput: document.getElementById("originInput"),
+                destInput: document.getElementById("destInput"),
+                epochInput: document.getElementById("epochInput"),
+                bodyList: document.getElementById("bodyList"),
+                pickOrigin: document.getElementById("pickOrigin"),
+                pickDest: document.getElementById("pickDest"),
+                planBtn: document.getElementById("planBtn"),
+                startBtn: document.getElementById("startBtn"),
+                pauseBtn: document.getElementById("pauseBtn"),
+                resetBtn: document.getElementById("resetBtn"),
+                syncWindow: document.getElementById("syncWindow"),
+                trailToggle: document.getElementById("trailToggle"),
+                warpSelect: document.getElementById("warpSelect"),
+                scaleSelect: document.getElementById("scaleSelect"),
+                followSelect: document.getElementById("followSelect"),
+                labelSelect: document.getElementById("labelSelect"),
+                telemetry: document.getElementById("telemetry"),
+                planStats: document.getElementById("planStats"),
+                log: document.getElementById("log"),
+                missionState: document.getElementById("missionState"),
+                scopeReadout: document.getElementById("scopeReadout"),
+                statusStrip: document.getElementById("statusStrip"),
+                catalogPills: document.getElementById("catalogPills")
+            };
+            const ctx = els.canvas.getContext("2d");
+
+            const v3 = {
+                add: (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }),
+                sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }),
+                mul: (a, s) => ({ x: a.x * s, y: a.y * s, z: a.z * s }),
+                dot: (a, b) => a.x * b.x + a.y * b.y + a.z * b.z,
+                mag: a => Math.hypot(a.x, a.y, a.z),
+                norm(a) {
+                    const m = v3.mag(a) || 1;
+                    return { x: a.x / m, y: a.y / m, z: a.z / m };
+                },
+                zero: () => ({ x: 0, y: 0, z: 0 })
+            };
+
+            const bodies = [
+                { id: "sol", name: "Sol", group: "star", mass: 1.98847e30, radius: 696340000, color: "#fff37a", major: true },
+                { id: "mercury", name: "Mercury", group: "planet", mass: 3.3011e23, radius: 2439700, color: "#9ca09a", major: true, el: planet(0.38709927, 0.20563593, 7.00497902, 48.33076593, 77.45779628, 252.2503235) },
+                { id: "venus", name: "Venus", group: "planet", mass: 4.8675e24, radius: 6051800, color: "#d7b06a", major: true, el: planet(0.72333566, 0.00677672, 3.39467605, 76.67984255, 131.60246718, 181.9790995) },
+                { id: "earth", name: "Earth", group: "planet", mass: 5.97237e24, radius: 6371000, color: "#63d7ff", major: true, el: planet(1.00000261, 0.01671123, -0.00001531, 0, 102.93768193, 100.46457166) },
+                { id: "mars", name: "Mars", group: "planet", mass: 6.4171e23, radius: 3389500, color: "#ff775f", major: true, el: planet(1.52371034, 0.0933941, 1.84969142, 49.55953891, -23.94362959, -4.55343205) },
+                { id: "jupiter", name: "Jupiter", group: "planet", mass: 1.8982e27, radius: 69911000, color: "#e2bd86", major: true, el: planet(5.202887, 0.04838624, 1.30439695, 100.47390909, 14.72847983, 34.39644051) },
+                { id: "saturn", name: "Saturn", group: "planet", mass: 5.6834e26, radius: 58232000, color: "#e8d39f", major: true, el: planet(9.53667594, 0.05386179, 2.48599187, 113.66242448, 92.59887831, 49.95424423) },
+                { id: "uranus", name: "Uranus", group: "planet", mass: 8.6810e25, radius: 25362000, color: "#9ce8de", major: true, el: planet(19.18916464, 0.04725744, 0.77263783, 74.01692503, 170.9542763, 313.23810451) },
+                { id: "neptune", name: "Neptune", group: "planet", mass: 1.02413e26, radius: 24622000, color: "#6495ff", major: true, el: planet(30.06992276, 0.00859048, 1.77004347, 131.78422574, 44.96476227, -55.12002969) },
+                { id: "pluto", name: "Pluto", group: "minor", mass: 1.303e22, radius: 1188300, color: "#d5c5b2", major: false, el: planet(39.48211675, 0.2488273, 17.14001206, 110.30393684, 224.06891629, 238.92903833) },
+                { id: "moon", name: "Moon", group: "moon", parent: "earth", mass: 7.342e22, radius: 1737400, color: "#d9d9d2", major: false, el: moon(384400000, 0.0549, 5.145, 125.08, 318.15, 115.3654) },
+                { id: "io", name: "Io", group: "moon", parent: "jupiter", mass: 8.9319e22, radius: 1821600, color: "#f6d85f", major: false, el: moon(421700000, 0.0041, 0.04, 43.98, 84.13, 171.0) },
+                { id: "europa", name: "Europa", group: "moon", parent: "jupiter", mass: 4.7998e22, radius: 1560800, color: "#d6ccb1", major: false, el: moon(671100000, 0.009, 0.47, 219.1, 88.97, 88.0) },
+                { id: "ganymede", name: "Ganymede", group: "moon", parent: "jupiter", mass: 1.4819e23, radius: 2634100, color: "#b7a88e", major: false, el: moon(1070400000, 0.0013, 0.2, 63.5, 192.4, 43.0) },
+                { id: "callisto", name: "Callisto", group: "moon", parent: "jupiter", mass: 1.0759e23, radius: 2410300, color: "#9f968a", major: false, el: moon(1882700000, 0.0074, 0.28, 298.8, 52.6, 250.0) },
+                { id: "titan", name: "Titan", group: "moon", parent: "saturn", mass: 1.3452e23, radius: 2574700, color: "#d5a34c", major: false, el: moon(1221870000, 0.0288, 0.35, 24.5, 186.6, 10.0) },
+                { id: "triton", name: "Triton", group: "moon", parent: "neptune", mass: 2.14e22, radius: 1353400, color: "#bcc7d6", major: false, el: moon(354759000, 0.000016, 156.9, 177.6, 0, 200.0) },
+                { id: "ceres", name: "Ceres", group: "asteroid", mass: 9.3835e20, radius: 469700, color: "#b6a58c", major: false, el: minor(2.7675, 0.0758, 10.59, 80.31, 73.60, 95.99) },
+                { id: "vesta", name: "Vesta", group: "asteroid", mass: 2.5908e20, radius: 262700, color: "#c7c1b2", major: false, el: minor(2.3618, 0.0887, 7.14, 103.85, 150.65, 20.86) },
+                { id: "pallas", name: "Pallas", group: "asteroid", mass: 2.04e20, radius: 256000, color: "#aaa69e", major: false, el: minor(2.773, 0.231, 34.84, 173.09, 310.17, 32.12) },
+                { id: "hygiea", name: "Hygiea", group: "asteroid", mass: 8.67e19, radius: 215000, color: "#8f8a82", major: false, el: minor(3.1415, 0.112, 3.84, 283.2, 312.3, 275.3) },
+                { id: "eros", name: "Eros", group: "asteroid", mass: 6.687e15, radius: 8400, color: "#d3a77d", major: false, el: minor(1.458, 0.223, 10.83, 304.3, 178.8, 178.7) },
+                { id: "bennu", name: "Bennu", group: "asteroid", mass: 7.329e10, radius: 245, color: "#a39c91", major: false, el: minor(1.126, 0.204, 6.03, 2.06, 66.22, 101.7) },
+                { id: "apophis", name: "Apophis", group: "asteroid", mass: 6.1e10, radius: 185, color: "#c39462", major: false, el: minor(0.922, 0.191, 3.34, 204.0, 126.4, 320.5) },
+                { id: "psyche", name: "Psyche", group: "asteroid", mass: 2.72e19, radius: 113000, color: "#c29c6d", major: false, el: minor(2.923, 0.134, 3.10, 150.0, 229.0, 284.0) },
+                { id: "ryugu", name: "Ryugu", group: "asteroid", mass: 4.5e11, radius: 450, color: "#8d8378", major: false, el: minor(1.189, 0.190, 5.88, 251.6, 211.4, 304.0) },
+                { id: "itokawa", name: "Itokawa", group: "asteroid", mass: 3.51e10, radius: 165, color: "#b4aca1", major: false, el: minor(1.324, 0.280, 1.62, 69.1, 162.7, 170.0) },
+
+                { id: "alpha-centauri-barycenter", name: "Alpha Centauri Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#7fb7ff", major: false, fixed: stellarPos(4.37, -34) },
+                { id: "alpha-centauri-a", name: "Alpha Centauri A", group: "star", parent: "alpha-centauri-barycenter", mass: 2.188e30, radius: 854000000, color: "#ffe7a8", major: true, el: stellarOrbit(11.2, 0.52, 79, 204, 232, 15) },
+                { id: "alpha-centauri-b", name: "Alpha Centauri B", group: "star", parent: "alpha-centauri-barycenter", mass: 1.804e30, radius: 602000000, color: "#ffc66d", major: true, el: stellarOrbit(11.2, 0.52, 79, 24, 52, 195) },
+                { id: "proxima-centauri", name: "Proxima Centauri", group: "star", parent: "alpha-centauri-barycenter", mass: 2.446e29, radius: 107000000, color: "#ff8f6a", major: true, offset: stellarOffset(0.21, 38) },
+                { id: "proxima-b", name: "Proxima b", group: "exoplanet", parent: "proxima-centauri", mass: 7.6e24, radius: 7160000, color: "#9bc7ff", major: false, el: exoplanet(0.0485, 0.11, 0, 0, 0, 35) },
+                { id: "proxima-d", name: "Proxima d", group: "exoplanet", parent: "proxima-centauri", mass: 1.6e24, radius: 4300000, color: "#b8d8ff", major: false, el: exoplanet(0.029, 0.04, 0, 0, 0, 210) },
+
+                { id: "barnard-barycenter", name: "Barnard System Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#ff9d6e", major: false, fixed: stellarPos(5.96, 126) },
+                { id: "barnards-star", name: "Barnard's Star", group: "star", parent: "barnard-barycenter", mass: 3.23e29, radius: 136000000, color: "#ff8b68", major: true, offset: stellarOffset(0, 0) },
+                { id: "barnard-b", name: "Barnard b", group: "exoplanet", parent: "barnards-star", mass: 2.4e25, radius: 12000000, color: "#c7b08f", major: false, el: exoplanet(0.404, 0.32, 0, 0, 0, 80) },
+
+                { id: "wolf-359-barycenter", name: "Wolf 359 Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#ff6f63", major: false, fixed: stellarPos(7.86, 162) },
+                { id: "wolf-359", name: "Wolf 359", group: "star", parent: "wolf-359-barycenter", mass: 1.79e29, radius: 111000000, color: "#ff765f", major: true, offset: stellarOffset(0, 0) },
+
+                { id: "lalande-21185-barycenter", name: "Lalande 21185 Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#ffb37e", major: false, fixed: stellarPos(8.31, 84) },
+                { id: "lalande-21185", name: "Lalande 21185", group: "star", parent: "lalande-21185-barycenter", mass: 7.8e29, radius: 274000000, color: "#ffad72", major: true, offset: stellarOffset(0, 0) },
+
+                { id: "sirius-barycenter", name: "Sirius Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#cde7ff", major: false, fixed: stellarPos(8.60, -118) },
+                { id: "sirius-a", name: "Sirius A", group: "star", parent: "sirius-barycenter", mass: 4.06e30, radius: 1189000000, color: "#d8ecff", major: true, el: stellarOrbit(10.1, 0.59, 136, 45, 149, 30) },
+                { id: "sirius-b", name: "Sirius B", group: "star", parent: "sirius-barycenter", mass: 2.02e30, radius: 5840000, color: "#f1f7ff", major: true, el: stellarOrbit(20.2, 0.59, 136, 225, 329, 210) },
+
+                { id: "epsilon-eridani-barycenter", name: "Epsilon Eridani Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#ffd58a", major: false, fixed: stellarPos(10.5, -72) },
+                { id: "epsilon-eridani", name: "Epsilon Eridani", group: "star", parent: "epsilon-eridani-barycenter", mass: 1.64e30, radius: 512000000, color: "#ffd27a", major: true, offset: stellarOffset(0, 0) },
+                { id: "epsilon-eridani-b", name: "Epsilon Eridani b", group: "exoplanet", parent: "epsilon-eridani", mass: 1.48e27, radius: 65000000, color: "#d6b57a", major: false, el: exoplanet(3.5, 0.07, 0, 0, 0, 120) },
+
+                { id: "tau-ceti-barycenter", name: "Tau Ceti Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#ffe2a8", major: false, fixed: stellarPos(11.9, 17) },
+                { id: "tau-ceti", name: "Tau Ceti", group: "star", parent: "tau-ceti-barycenter", mass: 1.56e30, radius: 552000000, color: "#ffe0a0", major: true, offset: stellarOffset(0, 0) },
+                { id: "tau-ceti-e", name: "Tau Ceti e", group: "exoplanet", parent: "tau-ceti", mass: 2.3e25, radius: 10500000, color: "#8fd0bd", major: false, el: exoplanet(0.552, 0.18, 0, 0, 0, 60) },
+                { id: "tau-ceti-f", name: "Tau Ceti f", group: "exoplanet", parent: "tau-ceti", mass: 2.4e25, radius: 11200000, color: "#7fbfa8", major: false, el: exoplanet(1.35, 0.16, 0, 0, 0, 240) },
+
+                { id: "ross-128-barycenter", name: "Ross 128 Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#ff8c68", major: false, fixed: stellarPos(11.0, 142) },
+                { id: "ross-128", name: "Ross 128", group: "star", parent: "ross-128-barycenter", mass: 3.34e29, radius: 137000000, color: "#ff8664", major: true, offset: stellarOffset(0, 0) },
+                { id: "ross-128-b", name: "Ross 128 b", group: "exoplanet", parent: "ross-128", mass: 8.3e24, radius: 7300000, color: "#9fd9c8", major: false, el: exoplanet(0.049, 0.04, 0, 0, 0, 155) },
+
+                { id: "trappist-1-barycenter", name: "TRAPPIST-1 Barycenter", group: "barycenter", mass: 0, radius: 1, color: "#ff725f", major: false, fixed: stellarPos(40.7, -18) },
+                { id: "trappist-1", name: "TRAPPIST-1", group: "star", parent: "trappist-1-barycenter", mass: 1.78e29, radius: 82700000, color: "#ff705c", major: true, offset: stellarOffset(0, 0) },
+                { id: "trappist-1b", name: "TRAPPIST-1 b", group: "exoplanet", parent: "trappist-1", mass: 8.2e24, radius: 7100000, color: "#c9a68d", major: false, el: exoplanet(0.0115, 0.01, 0, 0, 0, 20) },
+                { id: "trappist-1e", name: "TRAPPIST-1 e", group: "exoplanet", parent: "trappist-1", mass: 4.6e24, radius: 5800000, color: "#8fd8b6", major: false, el: exoplanet(0.0293, 0.01, 0, 0, 0, 130) },
+                { id: "trappist-1f", name: "TRAPPIST-1 f", group: "exoplanet", parent: "trappist-1", mass: 6.2e24, radius: 6600000, color: "#85c9d8", major: false, el: exoplanet(0.0385, 0.01, 0, 0, 0, 250) }
+            ];
+            const bodyById = new Map(bodies.map(body => [body.id, body]));
+            const bodyByName = new Map(bodies.map(body => [body.name.toLowerCase(), body]));
+
+            const state = {
+                width: 1,
+                height: 1,
+                dpr: 1,
+                epochSec: dateInputToJ2000(todayISO()),
+                complete: false,
+                pickMode: null,
+                origin: null,
+                dest: null,
+                plan: null,
+                running: false,
+                paused: false,
+                simTime: 0,
+                ship: null,
+                launched: false,
+                trail: [],
+                burnMode: "IDLE",
+                lastFrame: performance.now(),
+                hover: null,
+                mouseWorld: v3.zero(),
+                view: { center: v3.zero(), zoom: 260 / AU, dragging: false, lastX: 0, lastY: 0, dragDistance: 0 },
+                renderBodies: []
+            };
+
+            function planet(aAU, e, i, node, periLong, L) {
+                return { a: aAU * AU, e, i: i * DEG, node: node * DEG, argPeri: (periLong - node) * DEG, M0: (L - periLong) * DEG, parent: "sol" };
+            }
+
+            function minor(aAU, e, i, node, argPeri, M0) {
+                return { a: aAU * AU, e, i: i * DEG, node: node * DEG, argPeri: argPeri * DEG, M0: M0 * DEG, parent: "sol" };
+            }
+
+            function moon(a, e, i, node, argPeri, M0) {
+                return { a, e, i: i * DEG, node: node * DEG, argPeri: argPeri * DEG, M0: M0 * DEG };
+            }
+
+            function exoplanet(aAU, e, i, node, argPeri, M0) {
+                return { a: aAU * AU, e, i: i * DEG, node: node * DEG, argPeri: argPeri * DEG, M0: M0 * DEG };
+            }
+
+            function stellarOrbit(aAU, e, i, node, argPeri, M0) {
+                return exoplanet(aAU, e, i, node, argPeri, M0);
+            }
+
+            function stellarPos(distanceLy, angleDeg, zLy = 0) {
+                const a = angleDeg * DEG;
+                return {
+                    x: Math.cos(a) * distanceLy * LY,
+                    y: Math.sin(a) * distanceLy * LY,
+                    z: zLy * LY
+                };
+            }
+
+            function stellarOffset(distanceLy, angleDeg, zLy = 0) {
+                return stellarPos(distanceLy, angleDeg, zLy);
+            }
+
+            function todayISO() {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            }
+
+            function dateInputToJ2000(value) {
+                const ms = Date.parse(`${value}T00:00:00Z`);
+                return (ms - J2000_MS) / 1000;
+            }
+
+            function j2000ToDate(sec) {
+                return new Date(J2000_MS + sec * 1000);
+            }
+
+            function wrapAngle(a) {
+                a %= TAU;
+                return a < 0 ? a + TAU : a;
+            }
+
+            function angleDiff(a, b) {
+                let d = wrapAngle(a - b);
+                if (d > Math.PI) d -= TAU;
+                return d;
+            }
+
+            function solveKepler(M, e) {
+                M = angleNorm(M);
+                let E = e < 0.8 ? M : Math.PI;
+                for (let k = 0; k < 12; k++) {
+                    const f = E - e * Math.sin(E) - M;
+                    const fp = 1 - e * Math.cos(E);
+                    E -= f / fp;
+                }
+                return E;
+            }
+
+            function angleNorm(a) {
+                a %= TAU;
+                return a < -Math.PI ? a + TAU : a > Math.PI ? a - TAU : a;
+            }
+
+            function rotatePerifocal(x, y, z, el) {
+                const cosO = Math.cos(el.node || 0);
+                const sinO = Math.sin(el.node || 0);
+                const cosI = Math.cos(el.i || 0);
+                const sinI = Math.sin(el.i || 0);
+                const cosW = Math.cos(el.argPeri || 0);
+                const sinW = Math.sin(el.argPeri || 0);
+                const m11 = cosO * cosW - sinO * sinW * cosI;
+                const m12 = -cosO * sinW - sinO * cosW * cosI;
+                const m13 = sinO * sinI;
+                const m21 = sinO * cosW + cosO * sinW * cosI;
+                const m22 = -sinO * sinW + cosO * cosW * cosI;
+                const m23 = -cosO * sinI;
+                const m31 = sinW * sinI;
+                const m32 = cosW * sinI;
+                const m33 = cosI;
+                return {
+                    x: m11 * x + m12 * y + m13 * z,
+                    y: m21 * x + m22 * y + m23 * z,
+                    z: m31 * x + m32 * y + m33 * z
+                };
+            }
+
+            function stateFromElements(el, mu, tSec) {
+                const n = Math.sqrt(mu / Math.pow(el.a, 3));
+                const M = el.M0 + n * tSec;
+                const E = solveKepler(M, el.e);
+                const cosE = Math.cos(E);
+                const sinE = Math.sin(E);
+                const r = el.a * (1 - el.e * cosE);
+                const x = el.a * (cosE - el.e);
+                const y = el.a * Math.sqrt(1 - el.e * el.e) * sinE;
+                const velScale = Math.sqrt(mu * el.a) / r;
+                const vx = -velScale * sinE;
+                const vy = velScale * Math.sqrt(1 - el.e * el.e) * cosE;
+                return {
+                    pos: rotatePerifocal(x, y, 0, el),
+                    vel: rotatePerifocal(vx, vy, 0, el)
+                };
+            }
+
+            function bodyState(body, tSec, cache = new Map()) {
+                if (cache.has(body.id)) return cache.get(body.id);
+                if (body.id === "sol") {
+                    const sol = { pos: v3.zero(), vel: v3.zero() };
+                    cache.set(body.id, sol);
+                    return sol;
+                }
+                if (body.fixed) {
+                    const fixed = { pos: body.fixed, vel: v3.zero() };
+                    cache.set(body.id, fixed);
+                    return fixed;
+                }
+                if (body.offset) {
+                    const parent = bodyById.get(body.parent || "sol");
+                    const pState = bodyState(parent, tSec, cache);
+                    const out = { pos: v3.add(pState.pos, body.offset), vel: pState.vel };
+                    cache.set(body.id, out);
+                    return out;
+                }
+                const parentId = body.parent || body.el.parent || "sol";
+                const parent = bodyById.get(parentId);
+                const pState = bodyState(parent, tSec, cache);
+                const mu = G * ((parent.mass || 0) + (body.mass || 0));
+                const rel = stateFromElements(body.el, mu, tSec);
+                const out = { pos: v3.add(pState.pos, rel.pos), vel: v3.add(pState.vel, rel.vel) };
+                cache.set(body.id, out);
+                return out;
+            }
+
+            function parseTarget(value, tSec) {
+                const raw = String(value || "").trim();
+                const key = raw.toLowerCase();
+                if (bodyByName.has(key)) {
+                    const body = bodyByName.get(key);
+                    const bs = bodyState(body, tSec);
+                    return { type: "body", id: body.id, name: body.name, pos: bs.pos, vel: bs.vel, body };
+                }
+                const coord = parseCoordinate(raw);
+                if (coord) return makeWaypoint(coord, raw || "Waypoint");
+                return null;
+            }
+
+            function parseCoordinate(raw) {
+                const value = raw.toLowerCase().replace(/\s+/g, "");
+                const unit = value.includes("ly") ? LY : value.includes("km") ? 1000 : AU;
+                const clean = value.replace(/au|km|ly/g, "");
+                const polar = clean.match(/^(-?\d*\.?\d+(?:e[-+]?\d+)?)@(-?\d*\.?\d+(?:e[-+]?\d+)?)$/i);
+                if (polar) {
+                    const r = Number(polar[1]) * unit;
+                    const th = Number(polar[2]) * DEG;
+                    return { x: Math.cos(th) * r, y: Math.sin(th) * r, z: 0 };
+                }
+                const parts = clean.split(",").map(Number);
+                if ((parts.length === 2 || parts.length === 3) && parts.every(Number.isFinite)) {
+                    return { x: parts[0] * unit, y: parts[1] * unit, z: (parts[2] || 0) * unit };
+                }
+                return null;
+            }
+
+            function makeWaypoint(pos, label) {
+                const r = v3.mag(pos);
+                const tangent = r ? v3.norm({ x: -pos.y, y: pos.x, z: 0 }) : v3.zero();
+                const speed = r ? Math.sqrt(G * bodyById.get("sol").mass / r) : 0;
+                return { type: "waypoint", id: "wp", name: label, pos, vel: v3.mul(tangent, speed), body: null };
+            }
+
+            function targetAt(target, tSec) {
+                if (!target) return null;
+                if (target.type === "body") {
+                    const bs = bodyState(target.body, tSec);
+                    return { ...target, pos: bs.pos, vel: bs.vel };
+                }
+                return target;
+            }
+
+            function approachTarget(target, tSec, referencePos) {
+                const base = targetAt(target, tSec);
+                if (!base || target.type !== "body" || !target.body.mass || target.body.id === "sol") return base;
+                const radius = parkingOrbitRadius(target.body);
+                let radial = referencePos ? v3.norm(v3.sub(referencePos, base.pos)) : null;
+                if (!radial || v3.mag(radial) < 0.5) radial = v3.norm(base.pos);
+                if (v3.mag(radial) < 0.5) radial = { x: 1, y: 0, z: 0 };
+                let tangent = v3.norm({ x: -radial.y, y: radial.x, z: 0 });
+                const parentVel = target.body.parent ? bodyState(bodyById.get(target.body.parent), tSec).vel : v3.zero();
+                const relVel = v3.sub(base.vel, parentVel);
+                if (v3.dot(tangent, relVel) < 0) tangent = v3.mul(tangent, -1);
+                const orbitSpeed = circularOrbitSpeed(target.body, radius);
+                return {
+                    ...base,
+                    name: `${base.name} orbit`,
+                    pos: v3.add(base.pos, v3.mul(radial, radius)),
+                    vel: v3.add(base.vel, v3.mul(tangent, orbitSpeed)),
+                    orbitBody: target.body,
+                    orbitRadius: radius
+                };
+            }
+
+            function parkingOrbitRadius(body) {
+                if (!body || !body.radius) return 1000000;
+                return Math.max(body.radius * 3, body.radius + 300000);
+            }
+
+            function gravitySoftening(body) {
+                return Math.max(1, (body && body.radius || 1) * 0.1);
+            }
+
+            function softenedGravityAtRadius(body, radius) {
+                if (!body || !body.mass || !Number.isFinite(radius) || radius <= 0) return 0;
+                const soften = gravitySoftening(body);
+                return G * body.mass * radius / Math.pow(radius * radius + soften * soften, 1.5);
+            }
+
+            function circularOrbitSpeed(body, radius) {
+                return Math.sqrt(Math.max(0, softenedGravityAtRadius(body, radius) * radius));
+            }
+
+            function planMission() {
+                const epoch = dateInputToJ2000(els.epochInput.value);
+                state.epochSec = epoch;
+                const origin = parseTarget(els.originInput.value, epoch);
+                const dest = parseTarget(els.destInput.value, epoch);
+                if (!origin || !dest) {
+                    writeLog("NAV ERR: origin or destination unresolved.");
+                    return null;
+                }
+                state.origin = origin;
+                state.dest = dest;
+                state.plan = null;
+                renderPlanStats();
+
+                const localPlan = buildLocalSystemPlan(origin, dest, epoch);
+                if (localPlan) return installPlan(localPlan);
+                if (requiresInterstellarPlan(origin, dest)) {
+                    const interstellarPlan = buildInterstellarPlan(origin, dest, epoch);
+                    if (interstellarPlan) return installPlan(interstellarPlan);
+                    writeLog("NAV ERR: interstellar route requires named catalog bodies in supported stellar systems.");
+                    return null;
+                }
+
+                let waitSec = 0;
+                if (els.syncWindow.checked && origin.type === "body" && origin.body.id !== "sol" && dest.id !== "sol") {
+                    waitSec = findLaunchWindow(origin, dest, epoch);
+                }
+
+                const depState = targetAt(origin, epoch + waitSec);
+                const depDest = targetAt(dest, epoch + waitSec);
+                const r1 = v3.mag(depState.pos);
+                const r2 = v3.mag(depDest.pos);
+                if (r1 < 1 || r2 < 1) {
+                    writeLog("NAV ERR: Sol surface transfers are not supported.");
+                    return null;
+                }
+
+                const mu = G * bodyById.get("sol").mass;
+                const aTransfer = (r1 + r2) / 2;
+                const radial = v3.norm(depState.pos);
+                const launchOffset = origin.body ? launchClearance(origin.body) : 0;
+                const startPos = v3.add(depState.pos, v3.mul(radial, launchOffset));
+                const transferSec = Math.PI * Math.sqrt(Math.pow(aTransfer, 3) / mu);
+                const arrTarget = approachTarget(dest, epoch + waitSec + transferSec, startPos);
+                const fallback = tangentTransfer(depState, arrTarget, aTransfer, r1, r2, mu);
+                const lambert = solveLambert(startPos, arrTarget.pos, transferSec, mu, depState.vel, arrTarget.vel);
+                const fallbackDv = v3.mag(v3.sub(fallback.departVel, depState.vel)) + v3.mag(v3.sub(arrTarget.vel, fallback.arrivalVel));
+                const lambertDv = lambert ? v3.mag(v3.sub(lambert.v1, depState.vel)) + v3.mag(v3.sub(arrTarget.vel, lambert.v2)) : Infinity;
+                const fallbackPreview = integratePreview(startPos, fallback.departVel, epoch + waitSec, transferSec);
+                const fallbackMiss = fallbackPreview.length ? v3.mag(v3.sub(fallbackPreview[fallbackPreview.length - 1], arrTarget.pos)) : Infinity;
+                const lambertPreview = lambert ? integratePreview(startPos, lambert.v1, epoch + waitSec, transferSec) : [];
+                const lambertMiss = lambertPreview.length ? v3.mag(v3.sub(lambertPreview[lambertPreview.length - 1], arrTarget.pos)) : Infinity;
+                const useLambert = lambert && (lambertDv < fallbackDv * 2.25 || (fallbackMiss > 0.5 * AU && lambertMiss < fallbackMiss * 0.35));
+                const departVel = useLambert ? lambert.v1 : fallback.departVel;
+                const arrivalVel = useLambert ? lambert.v2 : fallback.arrivalVel;
+                const dvDepart = v3.mag(v3.sub(departVel, depState.vel));
+                const dvArrive = v3.mag(v3.sub(arrTarget.vel, arrivalVel));
+                let preview = useLambert ? lambertPreview : fallbackPreview;
+                let miss = useLambert ? lambertMiss : fallbackMiss;
+                let route = {
+                    transferSec,
+                    startVel: departVel,
+                    arrivalVel,
+                    dvDepart,
+                    dvArrive,
+                    dvTotal: dvDepart + dvArrive,
+                    preview,
+                    miss,
+                    arrivalTarget: arrTarget,
+                    method: useLambert ? "LMB" : "TAN"
+                };
+                const fastRoute = findFuelAwareFastRoute(origin, dest, epoch + waitSec, depState, startPos, route.transferSec);
+                if (fastRoute && fastRoute.miss < route.miss) route = fastRoute;
+                route = optimizeRouteToOrbit(route, dest, epoch + waitSec, startPos, depState.vel);
+
+                return installPlan({
+                    origin,
+                    dest,
+                    epoch,
+                    waitSec,
+                    transferSec: route.transferSec,
+                    startPos,
+                    initialVel: depState.vel,
+                    startVel: route.startVel,
+                    arrivalVel: route.arrivalVel,
+                    arrivalTime: waitSec + route.transferSec,
+                    dvDepart: route.dvDepart,
+                    dvArrive: route.dvArrive,
+                    dvTotal: route.dvTotal,
+                    miss: route.miss,
+                    preview: route.preview,
+                    method: route.method,
+                    frame: "SOL"
+                });
+            }
+
+            function buildInterstellarPlan(origin, dest, epoch) {
+                if (!origin || !dest || origin.type !== "body" || dest.type !== "body") return null;
+                const originState = targetAt(origin, epoch);
+                const originRoot = systemRootBody(origin.body);
+                const destRoot = systemRootBody(dest.body);
+                const destPrimary = destinationPrimaryBody(dest.body);
+                if (!originState || !originRoot || !destRoot || !destPrimary) return null;
+
+                const initialVel = originState.vel;
+                const rootVector = v3.sub(bodyState(destRoot, epoch).pos, bodyState(originRoot, epoch).pos);
+                let exitDir = v3.norm(rootVector);
+                if (v3.mag(exitDir) < 0.5) exitDir = v3.norm(v3.sub(bodyState(destPrimary, epoch).pos, originState.pos));
+                if (v3.mag(exitDir) < 0.5) exitDir = { x: 1, y: 0, z: 0 };
+                const startPos = v3.add(originState.pos, v3.mul(exitDir, origin.body ? launchClearance(origin.body) : 0));
+
+                const cruiseSpeed = interstellarCruiseSpeed(origin, dest, epoch, startPos, initialVel, exitDir);
+                if (!cruiseSpeed) return null;
+                const startVel = v3.add(initialVel, v3.mul(exitDir, cruiseSpeed));
+                const dvDepart = v3.mag(v3.sub(startVel, initialVel));
+                const burnDepartSec = dvDepart / SHIP.maxBurnAccel;
+                const glideStartPos = v3.add(v3.add(startPos, v3.mul(initialVel, burnDepartSec)), v3.mul(exitDir, 0.5 * cruiseSpeed * burnDepartSec));
+
+                let localPlan = null;
+                let approachTargetState = null;
+                let approachStartPos = null;
+                let approachInitialVel = null;
+                let hohmannVel = null;
+                let approachAbs = epoch + burnDepartSec + v3.mag(v3.sub(bodyState(destPrimary, epoch).pos, glideStartPos)) / cruiseSpeed;
+
+                for (let i = 0; i < 4; i++) {
+                    const localOrigin = makeBodyTarget(destPrimary, approachAbs);
+                    localPlan = dest.body.id === destPrimary.id ? null : buildLocalSystemPlan(localOrigin, dest, approachAbs);
+                    if (localPlan) {
+                        approachStartPos = localPlan.startPos;
+                        approachInitialVel = localPlan.initialVel;
+                        hohmannVel = localPlan.startVel;
+                    } else {
+                        approachTargetState = approachTarget(dest, approachAbs, glideStartPos);
+                        if (!approachTargetState) return null;
+                        approachStartPos = approachTargetState.pos;
+                        approachInitialVel = approachTargetState.vel;
+                        hohmannVel = approachTargetState.vel;
+                    }
+                    const glideSec = v3.mag(v3.sub(approachStartPos, glideStartPos)) / cruiseSpeed;
+                    approachAbs = epoch + burnDepartSec + glideSec;
+                }
+
+                const glideSec = v3.mag(v3.sub(approachStartPos, glideStartPos)) / cruiseSpeed;
+                const approachStart = burnDepartSec + glideSec;
+                const cruiseVel = v3.mul(v3.norm(v3.sub(approachStartPos, glideStartPos)), cruiseSpeed);
+                const dvBrake = v3.mag(v3.sub(approachInitialVel, cruiseVel));
+                const dvHohmann = localPlan ? localPlan.dvDepart : 0;
+                const localBurnSec = (dvBrake + dvHohmann) / SHIP.maxBurnAccel;
+                const transferSec = approachStart + localBurnSec + (localPlan ? localPlan.transferSec : 0);
+                const arrivalTarget = approachTarget(dest, epoch + transferSec, approachStartPos);
+                const arrivalVel = localPlan ? localPlan.arrivalVel : cruiseVel;
+                const dvArrive = localPlan ? localPlan.dvArrive : v3.mag(v3.sub(arrivalTarget.vel, cruiseVel));
+                const preview = buildInterstellarPreview(startPos, glideStartPos, approachStartPos, localPlan);
+                const miss = localPlan ? localPlan.miss : v3.mag(v3.sub(approachStartPos, arrivalTarget.pos));
+                const fuel = estimateFuelProfile(dvDepart, dvBrake, dvHohmann, dvArrive);
+
+                return {
+                    kind: "interstellar",
+                    origin,
+                    dest,
+                    epoch,
+                    waitSec: 0,
+                    transferSec,
+                    startPos,
+                    initialVel,
+                    startVel,
+                    arrivalVel,
+                    arrivalTime: transferSec,
+                    dvDepart,
+                    dvBrake,
+                    dvHohmann,
+                    dvArrive,
+                    dvCorrection: dvBrake + dvHohmann,
+                    dvTotal: dvDepart + dvBrake + dvHohmann + dvArrive,
+                    miss,
+                    preview,
+                    fuel,
+                    method: localPlan ? "XST+HOH" : "XST+APP",
+                    frame: `${originRoot.name.toUpperCase()}>${destRoot.name.toUpperCase()}`,
+                    interstellar: {
+                        cruiseSpeed,
+                        glideStart: burnDepartSec,
+                        glideStartPos,
+                        approachStart,
+                        approachStartPos,
+                        approachInitialVel,
+                        hohmannVel,
+                        cruiseVel,
+                        localBurnSec,
+                        localTransferSec: localPlan ? localPlan.transferSec : 0,
+                        localMethod: localPlan ? localPlan.method : "APP"
+                    }
+                };
+            }
+
+            function interstellarCruiseSpeed(origin, dest, epoch, startPos, initialVel, exitDir) {
+                const rootDistance = v3.mag(v3.sub(bodyState(systemRootBody(dest.body), epoch).pos, bodyState(systemRootBody(origin.body), epoch).pos));
+                const minSpeed = 0.002 * 299792458;
+                const maxSpeed = 0.18 * 299792458;
+                let lo = minSpeed;
+                let hi = maxSpeed;
+                let best = 0;
+                for (let i = 0; i < 32; i++) {
+                    const speed = (lo + hi) / 2;
+                    const fuel = roughInterstellarFuel(origin, dest, epoch, startPos, initialVel, exitDir, speed, rootDistance);
+                    if (fuel <= SHIP.fuelCapacity * 0.96) {
+                        best = speed;
+                        lo = speed;
+                    } else {
+                        hi = speed;
+                    }
+                }
+                return best >= minSpeed ? best : 0;
+            }
+
+            function roughInterstellarFuel(origin, dest, epoch, startPos, initialVel, exitDir, cruiseSpeed, rootDistance) {
+                const cruiseVel = v3.mul(exitDir, cruiseSpeed);
+                const dvDepart = v3.mag(v3.sub(v3.add(initialVel, cruiseVel), initialVel));
+                const destPrimary = destinationPrimaryBody(dest.body);
+                const cruiseSec = Math.max(rootDistance, v3.mag(v3.sub(bodyState(destPrimary, epoch).pos, startPos))) / cruiseSpeed;
+                const localOrigin = makeBodyTarget(destPrimary, epoch + cruiseSec);
+                const localEstimate = dest.body.id === destPrimary.id ? null : estimateLocalApproachBudget(destPrimary, dest.body, epoch + cruiseSec);
+                const approachVel = localOrigin.vel;
+                const dvBrake = v3.mag(v3.sub(approachVel, cruiseVel));
+                const dvHohmann = localEstimate ? localEstimate.dvDepart : 0;
+                const dvArrive = localEstimate ? localEstimate.dvArrive : v3.mag(v3.sub(approachTarget(dest, epoch + cruiseSec, startPos).vel, cruiseVel));
+                return estimateFuelProfile(dvDepart, dvBrake, dvHohmann, dvArrive).total;
+            }
+
+            function estimateLocalApproachBudget(primary, body, tSec) {
+                const primaryState = bodyState(primary, tSec);
+                const bodyStateNow = bodyState(body, tSec);
+                const rel = v3.sub(bodyStateNow.pos, primaryState.pos);
+                const r1 = Math.max(primary.radius * 3, primary.radius + 300000);
+                const r2 = Math.max(v3.mag(rel), r1 * 1.1);
+                const mu = G * primary.mass;
+                const aTransfer = (r1 + r2) / 2;
+                const circularStart = Math.sqrt(mu / r1);
+                const transferStart = Math.sqrt(mu * (2 / r1 - 1 / aTransfer));
+                const transferArrive = Math.sqrt(mu * (2 / r2 - 1 / aTransfer));
+                const bodyLocalSpeed = v3.mag(v3.sub(bodyStateNow.vel, primaryState.vel));
+                return {
+                    dvDepart: Math.abs(transferStart - circularStart),
+                    dvArrive: Math.abs(bodyLocalSpeed - transferArrive) + circularOrbitSpeed(body, parkingOrbitRadius(body))
+                };
+            }
+
+            function buildInterstellarPreview(startPos, glideStartPos, approachStartPos, localPlan) {
+                const preview = [];
+                for (let i = 0; i <= 160; i++) {
+                    const u = i / 160;
+                    const eased = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+                    preview.push(v3.add(glideStartPos, v3.mul(v3.sub(approachStartPos, glideStartPos), eased)));
+                }
+                preview.unshift(startPos);
+                if (localPlan && localPlan.preview && localPlan.preview.length) {
+                    preview.push(...localPlan.preview);
+                }
+                return preview;
+            }
+
+            function systemRootBody(body) {
+                let current = body;
+                let guard = 0;
+                while (current && current.id !== "sol" && guard++ < 20) {
+                    const parentId = current.parent || current.el && current.el.parent;
+                    if (!parentId) return current;
+                    current = bodyById.get(parentId);
+                }
+                return current;
+            }
+
+            function destinationPrimaryBody(body) {
+                let current = body;
+                let guard = 0;
+                while (current && guard++ < 20) {
+                    const parentId = current.parent || current.el && current.el.parent;
+                    if (!parentId || parentId === "sol") return current;
+                    const parent = bodyById.get(parentId);
+                    if (!parent || parent.group === "barycenter") return current;
+                    current = parent;
+                }
+                return body;
+            }
+
+            function makeBodyTarget(body, tSec) {
+                const bs = bodyState(body, tSec);
+                return { type: "body", id: body.id, name: body.name, pos: bs.pos, vel: bs.vel, body };
+            }
+
+            function requiresInterstellarPlan(origin, dest) {
+                const oRoot = targetRootId(origin);
+                const dRoot = targetRootId(dest);
+                if (!oRoot || !dRoot) return false;
+                return oRoot !== dRoot || oRoot !== "sol";
+            }
+
+            function targetRootId(target) {
+                if (!target || target.type !== "body") return null;
+                let body = target.body;
+                let guard = 0;
+                while (body && body.id !== "sol" && guard++ < 20) {
+                    const parentId = body.parent || body.el && body.el.parent;
+                    if (!parentId) return body.id;
+                    body = bodyById.get(parentId);
+                }
+                return body ? body.id : null;
+            }
+
+            function installPlan(plan) {
+                plan.fuel = plan.fuel || estimateFuel(plan.dvDepart, plan.dvArrive, plan.dvCorrection || 0);
+                plan.burnDepartSec = plan.dvDepart / SHIP.maxBurnAccel;
+                plan.burnArriveSec = plan.dvArrive / SHIP.maxBurnAccel;
+                plan.burnCorrectionSec = (plan.dvCorrection || 0) / SHIP.maxBurnAccel;
+                plan.captureOrbit = plan.dest.type === "body" && plan.dest.body.id !== "sol" ? parkingOrbitRadius(plan.dest.body) : 0;
+                state.origin = plan.origin;
+                state.dest = plan.dest;
+                state.plan = plan;
+                state.running = false;
+                state.paused = false;
+                state.simTime = 0;
+                state.ship = null;
+                state.launched = false;
+                state.trail = [];
+                state.burnMode = "IDLE";
+                state.complete = false;
+                renderPlanStats();
+                writeLog(`PLAN OK: ${plan.origin.name} > ${plan.dest.name}; WIN ${fmtDays(plan.waitSec)}; TOF ${fmtDays(plan.transferSec)}; DV ${fmtSpeed(plan.dvTotal)}; FUEL ${fmtFuel(plan.fuel.total)}; ${plan.frame}/${plan.method}.`);
+                return state.plan;
+            }
+
+            function tangentTransfer(depState, arrTarget, aTransfer, r1, r2, mu) {
+                const radial = v3.norm(depState.pos);
+                let tangent = v3.norm({ x: -radial.y, y: radial.x, z: 0 });
+                if (v3.dot(tangent, depState.vel) < 0) tangent = v3.mul(tangent, -1);
+                const departVel = v3.mul(tangent, Math.sqrt(mu * (2 / r1 - 1 / aTransfer)));
+                const arrRadial = v3.norm(arrTarget.pos);
+                let arrTangent = v3.norm({ x: -arrRadial.y, y: arrRadial.x, z: 0 });
+                if (v3.dot(arrTangent, arrTarget.vel) < 0) arrTangent = v3.mul(arrTangent, -1);
+                const arrivalVel = v3.mul(arrTangent, Math.sqrt(mu * (2 / r2 - 1 / aTransfer)));
+                return { departVel, arrivalVel };
+            }
+
+            function buildLocalSystemPlan(origin, dest, epoch) {
+                const parent = localPrimary(origin, dest);
+                if (!parent) return null;
+                const mu = G * parent.mass;
+                const depParent = bodyState(parent, epoch);
+                const originLocal = localEndpoint(origin, parent, epoch, dest);
+                const destNow = localEndpoint(dest, parent, epoch, origin);
+                if (!originLocal || !destNow) return null;
+                const r1 = v3.mag(originLocal.pos);
+                const r2 = v3.mag(destNow.pos);
+                if (r1 < parent.radius * 1.02 || r2 < parent.radius * 1.02) return null;
+                const aTransfer = (r1 + r2) / 2;
+                const transferSec = Math.PI * Math.sqrt(Math.pow(aTransfer, 3) / mu);
+                const destCenterArr = localEndpoint(dest, parent, epoch + transferSec, origin);
+                const destArr = localApproachEndpoint(dest, parent, epoch + transferSec, originLocal.pos);
+                let startLocal = originLocal;
+                if (origin.type === "body" && origin.body.id === parent.id) {
+                    const arrDir = v3.norm(destCenterArr.pos);
+                    const localPos = v3.mul(arrDir, -r1);
+                    const tangent = localTangent(localPos, destCenterArr.vel);
+                    startLocal = { pos: localPos, vel: v3.mul(tangent, Math.sqrt(mu / r1)) };
+                }
+
+                const fallback = tangentTransfer(startLocal, destArr, aTransfer, r1, v3.mag(destArr.pos), mu);
+                const lambert = solveLambert(startLocal.pos, destArr.pos, transferSec, mu, startLocal.vel, destArr.vel);
+                const fallbackDv = v3.mag(v3.sub(fallback.departVel, startLocal.vel)) + v3.mag(v3.sub(destArr.vel, fallback.arrivalVel));
+                const lambertDv = lambert ? v3.mag(v3.sub(lambert.v1, startLocal.vel)) + v3.mag(v3.sub(destArr.vel, lambert.v2)) : Infinity;
+                const useLambert = lambert && lambertDv < fallbackDv * 12;
+                const localStartVel = useLambert ? lambert.v1 : fallback.departVel;
+                const localArrivalVel = useLambert ? lambert.v2 : fallback.arrivalVel;
+                const startPos = v3.add(depParent.pos, startLocal.pos);
+                const initialVel = v3.add(depParent.vel, startLocal.vel);
+                const startVel = v3.add(depParent.vel, localStartVel);
+                const arrParent = bodyState(parent, epoch + transferSec);
+                const arrivalVel = v3.add(arrParent.vel, localArrivalVel);
+                const arrTarget = approachTarget(dest, epoch + transferSec, startPos);
+                const preview = integratePreview(startPos, startVel, epoch, transferSec);
+                const miss = preview.length ? v3.mag(v3.sub(preview[preview.length - 1], arrTarget.pos)) : NaN;
+                const dvDepart = v3.mag(v3.sub(startVel, initialVel));
+                const dvArrive = v3.mag(v3.sub(arrTarget.vel, arrivalVel));
+                let route = {
+                    transferSec,
+                    startVel,
+                    arrivalVel,
+                    dvDepart,
+                    dvArrive,
+                    dvTotal: dvDepart + dvArrive,
+                    miss,
+                    preview,
+                    arrivalTarget: arrTarget,
+                    method: useLambert ? "LMB" : "TAN"
+                };
+                const targeted = findLocalFuelAwareRoute(parent, dest, epoch, startLocal, depParent, initialVel, route.transferSec);
+                if (targeted && targeted.miss < route.miss) route = targeted;
+                route = optimizeRouteToOrbit(route, dest, epoch, startPos, initialVel);
+                return {
+                    origin,
+                    dest,
+                    epoch,
+                    waitSec: 0,
+                    transferSec: route.transferSec,
+                    startPos,
+                    initialVel,
+                    startVel: route.startVel,
+                    arrivalVel: route.arrivalVel,
+                    arrivalTime: route.transferSec,
+                    dvDepart: route.dvDepart,
+                    dvArrive: route.dvArrive,
+                    dvTotal: route.dvTotal,
+                    miss: route.miss,
+                    preview: route.preview,
+                    method: route.method,
+                    frame: parent.name.toUpperCase()
+                };
+            }
+
+            function localPrimary(origin, dest) {
+                if (!origin || !dest || origin.type !== "body" || dest.type !== "body") return null;
+                const o = origin.body;
+                const d = dest.body;
+                if (d.parent === o.id) return o.id === "sol" ? null : o;
+                if (o.parent === d.id) return d.id === "sol" ? null : d;
+                if (o.parent && o.parent === d.parent && o.parent !== "sol") return bodyById.get(o.parent);
+                return null;
+            }
+
+            function localEndpoint(target, parent, tSec, otherTarget) {
+                if (target.type !== "body") return null;
+                const parentState = bodyState(parent, tSec);
+                if (target.body.id === parent.id) {
+                    const other = otherTarget && otherTarget.type === "body" ? localEndpoint(otherTarget, parent, tSec, null) : null;
+                    const dir = other ? v3.norm(other.pos) : { x: 1, y: 0, z: 0 };
+                    const radius = parent.radius * 3;
+                    const pos = v3.mul(dir, -radius);
+                    const vel = v3.mul(localTangent(pos, other ? other.vel : null), Math.sqrt(G * parent.mass / radius));
+                    return { pos, vel };
+                }
+                const targetState = bodyState(target.body, tSec);
+                return { pos: v3.sub(targetState.pos, parentState.pos), vel: v3.sub(targetState.vel, parentState.vel) };
+            }
+
+            function localApproachEndpoint(target, parent, tSec, referenceLocalPos) {
+                const center = localEndpoint(target, parent, tSec, null);
+                if (!center || target.body.id === parent.id) return center;
+                const radius = parkingOrbitRadius(target.body);
+                let radial = referenceLocalPos ? v3.norm(v3.sub(referenceLocalPos, center.pos)) : v3.norm(center.pos);
+                if (v3.mag(radial) < 0.5) radial = v3.norm(center.pos);
+                if (v3.mag(radial) < 0.5) radial = { x: 1, y: 0, z: 0 };
+                let tangent = localTangent(radial, center.vel);
+                const orbitSpeed = circularOrbitSpeed(target.body, radius);
+                return {
+                    pos: v3.add(center.pos, v3.mul(radial, radius)),
+                    vel: v3.add(center.vel, v3.mul(tangent, orbitSpeed))
+                };
+            }
+
+            function findLocalFuelAwareRoute(parent, dest, epoch, startLocal, depParent, initialVel, baselineSec) {
+                if (!dest || dest.type !== "body" || dest.body.id === parent.id) return null;
+                const mu = G * parent.mass;
+                const baseDays = baselineSec / DAY;
+                const candidateDays = [0.35, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 9, 14, 21, baseDays * 0.75, baseDays, baseDays * 1.25]
+                    .filter(day => day > 0.1 && day < 30);
+                const durations = [...new Set(candidateDays.map(day => Math.round(day * 24) * 3600))].sort((a, b) => a - b);
+                let best = null;
+                for (const transferSec of durations) {
+                    const destArr = localApproachEndpoint(dest, parent, epoch + transferSec, startLocal.pos);
+                    if (!destArr) continue;
+                    const lambert = solveLambert(startLocal.pos, destArr.pos, transferSec, mu, startLocal.vel, destArr.vel);
+                    if (!lambert) continue;
+                    const arrParent = bodyState(parent, epoch + transferSec);
+                    const startVel = v3.add(depParent.vel, lambert.v1);
+                    const arrivalVel = v3.add(arrParent.vel, lambert.v2);
+                    const arrTarget = approachTarget(dest, epoch + transferSec, v3.add(depParent.pos, startLocal.pos));
+                    const dvDepart = v3.mag(v3.sub(startVel, initialVel));
+                    const dvArrive = v3.mag(v3.sub(arrTarget.vel, arrivalVel));
+                    const fuel = estimateFuel(dvDepart, dvArrive);
+                    const burnSec = (dvDepart + dvArrive) / SHIP.maxBurnAccel;
+                    if (!fuel.feasible || burnSec > transferSec * 0.35) continue;
+                    const startPos = v3.add(depParent.pos, startLocal.pos);
+                    const preview = integratePreview(startPos, startVel, epoch, transferSec);
+                    const miss = preview.length ? v3.mag(v3.sub(preview[preview.length - 1], arrTarget.pos)) : Infinity;
+                    const score = miss + transferSec * 0.001;
+                    if (!best || score < best.score) {
+                        best = { transferSec, startVel, arrivalVel, dvDepart, dvArrive, preview, miss, score };
+                    }
+                }
+                if (!best) return null;
+                return {
+                    transferSec: best.transferSec,
+                    startVel: best.startVel,
+                    arrivalVel: best.arrivalVel,
+                    dvDepart: best.dvDepart,
+                    dvArrive: best.dvArrive,
+                    dvTotal: best.dvDepart + best.dvArrive,
+                    miss: best.miss,
+                    preview: best.preview,
+                    arrivalTarget: approachTarget(dest, epoch + best.transferSec, v3.add(depParent.pos, startLocal.pos)),
+                    method: "FST"
+                };
+            }
+
+            function localTangent(pos, referenceVel) {
+                let tangent = v3.norm({ x: -pos.y, y: pos.x, z: 0 });
+                if (referenceVel && v3.dot(tangent, referenceVel) < 0) tangent = v3.mul(tangent, -1);
+                return tangent;
+            }
+
+            function solveLambert(r1v, r2v, dt, mu, referenceVel, targetVel) {
+                const r1 = v3.mag(r1v);
+                const r2 = v3.mag(r2v);
+                if (!r1 || !r2 || !Number.isFinite(dt) || dt <= 0) return null;
+                const cosD = clamp(v3.dot(r1v, r2v) / (r1 * r2), -1, 1);
+                const denom = 1 - cosD;
+                let best = null;
+                if (Math.abs(denom) < 1e-7) return null;
+                const baseSin = Math.sqrt(Math.max(0, 1 - cosD * cosD));
+                for (const sinD of [baseSin, -baseSin]) {
+                    if (Math.abs(sinD) < 1e-7) continue;
+                    const A = sinD * Math.sqrt((r1 * r2) / denom);
+                    if (!Number.isFinite(A) || Math.abs(A) < 1) continue;
+
+                    const tofAt = z => {
+                        const c = stumpffC(z);
+                        const s = stumpffS(z);
+                        if (!Number.isFinite(c) || !Number.isFinite(s) || c <= 0) return NaN;
+                        const y = r1 + r2 + A * (z * s - 1) / Math.sqrt(c);
+                        if (y <= 0) return NaN;
+                        const x = Math.sqrt(y / c);
+                        return (x * x * x * s + A * Math.sqrt(y)) / Math.sqrt(mu);
+                    };
+
+                    const brackets = [];
+                    let prev = null;
+                    const zMin = -4 * Math.PI * Math.PI;
+                    const zMax = 4 * Math.PI * Math.PI;
+                    for (let i = 0; i <= 360; i++) {
+                        const z = zMin + (zMax - zMin) * (i / 360);
+                        const tof = tofAt(z);
+                        if (!Number.isFinite(tof)) continue;
+                        const cur = { z, tof };
+                        if (prev && (prev.tof - dt) * (tof - dt) <= 0) brackets.push([prev, cur]);
+                        prev = cur;
+                    }
+
+                    for (const bracket of brackets) {
+                        const solved = solveLambertBracket(bracket[0], bracket[1], tofAt, dt, r1, r2, r1v, r2v, A, mu);
+                        if (!solved) continue;
+                        const score = v3.mag(v3.sub(solved.v1, referenceVel)) + (targetVel ? v3.mag(v3.sub(targetVel, solved.v2)) : 0);
+                        if (!best || score < best.score) best = { ...solved, score };
+                    }
+                }
+                return best;
+            }
+
+            function solveLambertBracket(loIn, hiIn, tofAt, dt, r1, r2, r1v, r2v, A, mu) {
+                let lo = { ...loIn };
+                let hi = { ...hiIn };
+                let z = 0;
+                for (let i = 0; i < 72; i++) {
+                    z = (lo.z + hi.z) / 2;
+                    const tof = tofAt(z);
+                    if (!Number.isFinite(tof)) {
+                        lo.z = z;
+                        continue;
+                    }
+                    if ((lo.tof - dt) * (tof - dt) <= 0) hi = { z, tof };
+                    else lo = { z, tof };
+                }
+                const c = stumpffC(z);
+                const s = stumpffS(z);
+                const y = r1 + r2 + A * (z * s - 1) / Math.sqrt(c);
+                if (y <= 0) return null;
+                const f = 1 - y / r1;
+                const g = A * Math.sqrt(y / mu);
+                const gdot = 1 - y / r2;
+                if (Math.abs(g) < 1e-6) return null;
+                const v1 = v3.mul(v3.sub(r2v, v3.mul(r1v, f)), 1 / g);
+                const v2 = v3.mul(v3.sub(v3.mul(r2v, gdot), r1v), 1 / g);
+                if (![v1.x, v1.y, v1.z, v2.x, v2.y, v2.z].every(Number.isFinite)) return null;
+                return { v1, v2 };
+            }
+
+            function stumpffC(z) {
+                if (z > 1e-8) return (1 - Math.cos(Math.sqrt(z))) / z;
+                if (z < -1e-8) return (Math.cosh(Math.sqrt(-z)) - 1) / -z;
+                return 0.5;
+            }
+
+            function stumpffS(z) {
+                if (z > 1e-8) {
+                    const sz = Math.sqrt(z);
+                    return (sz - Math.sin(sz)) / (sz * sz * sz);
+                }
+                if (z < -1e-8) {
+                    const sz = Math.sqrt(-z);
+                    return (Math.sinh(sz) - sz) / (sz * sz * sz);
+                }
+                return 1 / 6;
+            }
+
+            function clamp(value, min, max) {
+                return Math.max(min, Math.min(max, value));
+            }
+
+            function launchClearance(body) {
+                if (!body || body.id === "sol") return 0;
+                const parentId = body.parent || body.el.parent || "sol";
+                const parent = bodyById.get(parentId);
+                if (!parent || !body.el || !body.el.a || !body.mass) return Math.max((body.radius || 1) * 120, 20000000);
+                const periapsis = body.el.a * (1 - (body.el.e || 0));
+                const hill = periapsis * Math.cbrt(body.mass / (3 * parent.mass));
+                return Math.max((body.radius || 1) * 120, Math.min(hill * 1.05, body.el.a * 0.12));
+            }
+
+            function findLaunchWindow(origin, dest, epoch) {
+                const maxDays = launchSearchDays(origin, dest);
+                const stepDays = maxDays > 12000 ? 8 : 2;
+                let best = { err: Infinity, wait: 0 };
+                for (let day = 0; day <= maxDays; day += stepDays) {
+                    const t = epoch + day * DAY;
+                    const o = targetAt(origin, t);
+                    const d = targetAt(dest, t);
+                    const r1 = v3.mag(o.pos);
+                    const r2 = v3.mag(d.pos);
+                    const transfer = Math.PI * Math.sqrt(Math.pow((r1 + r2) / 2, 3) / (G * bodyById.get("sol").mass));
+                    const arr = targetAt(dest, t + transfer);
+                    const expected = Math.atan2(o.pos.y, o.pos.x) + Math.PI;
+                    const actual = Math.atan2(arr.pos.y, arr.pos.x);
+                    const err = Math.abs(angleDiff(actual, expected));
+                    if (err < best.err) best = { err, wait: day * DAY };
+                    if (err < 0.01 && day > 10) break;
+                }
+                const fineStart = Math.max(0, best.wait / DAY - stepDays * 2);
+                const fineEnd = Math.min(maxDays, best.wait / DAY + stepDays * 2);
+                for (let day = fineStart; day <= fineEnd; day += 0.25) {
+                    const t = epoch + day * DAY;
+                    const o = targetAt(origin, t);
+                    const d = targetAt(dest, t);
+                    const r1 = v3.mag(o.pos);
+                    const r2 = v3.mag(d.pos);
+                    const transfer = Math.PI * Math.sqrt(Math.pow((r1 + r2) / 2, 3) / (G * bodyById.get("sol").mass));
+                    const arr = targetAt(dest, t + transfer);
+                    const expected = Math.atan2(o.pos.y, o.pos.x) + Math.PI;
+                    const actual = Math.atan2(arr.pos.y, arr.pos.x);
+                    const err = Math.abs(angleDiff(actual, expected));
+                    if (err < best.err) best = { err, wait: day * DAY };
+                }
+                return best.wait;
+            }
+
+            function launchSearchDays(origin, dest) {
+                const periods = [origin, dest]
+                    .filter(target => target && target.type === "body" && target.body.el && target.body.el.parent === "sol")
+                    .map(target => TAU / Math.sqrt(G * bodyById.get("sol").mass / Math.pow(target.body.el.a, 3)) / DAY);
+                if (!periods.length) return 5200;
+                return Math.min(60000, Math.max(5200, Math.max(...periods) * 1.05));
+            }
+
+            function optimizeRouteToOrbit(route, dest, absDepart, startPos, initialVel) {
+                if (!route || !Number.isFinite(route.transferSec) || route.transferSec <= 0) return route;
+                const target = approachTarget(dest, absDepart + route.transferSec, startPos);
+                if (!target || !target.pos || !target.vel) return route;
+                let startVel = route.startVel;
+                let result = propagateTrajectory(startPos, startVel, absDepart, route.transferSec);
+                let best = { startVel, result, miss: v3.mag(v3.sub(target.pos, result.pos)) };
+                const tolerance = dest.type === "body" ? Math.max(10000, parkingOrbitRadius(dest.body) * 0.002) : 1000000;
+
+                for (let iter = 0; iter < 7 && best.miss > tolerance; iter++) {
+                    const jacobian = [];
+                    const eps = Math.max(0.05, v3.mag(startVel) * 1e-6);
+                    for (const axis of ["x", "y", "z"]) {
+                        const nudged = { ...startVel, [axis]: startVel[axis] + eps };
+                        const nudgeResult = propagateTrajectory(startPos, nudged, absDepart, route.transferSec, false);
+                        jacobian.push(v3.mul(v3.sub(nudgeResult.pos, result.pos), 1 / eps));
+                    }
+                    const error = v3.sub(target.pos, result.pos);
+                    const delta = solveLinear3(jacobian, error);
+                    if (!delta) break;
+                    const maxDelta = Math.max(100, v3.mag(startVel) * 0.35);
+                    const deltaMag = v3.mag(delta);
+                    const limited = deltaMag > maxDelta ? v3.mul(delta, maxDelta / deltaMag) : delta;
+                    startVel = v3.add(startVel, limited);
+                    result = propagateTrajectory(startPos, startVel, absDepart, route.transferSec);
+                    const miss = v3.mag(v3.sub(target.pos, result.pos));
+                    if (miss < best.miss) best = { startVel, result, miss };
+                    else break;
+                }
+
+                const dvDepart = v3.mag(v3.sub(best.startVel, initialVel));
+                const dvArrive = v3.mag(v3.sub(target.vel, best.result.vel));
+                return {
+                    ...route,
+                    startVel: best.startVel,
+                    arrivalVel: best.result.vel,
+                    dvDepart,
+                    dvArrive,
+                    dvCorrection: 0,
+                    dvTotal: dvDepart + dvArrive,
+                    tcmAt: 0,
+                    tcmDelta: null,
+                    preview: best.result.preview,
+                    miss: best.miss,
+                    arrivalTarget: target,
+                    method: `${route.method}+OPT`
+                };
+            }
+
+            function solveLinear3(columns, b) {
+                const m = [
+                    [columns[0].x, columns[1].x, columns[2].x, b.x],
+                    [columns[0].y, columns[1].y, columns[2].y, b.y],
+                    [columns[0].z, columns[1].z, columns[2].z, b.z]
+                ];
+                for (let col = 0; col < 3; col++) {
+                    let pivot = col;
+                    for (let row = col + 1; row < 3; row++) {
+                        if (Math.abs(m[row][col]) > Math.abs(m[pivot][col])) pivot = row;
+                    }
+                    if (Math.abs(m[pivot][col]) < 1e-9) return null;
+                    if (pivot !== col) [m[pivot], m[col]] = [m[col], m[pivot]];
+                    const scale = m[col][col];
+                    for (let k = col; k < 4; k++) m[col][k] /= scale;
+                    for (let row = 0; row < 3; row++) {
+                        if (row === col) continue;
+                        const factor = m[row][col];
+                        for (let k = col; k < 4; k++) m[row][k] -= factor * m[col][k];
+                    }
+                }
+                const out = { x: m[0][3], y: m[1][3], z: m[2][3] };
+                return [out.x, out.y, out.z].every(Number.isFinite) ? out : null;
+            }
+
+            function applyMidcourseCorrection(route, dest, absDepart, startPos) {
+                if (!route || !route.preview || !route.preview.length) return route;
+                const arrivalTarget = route.arrivalTarget || approachTarget(dest, absDepart + route.transferSec, startPos);
+                const end = route.preview[route.preview.length - 1];
+                const error = v3.sub(arrivalTarget.pos, end);
+                const miss = v3.mag(error);
+                const tolerance = dest.type === "body" ? Math.max(parkingOrbitRadius(dest.body) * 0.25, 1000000) : 0.01 * AU;
+                if (miss <= tolerance) return route;
+                const correctionAt = route.transferSec * 0.5;
+                const remaining = Math.max(DAY, route.transferSec - correctionAt);
+                const tcmDelta = v3.mul(error, 1 / remaining);
+                const dvCorrection = v3.mag(tcmDelta);
+                const preview = integratePreviewWithImpulse(startPos, route.startVel, absDepart, route.transferSec, correctionAt, tcmDelta);
+                const correctedEnd = preview.length ? preview[preview.length - 1] : end;
+                const correctedMiss = v3.mag(v3.sub(arrivalTarget.pos, correctedEnd));
+                if (correctedMiss >= miss) return route;
+                const correctedArrivalVel = v3.add(route.arrivalVel, tcmDelta);
+                const dvArrive = v3.mag(v3.sub(arrivalTarget.vel, correctedArrivalVel));
+                return {
+                    ...route,
+                    arrivalVel: correctedArrivalVel,
+                    dvArrive,
+                    dvCorrection,
+                    dvTotal: route.dvDepart + dvArrive + dvCorrection,
+                    tcmAt: correctionAt,
+                    tcmDelta,
+                    preview,
+                    miss: correctedMiss,
+                    arrivalTarget,
+                    method: `${route.method}+TCM`
+                };
+            }
+
+            function estimateFuel(dvDepart, dvArrive, dvCorrection = 0) {
+                const depart = fuelForDeltaV(dvDepart);
+                const arrive = fuelForDeltaV(dvArrive);
+                const correction = fuelForDeltaV(dvCorrection);
+                const total = depart + arrive + correction;
+                return {
+                    depart,
+                    arrive,
+                    correction,
+                    total,
+                    remaining: Math.max(0, SHIP.fuelCapacity - total),
+                    feasible: total <= SHIP.fuelCapacity
+                };
+            }
+
+            function estimateFuelProfile(dvDepart, dvBrake, dvHohmann, dvArrive) {
+                const depart = fuelForDeltaV(dvDepart);
+                const brake = fuelForDeltaV(dvBrake);
+                const hohmann = fuelForDeltaV(dvHohmann);
+                const arrive = fuelForDeltaV(dvArrive);
+                const correction = brake + hohmann;
+                const total = depart + correction + arrive;
+                return {
+                    depart,
+                    brake,
+                    hohmann,
+                    correction,
+                    arrive,
+                    total,
+                    remaining: Math.max(0, SHIP.fuelCapacity - total),
+                    feasible: total <= SHIP.fuelCapacity
+                };
+            }
+
+            function findFuelAwareFastRoute(origin, dest, absDepart, depState, startPos, hohmannSec) {
+                const minSec = Math.max(20 * DAY, Math.min(180 * DAY, hohmannSec * 0.18));
+                const maxSec = Math.max(minSec, hohmannSec * (hohmannSec > 5 * 365 * DAY ? 0.85 : 1.2));
+                const durations = [];
+                for (let sec = minSec; sec < maxSec; sec *= 1.24) durations.push(sec);
+                durations.push(60 * DAY, 120 * DAY, 180 * DAY, 365 * DAY, 730 * DAY, 1095 * DAY, 1460 * DAY, 2190 * DAY);
+                const uniqueDurations = [...new Set(durations.map(v => Math.round(v / DAY) * DAY))]
+                    .filter(v => v >= minSec && v <= maxSec)
+                    .sort((a, b) => a - b);
+                let best = null;
+                for (const transferSec of uniqueDurations) {
+                    const arrTarget = approachTarget(dest, absDepart + transferSec, startPos);
+                    const lambert = solveLambert(startPos, arrTarget.pos, transferSec, G * bodyById.get("sol").mass, depState.vel, arrTarget.vel);
+                    if (!lambert) continue;
+                    const dvDepart = v3.mag(v3.sub(lambert.v1, depState.vel));
+                    const dvArrive = v3.mag(v3.sub(arrTarget.vel, lambert.v2));
+                    const fuel = estimateFuel(dvDepart, dvArrive);
+                    const burnSec = (dvDepart + dvArrive) / SHIP.maxBurnAccel;
+                    if (!fuel.feasible || fuel.total > SHIP.fuelCapacity * 0.7 || burnSec > transferSec * 0.25) continue;
+                    const preview = integratePreview(startPos, lambert.v1, absDepart, transferSec);
+                    const miss = preview.length ? v3.mag(v3.sub(preview[preview.length - 1], arrTarget.pos)) : Infinity;
+                    const score = miss + transferSec * 0.00001;
+                    if (!best || score < best.score) best = { transferSec, arrTarget, lambert, dvDepart, dvArrive, fuel, preview, miss, score };
+                }
+                if (!best) return null;
+                return {
+                    transferSec: best.transferSec,
+                    startVel: best.lambert.v1,
+                    arrivalVel: best.lambert.v2,
+                    dvDepart: best.dvDepart,
+                    dvArrive: best.dvArrive,
+                    dvTotal: best.dvDepart + best.dvArrive,
+                    preview: best.preview,
+                    miss: best.miss,
+                    arrivalTarget: best.arrTarget,
+                    method: "FST"
+                };
+            }
+
+            function fuelForDeltaV(dv, mass = SHIP.dryMass) {
+                if (!Number.isFinite(dv) || dv <= 0) return 0;
+                const usefulEnergy = 0.5 * mass * dv * dv;
+                return usefulEnergy / (SHIP.fuelEnergy * SHIP.burnEfficiency);
+            }
+
+            function acceleration(pos, absTime) {
+                let acc = v3.zero();
+                const cache = new Map();
+                for (const body of bodies) {
+                    if (!body.mass || body.id === "sol" && body.mass <= 0) continue;
+                    const bs = bodyState(body, absTime, cache);
+                    const rel = v3.sub(bs.pos, pos);
+                    const d2 = v3.dot(rel, rel);
+                    const soften = gravitySoftening(body);
+                    const denom = Math.pow(d2 + soften * soften, 1.5);
+                    acc = v3.add(acc, v3.mul(rel, G * body.mass / denom));
+                }
+                return acc;
+            }
+
+            function verletStep(ship, absTime, dt) {
+                const a0 = acceleration(ship.pos, absTime);
+                const pos = v3.add(v3.add(ship.pos, v3.mul(ship.vel, dt)), v3.mul(a0, 0.5 * dt * dt));
+                const a1 = acceleration(pos, absTime + dt);
+                const vel = v3.add(ship.vel, v3.mul(v3.add(a0, a1), 0.5 * dt));
+                return { pos, vel, acc: a1 };
+            }
+
+            function cappedGravityStep(pos, absTime, requested) {
+                if (!Number.isFinite(requested) || requested <= 0) return requested;
+                let cap = requested;
+                const cache = new Map();
+                for (const body of bodies) {
+                    if (!body.mass) continue;
+                    const bs = bodyState(body, absTime, cache);
+                    const radius = v3.mag(v3.sub(pos, bs.pos));
+                    if (radius > parkingOrbitRadius(body) * 25) continue;
+                    const orbitRadius = Math.max(radius, gravitySoftening(body));
+                    const orbitSpeed = circularOrbitSpeed(body, orbitRadius);
+                    if (orbitSpeed <= 0) continue;
+                    const localStep = TAU * orbitRadius / orbitSpeed / 80;
+                    if (Number.isFinite(localStep)) cap = Math.min(cap, Math.max(10, localStep));
+                }
+                return Math.min(requested, cap);
+            }
+
+            function integratePreview(pos, vel, absStart, duration) {
+                return propagateTrajectory(pos, vel, absStart, duration).preview;
+            }
+
+            function propagateTrajectory(pos, vel, absStart, duration, keepPreview = true) {
+                const preview = [];
+                let ship = { pos, vel, acc: acceleration(pos, absStart) };
+                const step = Math.max(900, Math.min(21600, duration / 420));
+                let elapsed = 0;
+                while (elapsed < duration) {
+                    const dt = Math.min(cappedGravityStep(ship.pos, absStart + elapsed, step), duration - elapsed);
+                    ship = verletStep(ship, absStart + elapsed, dt);
+                    elapsed += dt;
+                    if (keepPreview && (preview.length === 0 || preview.length < 700 && elapsed / duration > preview.length / 360)) {
+                        preview.push(ship.pos);
+                    }
+                }
+                return { pos: ship.pos, vel: ship.vel, acc: ship.acc, preview };
+            }
+
+            function integratePreviewWithImpulse(pos, vel, absStart, duration, impulseAt, deltaV) {
+                const out = [];
+                let ship = { pos, vel, acc: acceleration(pos, absStart) };
+                const step = Math.max(900, Math.min(21600, duration / 420));
+                let elapsed = 0;
+                let applied = false;
+                while (elapsed < duration) {
+                    let dt = Math.min(cappedGravityStep(ship.pos, absStart + elapsed, step), duration - elapsed);
+                    if (!applied && elapsed < impulseAt && elapsed + dt > impulseAt) dt = impulseAt - elapsed;
+                    ship = verletStep(ship, absStart + elapsed, dt);
+                    elapsed += dt;
+                    if (!applied && elapsed >= impulseAt) {
+                        ship.vel = v3.add(ship.vel, deltaV);
+                        applied = true;
+                    }
+                    if (out.length === 0 || out.length < 700 && elapsed / duration > out.length / 360) {
+                        out.push(ship.pos);
+                    }
+                }
+                return out;
+            }
+
+            function startMission() {
+                if (!state.plan && !planMission()) return;
+                if (!state.plan.fuel.feasible) {
+                    writeLog("FUEL ERR: planned burns exceed standard tank load.");
+                    return;
+                }
+                state.running = true;
+                state.paused = false;
+                state.simTime = 0;
+                state.ship = null;
+                state.launched = false;
+                state.trail = [];
+                state.burnMode = "WAIT";
+                state.complete = false;
+                els.missionState.textContent = "RUN";
+                writeLog("SIM START: holding origin until launch window, then executing burn.");
+            }
+
+            function resetMission() {
+                state.running = false;
+                state.paused = false;
+                state.simTime = 0;
+                state.ship = null;
+                state.launched = false;
+                state.trail = [];
+                state.burnMode = "IDLE";
+                state.complete = false;
+                els.missionState.textContent = "STBY";
+                writeLog("SIM RESET.");
+            }
+
+            function capStepAtEvent(dt, eventTime) {
+                if (!Number.isFinite(eventTime) || state.simTime >= eventTime || state.simTime + dt <= eventTime) return dt;
+                return Math.max(0, eventTime - state.simTime);
+            }
+
+            function arrivalBurnStartTime() {
+                if (!state.plan) return NaN;
+                const burnLead = Math.max(0, (state.plan.burnArriveSec || 0) * 1.25 + 600);
+                return Math.max(state.plan.waitSec, state.plan.arrivalTime - Math.min(state.plan.transferSec * 0.1, burnLead));
+            }
+
+            function nextSimulationStep(maxStep, remaining) {
+                let dt = Math.min(maxStep, remaining);
+                if (!state.ship) return dt;
+                if (state.plan.kind === "interstellar") {
+                    const ix = state.plan.interstellar;
+                    if (state.simTime < ix.glideStart) dt = capStepAtEvent(dt, ix.glideStart);
+                    if (state.simTime >= ix.glideStart && state.simTime < ix.approachStart) {
+                        return capStepAtEvent(dt, ix.approachStart);
+                    }
+                    if (!state.ship.interstellarApproachQueued && state.simTime >= ix.approachStart) {
+                        dt = Math.min(dt, 300);
+                    }
+                }
+                if (state.plan.tcmDelta && !state.ship.tcmQueued && state.simTime >= state.plan.waitSec + state.plan.tcmAt) {
+                    dt = Math.min(dt, 300);
+                }
+                const captureStart = arrivalBurnStartTime();
+                if (!state.ship.captureQueued && state.simTime >= captureStart) {
+                    dt = Math.min(dt, 300);
+                }
+                dt = cappedGravityStep(state.ship.pos, state.plan.epoch + state.simTime, dt);
+                if (state.plan.tcmDelta && !state.ship.tcmQueued) {
+                    dt = capStepAtEvent(dt, state.plan.waitSec + state.plan.tcmAt);
+                }
+                if (!state.ship.captureQueued) {
+                    dt = capStepAtEvent(dt, captureStart);
+                }
+                return dt > 0 ? dt : Math.min(maxStep, remaining);
+            }
+
+            function updateSimulation(dtReal) {
+                if (!state.running || state.paused || !state.plan) return;
+                const warpDays = Number(els.warpSelect.value);
+                const advance = dtReal * warpDays * DAY;
+                let remaining = advance;
+                let guard = 0;
+                while (remaining > 0 && guard++ < 500) {
+                    const maxStep = state.ship && state.ship.burns.length ? 300 : 10800;
+                    const dt = nextSimulationStep(maxStep, remaining);
+                    if (!state.launched && state.simTime + dt >= state.plan.waitSec) {
+                        const consumed = Math.max(0, state.plan.waitSec - state.simTime);
+                        state.simTime = state.plan.waitSec;
+                        state.ship = createShip();
+                        state.launched = true;
+                        state.trail.push(state.ship.pos);
+                        remaining -= consumed;
+                    } else if (!state.launched) {
+                        state.simTime += dt;
+                        remaining -= dt;
+                    } else {
+                        const absTime = state.plan.epoch + state.simTime;
+                        if (advanceInterstellarGlide(dt)) {
+                            state.simTime += dt;
+                            remaining -= dt;
+                        } else {
+                            maybeQueueInterstellarApproachBurn(absTime);
+                            maybeQueueMidcourseBurn();
+                            maybeQueueArrivalBurn(absTime);
+                            state.ship = poweredStep(state.ship, absTime, dt);
+                            state.simTime += dt;
+                            remaining -= dt;
+                        }
+                        if (els.trailToggle.checked && (state.trail.length === 0 || v3.mag(v3.sub(state.ship.pos, state.trail[state.trail.length - 1])) > 0.01 * AU)) {
+                            state.trail.push(state.ship.pos);
+                            if (state.trail.length > 1200) state.trail.shift();
+                        }
+                    }
+                }
+                if (!state.complete && state.simTime > state.plan.arrivalTime + 120 * DAY) {
+                    state.paused = true;
+                    els.missionState.textContent = "HOLD";
+                    writeLog("SIM HOLD: arrival window exceeded.");
+                }
+            }
+
+            function createShip() {
+                return {
+                    pos: state.plan.startPos,
+                    vel: state.plan.initialVel,
+                    acc: acceleration(state.plan.startPos, state.plan.epoch + state.plan.waitSec),
+                    dryMass: SHIP.dryMass,
+                    fuel: SHIP.fuelCapacity,
+                    fuelUsed: 0,
+                    burns: state.plan.kind === "interstellar"
+                        ? makeProfiledVelocityBurn("DEP", state.plan.startVel, state.plan.fuel.depart, state.plan.dvDepart)
+                        : makeVelocityBurn("DEP", state.plan.startVel),
+                    tcmQueued: false,
+                    captureQueued: false,
+                    interstellarApproachQueued: false,
+                    orbitLock: null
+                };
+            }
+
+            function makeBurnQueue(label, deltaV) {
+                return v3.mag(deltaV) > 0.001 ? [{ label, targetVel: null, remaining: deltaV }] : [];
+            }
+
+            function makeVelocityBurn(label, targetVel) {
+                return [{ label, targetVel, remaining: null }];
+            }
+
+            function makeProfiledVelocityBurn(label, targetVel, fuelBudget, plannedDv) {
+                return [{
+                    label,
+                    targetVel,
+                    remaining: null,
+                    fuelBudget: Math.max(0, fuelBudget || 0),
+                    fuelSpent: 0,
+                    plannedDv: Math.max(0.001, plannedDv || 0)
+                }];
+            }
+
+            function maybeQueueArrivalBurn(absTime) {
+                if (state.complete || !state.ship || state.ship.captureQueued || state.simTime < arrivalBurnStartTime()) return;
+                const target = approachTarget(state.plan.dest, absTime, state.ship.pos);
+                const captureDelta = v3.sub(target.vel, state.ship.vel);
+                if (state.plan.kind === "interstellar") {
+                    state.ship.burns.push(...makeProfiledVelocityBurn("ARR", target.vel, state.plan.fuel.arrive, state.plan.dvArrive));
+                } else {
+                    state.ship.burns.push(...makeVelocityBurn("ARR", target.vel));
+                }
+                state.ship.captureQueued = true;
+                writeLog(`ARR BURN QUEUED: ${fmtSpeed(v3.mag(captureDelta))}.`);
+            }
+
+            function advanceInterstellarGlide(dt) {
+                if (!state.ship || !state.plan || state.plan.kind !== "interstellar") return false;
+                const ix = state.plan.interstellar;
+                if (state.simTime < ix.glideStart || state.simTime >= ix.approachStart || state.ship.burns.length) return false;
+                const nextTime = Math.min(ix.approachStart, state.simTime + dt);
+                const span = Math.max(1, ix.approachStart - ix.glideStart);
+                const u = clamp((nextTime - ix.glideStart) / span, 0, 1);
+                state.ship.pos = v3.add(
+                    ix.glideStartPos,
+                    v3.mul(v3.sub(ix.approachStartPos, ix.glideStartPos), u)
+                );
+                state.ship.vel = ix.cruiseVel;
+                state.ship.acc = v3.zero();
+                state.burnMode = "GLID";
+                return true;
+            }
+
+            function maybeQueueInterstellarApproachBurn(absTime) {
+                if (!state.ship || !state.plan || state.plan.kind !== "interstellar" || state.ship.interstellarApproachQueued) return;
+                const ix = state.plan.interstellar;
+                if (state.simTime < ix.approachStart) return;
+                state.ship.pos = ix.approachStartPos;
+                state.ship.vel = ix.cruiseVel;
+                state.ship.acc = acceleration(state.ship.pos, absTime);
+                state.ship.burns.push(...makeProfiledVelocityBurn("APP", ix.approachInitialVel, state.plan.fuel.brake || 0, state.plan.dvBrake || 0));
+                if (v3.mag(v3.sub(ix.hohmannVel, ix.approachInitialVel)) > 0.001) {
+                    state.ship.burns.push(...makeProfiledVelocityBurn("HOH", ix.hohmannVel, state.plan.fuel.hohmann || 0, state.plan.dvHohmann || 0));
+                }
+                state.ship.interstellarApproachQueued = true;
+                writeLog(`APPROACH BURN QUEUED: brake ${fmtSpeed(state.plan.dvBrake || 0)}; local ${fmtSpeed(state.plan.dvHohmann || 0)}.`);
+            }
+
+            function maybeQueueMidcourseBurn() {
+                if (state.complete || !state.ship || state.ship.tcmQueued || !state.plan.tcmDelta) return;
+                if (state.simTime < state.plan.waitSec + state.plan.tcmAt) return;
+                state.ship.burns.push(...makeVelocityBurn("TCM", v3.add(state.ship.vel, state.plan.tcmDelta)));
+                state.ship.tcmQueued = true;
+                writeLog(`TCM BURN QUEUED: ${fmtSpeed(v3.mag(state.plan.tcmDelta))}.`);
+            }
+
+            function poweredStep(ship, absTime, dt) {
+                if (state.complete) {
+                    state.burnMode = "ORBT";
+                    return ship.orbitLock ? mergeShipStep(ship, lockedOrbitState(ship.orbitLock, absTime + dt)) : mergeShipStep(ship, verletStep(ship, absTime, dt));
+                }
+                if (!ship.burns.length) {
+                    state.burnMode = "COAST";
+                    return mergeShipStep(ship, verletStep(ship, absTime, dt));
+                }
+                const burn = ship.burns[0];
+                if (burn.targetVel) burn.remaining = v3.sub(burn.targetVel, ship.vel);
+                const dvLeft = v3.mag(burn.remaining || v3.zero());
+                if (dvLeft <= 0.001) {
+                    if (burn.label === "ARR") {
+                        if (tryCompleteStableOrbit(absTime)) return ship;
+                        retargetArrivalBurn(burn, absTime);
+                        if (v3.mag(burn.remaining || v3.zero()) > 0.001) return poweredStep(ship, absTime, dt);
+                    }
+                    ship.burns.shift();
+                    return poweredStep(ship, absTime, dt);
+                }
+                state.burnMode = burn.label;
+                const maxDv = SHIP.maxBurnAccel * dt;
+                const appliedDv = Math.min(dvLeft, maxDv);
+                const dir = v3.norm(burn.remaining);
+                const delta = v3.mul(dir, appliedDv);
+                const holdAtApproach = state.plan.kind === "interstellar" && (burn.label === "APP" || burn.label === "HOH");
+                const fuel = burnFuelForStep(burn, appliedDv);
+                if (fuel > ship.fuel) {
+                    writeLog("FUEL DRY: burn aborted.");
+                    ship.burns.length = 0;
+                    return holdAtApproach ? ship : mergeShipStep(ship, verletStep(ship, absTime, dt));
+                }
+                ship.fuel -= fuel;
+                ship.fuelUsed += fuel;
+                ship.vel = v3.add(ship.vel, delta);
+                burn.remaining = v3.sub(burn.remaining, delta);
+                if (v3.mag(burn.remaining) <= 0.001) {
+                    if (burn.label === "ARR") {
+                        if (tryCompleteStableOrbit(absTime)) return ship;
+                        retargetArrivalBurn(burn, absTime);
+                        if (v3.mag(burn.remaining || v3.zero()) > 0.001) return mergeShipStep(ship, verletStep(ship, absTime, dt));
+                    }
+                    settleProfiledBurnFuel(ship, burn);
+                    writeLog(`${burn.label} BURN COMPLETE: fuel ${fmtFuel(ship.fuel)} rem.`);
+                    ship.burns.shift();
+                }
+                return holdAtApproach ? ship : mergeShipStep(ship, verletStep(ship, absTime, dt));
+            }
+
+            function burnFuelForStep(burn, appliedDv) {
+                if (burn.fuelBudget == null) return fuelForDeltaV(appliedDv, SHIP.dryMass);
+                const spent = burn.fuelSpent || 0;
+                const remainingBudget = Math.max(0, burn.fuelBudget - spent);
+                const fuel = Math.min(remainingBudget, burn.fuelBudget * appliedDv / Math.max(0.001, burn.plannedDv || appliedDv));
+                burn.fuelSpent = spent + fuel;
+                return fuel;
+            }
+
+            function settleProfiledBurnFuel(ship, burn) {
+                if (burn.fuelBudget == null) return;
+                const remainder = Math.max(0, burn.fuelBudget - (burn.fuelSpent || 0));
+                if (remainder <= 0) return;
+                if (remainder > ship.fuel) {
+                    writeLog("FUEL DRY: burn reserve exhausted.");
+                    ship.fuel = 0;
+                    return;
+                }
+                ship.fuel -= remainder;
+                ship.fuelUsed += remainder;
+                burn.fuelSpent = burn.fuelBudget;
+            }
+
+            function retargetArrivalBurn(burn, absTime) {
+                const target = approachTarget(state.plan.dest, absTime, state.ship.pos);
+                const error = v3.sub(target.pos, state.ship.pos);
+                const body = state.plan.dest.type === "body" ? state.plan.dest.body : null;
+                const orbitRadius = body ? parkingOrbitRadius(body) : 0;
+                const orbitSpeed = body ? circularOrbitSpeed(body, orbitRadius) : 0;
+                const orbitPeriod = orbitSpeed > 0 ? TAU * orbitRadius / orbitSpeed : Infinity;
+                const horizon = Math.max(900, Math.min(2 * DAY, state.plan.transferSec * 0.04, orbitPeriod / 8));
+                let correction = v3.mul(error, 1 / horizon);
+                const cap = 20000;
+                const mag = v3.mag(correction);
+                if (mag > cap) correction = v3.mul(correction, cap / mag);
+                burn.targetVel = v3.add(target.vel, correction);
+                burn.remaining = v3.sub(burn.targetVel, state.ship.vel);
+            }
+
+            function tryCompleteStableOrbit(absTime) {
+                if (!state.ship || !state.plan || state.plan.dest.type !== "body" || state.plan.dest.body.id === "sol") return false;
+                const orbit = orbitQuality(state.ship, state.plan.dest.body, absTime);
+                if (!orbit.stable) {
+                    retargetArrivalBurn(state.ship.burns[0], absTime);
+                    return false;
+                }
+                state.complete = true;
+                state.burnMode = "ORBT";
+                state.ship.burns.length = 0;
+                state.ship.orbitLock = makeOrbitLock(state.ship, state.plan.dest.body, absTime);
+                if (state.ship.orbitLock) mergeShipStep(state.ship, lockedOrbitState(state.ship.orbitLock, absTime));
+                els.missionState.textContent = "ORBT";
+                writeLog(`ORBIT STABLE: ${state.plan.dest.body.name} r ${fmtAU(orbit.radius)} e ${orbit.ecc.toFixed(3)}.`);
+                return true;
+            }
+
+            function makeOrbitLock(ship, body, absTime) {
+                const bs = bodyState(body, absTime);
+                const relPos = v3.sub(ship.pos, bs.pos);
+                const relVel = v3.sub(ship.vel, bs.vel);
+                let axisU = v3.norm(relPos);
+                if (v3.mag(axisU) < 0.5) axisU = { x: 1, y: 0, z: 0 };
+                const radialSpeed = v3.dot(relVel, axisU);
+                let axisV = v3.norm(v3.sub(relVel, v3.mul(axisU, radialSpeed)));
+                if (v3.mag(axisV) < 0.5) axisV = localTangent(axisU, null);
+                const radius = parkingOrbitRadius(body);
+                const speed = circularOrbitSpeed(body, radius);
+                if (!Number.isFinite(speed) || speed <= 0) return null;
+                return {
+                    bodyId: body.id,
+                    epoch: absTime,
+                    radius,
+                    speed,
+                    angularRate: speed / radius,
+                    phase: 0,
+                    axisU,
+                    axisV
+                };
+            }
+
+            function lockedOrbitState(lock, absTime) {
+                const body = bodyById.get(lock.bodyId);
+                const bs = bodyState(body, absTime);
+                const phase = lock.phase + (absTime - lock.epoch) * lock.angularRate;
+                const c = Math.cos(phase);
+                const s = Math.sin(phase);
+                const radial = v3.add(v3.mul(lock.axisU, c), v3.mul(lock.axisV, s));
+                const tangent = v3.add(v3.mul(lock.axisU, -s), v3.mul(lock.axisV, c));
+                const pos = v3.add(bs.pos, v3.mul(radial, lock.radius));
+                const vel = v3.add(bs.vel, v3.mul(tangent, lock.speed));
+                return { pos, vel, acc: acceleration(pos, absTime) };
+            }
+
+            function orbitQuality(ship, body, absTime) {
+                const bs = bodyState(body, absTime);
+                const relPos = v3.sub(ship.pos, bs.pos);
+                const relVel = v3.sub(ship.vel, bs.vel);
+                const r = v3.mag(relPos);
+                const v = v3.mag(relVel);
+                const mu = G * body.mass;
+                const h = cross(relPos, relVel);
+                const eVec = v3.sub(v3.mul(cross(relVel, h), 1 / mu), v3.mul(relPos, 1 / Math.max(r, 1)));
+                const ecc = v3.mag(eVec);
+                const desired = parkingOrbitRadius(body);
+                const radial = v3.norm(relPos);
+                const radialSpeed = v3.dot(relVel, radial);
+                const tangentialVel = v3.sub(relVel, v3.mul(radial, radialSpeed));
+                const tangentialSpeed = v3.mag(tangentialVel);
+                const circular = circularOrbitSpeed(body, r);
+                const speedScale = Math.max(circular, 0.02);
+                const radiusErr = Math.abs(r - desired) / desired;
+                const speedErr = Math.abs(tangentialSpeed - circular) / speedScale;
+                const radialErr = Math.abs(radialSpeed) / speedScale;
+                return {
+                    radius: r,
+                    speed: v,
+                    ecc,
+                    stable: radiusErr < 0.06 && speedErr < 0.08 && radialErr < 0.08
+                };
+            }
+
+            function cross(a, b) {
+                return {
+                    x: a.y * b.z - a.z * b.y,
+                    y: a.z * b.x - a.x * b.z,
+                    z: a.x * b.y - a.y * b.x
+                };
+            }
+
+            function mergeShipStep(ship, step) {
+                ship.pos = step.pos;
+                ship.vel = step.vel;
+                ship.acc = step.acc;
+                return ship;
+            }
+
+            function render() {
+                const now = performance.now();
+                const dt = Math.min(0.08, (now - state.lastFrame) / 1000);
+                state.lastFrame = now;
+                updateSimulation(dt);
+                updateFollow();
+                draw();
+                renderTelemetry();
+                requestAnimationFrame(render);
+            }
+
+            function updateFollow() {
+                const follow = els.followSelect.value;
+                if (follow === "free") return;
+                if (follow === "sol") {
+                    state.view.center = v3.zero();
+                    return;
+                }
+                if (follow === "ship") {
+                    state.view.center = currentShipState().pos;
+                    return;
+                }
+                if (follow === "origin" && state.origin) {
+                    state.view.center = targetAt(state.origin, currentAbsTime()).pos;
+                    return;
+                }
+                if (follow === "dest" && state.dest) {
+                    state.view.center = targetAt(state.dest, currentAbsTime()).pos;
+                }
+            }
+
+            function currentAbsTime() {
+                return (state.plan ? state.plan.epoch : state.epochSec) + state.simTime;
+            }
+
+            function currentShipState() {
+                if (state.ship) return state.ship;
+                if (state.plan) {
+                    const o = targetAt(state.plan.origin, state.plan.epoch + Math.min(state.simTime, state.plan.waitSec));
+                    return { pos: o.pos, vel: o.vel, acc: acceleration(o.pos, currentAbsTime()) };
+                }
+                const o = parseTarget(els.originInput.value, state.epochSec) || makeWaypoint(v3.zero(), "Origin");
+                return { pos: o.pos, vel: o.vel, acc: acceleration(o.pos, state.epochSec) };
+            }
+
+            function resize() {
+                const rect = els.stage.getBoundingClientRect();
+                state.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+                state.width = Math.max(1, Math.floor(rect.width));
+                state.height = Math.max(1, Math.floor(rect.height));
+                els.canvas.width = Math.floor(state.width * state.dpr);
+                els.canvas.height = Math.floor(state.height * state.dpr);
+                ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+            }
+
+            function displayPos(pos) {
+                const mode = els.scaleSelect.value;
+                if (mode === "linear") return pos;
+                const r = Math.hypot(pos.x, pos.y);
+                if (!r) return v3.zero();
+                const dir = { x: pos.x / r, y: pos.y / r, z: 0 };
+                let rr;
+                if (mode === "log") {
+                    rr = AU * 2.15 * Math.log1p(r / AU);
+                } else {
+                    rr = r < 1.8 * AU ? r : 1.8 * AU + AU * 1.34 * Math.log1p((r - 1.8 * AU) / AU);
+                }
+                return { x: dir.x * rr, y: dir.y * rr, z: pos.z };
+            }
+
+            function inverseDisplay(pos) {
+                const mode = els.scaleSelect.value;
+                if (mode === "linear") return pos;
+                const r = Math.hypot(pos.x, pos.y);
+                if (!r) return v3.zero();
+                const dir = { x: pos.x / r, y: pos.y / r, z: 0 };
+                let rr;
+                if (mode === "log") {
+                    rr = AU * (Math.expm1(r / (AU * 2.15)));
+                } else {
+                    rr = r < 1.8 * AU ? r : 1.8 * AU + AU * Math.expm1((r - 1.8 * AU) / (AU * 1.34));
+                }
+                return { x: dir.x * rr, y: dir.y * rr, z: pos.z };
+            }
+
+            function project(pos) {
+                const p = displayPos(pos);
+                const c = displayPos(state.view.center);
+                return {
+                    x: state.width / 2 + (p.x - c.x) * state.view.zoom,
+                    y: state.height / 2 - (p.y - c.y) * state.view.zoom
+                };
+            }
+
+            function unproject(x, y) {
+                const c = displayPos(state.view.center);
+                const p = {
+                    x: c.x + (x - state.width / 2) / state.view.zoom,
+                    y: c.y - (y - state.height / 2) / state.view.zoom,
+                    z: 0
+                };
+                return inverseDisplay(p);
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, state.width, state.height);
+                ctx.fillStyle = "#000706";
+                ctx.fillRect(0, 0, state.width, state.height);
+                drawGrid();
+                const absTime = currentAbsTime();
+                drawOrbits(absTime);
+                drawPreview();
+                drawTrail();
+                drawBodies(absTime);
+                drawShip();
+                drawSelectionMarkers(absTime);
+                drawCrosshair();
+                els.scopeReadout.innerHTML = `SCL ${els.scaleSelect.value}<br>ZOOM ${fmtZoom()}<br>UTC ${j2000ToDate(absTime).toISOString().slice(0, 10)}<br>PTR ${fmtAU(v3.mag(state.mouseWorld))}`;
+            }
+
+            function drawGrid() {
+                ctx.strokeStyle = "rgba(65,255,157,0.07)";
+                ctx.lineWidth = 1;
+                const step = 64;
+                for (let x = state.width / 2 % step; x < state.width; x += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, state.height);
+                    ctx.stroke();
+                }
+                for (let y = state.height / 2 % step; y < state.height; y += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(state.width, y);
+                    ctx.stroke();
+                }
+            }
+
+            function drawOrbits(absTime) {
+                for (const body of bodies) {
+                    if (!body.el) continue;
+                    const samples = body.group === "planet" || body.id === "pluto" ? 220 : 96;
+                    ctx.strokeStyle = body.group === "moon" ? "rgba(99,215,255,0.18)" : body.major ? "rgba(124,255,190,0.17)" : "rgba(255,191,84,0.13)";
+                    ctx.lineWidth = body.major ? 1 : 0.7;
+                    if (body.group === "moon") ctx.setLineDash([4, 5]);
+                    ctx.beginPath();
+                    const parentId = body.parent || body.el.parent || "sol";
+                    const parent = bodyById.get(parentId);
+                    const parentState = parent ? bodyState(parent, absTime) : { pos: v3.zero() };
+                    const mu = G * ((parent && parent.mass || 0) + (body.mass || 0));
+                    for (let k = 0; k <= samples; k++) {
+                        const period = TAU / Math.sqrt(mu / Math.pow(body.el.a, 3));
+                        const fakeT = (k / samples) * period;
+                        const rel = stateFromElements(body.el, mu, fakeT);
+                        const p = project(v3.add(parentState.pos, rel.pos));
+                        if (k === 0) ctx.moveTo(p.x, p.y);
+                        else ctx.lineTo(p.x, p.y);
+                    }
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                const rings = [0.5, 1, 2, 5, 10, 20, 40, 80, 160, 320, 400];
+                ctx.strokeStyle = "rgba(65,255,157,0.08)";
+                ctx.lineWidth = 1;
+                for (const au of rings) {
+                    drawEllipseRing(au * AU);
+                }
+                drawCaptureOrbit(absTime);
+            }
+
+            function drawEllipseRing(radius) {
+                ctx.beginPath();
+                const steps = 180;
+                for (let i = 0; i <= steps; i++) {
+                    const a = i / steps * TAU;
+                    const p = project({ x: Math.cos(a) * radius, y: Math.sin(a) * radius, z: 0 });
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+            }
+
+            function drawCaptureOrbit(absTime) {
+                if (!state.plan || !state.plan.captureOrbit || state.plan.dest.type !== "body") return;
+                const target = targetAt(state.plan.dest, absTime);
+                if (!target) return;
+                ctx.strokeStyle = state.complete ? "rgba(99,215,255,0.86)" : "rgba(255,191,84,0.72)";
+                ctx.lineWidth = state.complete ? 1.4 : 1;
+                ctx.setLineDash(state.complete ? [] : [5, 5]);
+                if (state.ship && state.ship.orbitLock && state.ship.orbitLock.bodyId === state.plan.dest.body.id) {
+                    drawLockedOrbitRing(target.pos, state.ship.orbitLock);
+                } else {
+                    drawLocalRing(target.pos, state.plan.captureOrbit);
+                }
+                ctx.setLineDash([]);
+            }
+
+            function drawLocalRing(center, radius) {
+                ctx.beginPath();
+                const steps = 144;
+                for (let i = 0; i <= steps; i++) {
+                    const a = i / steps * TAU;
+                    const pos = {
+                        x: center.x + Math.cos(a) * radius,
+                        y: center.y + Math.sin(a) * radius,
+                        z: center.z
+                    };
+                    const p = project(pos);
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+            }
+
+            function drawLockedOrbitRing(center, lock) {
+                ctx.beginPath();
+                const steps = 144;
+                for (let i = 0; i <= steps; i++) {
+                    const a = i / steps * TAU;
+                    const radial = v3.add(v3.mul(lock.axisU, Math.cos(a)), v3.mul(lock.axisV, Math.sin(a)));
+                    const p = project(v3.add(center, v3.mul(radial, lock.radius)));
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+            }
+
+            function drawPreview() {
+                if (!state.plan || state.plan.preview.length < 2) return;
+                ctx.strokeStyle = "rgba(255,191,84,0.76)";
+                ctx.lineWidth = 1.3;
+                ctx.setLineDash([7, 7]);
+                ctx.beginPath();
+                state.plan.preview.forEach((pos, i) => {
+                    const p = project(pos);
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                });
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            function drawTrail() {
+                if (!els.trailToggle.checked || state.trail.length < 2) return;
+                ctx.strokeStyle = "rgba(99,215,255,0.72)";
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                state.trail.forEach((pos, i) => {
+                    const p = project(pos);
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                });
+                ctx.stroke();
+            }
+
+            function drawBodies(absTime) {
+                state.renderBodies = [];
+                const labelMode = els.labelSelect.value;
+                const cache = new Map();
+                for (const body of bodies) {
+                    if (body.group === "barycenter") continue;
+                    const bs = bodyState(body, absTime, cache);
+                    const p = project(bs.pos);
+                    if (p.x < -80 || p.x > state.width + 80 || p.y < -80 || p.y > state.height + 80) continue;
+                    const px = body.id === "sol" ? 8 : Math.max(2.4, Math.min(7, Math.log10((body.radius || 1000) / 1000 + 1) * 1.8));
+                    ctx.fillStyle = body.color;
+                    ctx.shadowBlur = body.id === "sol" ? 24 : 10;
+                    ctx.shadowColor = body.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, px, 0, TAU);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = body.major ? "rgba(191,255,224,0.55)" : "rgba(255,191,84,0.34)";
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, px + 5, 0, TAU);
+                    ctx.stroke();
+                    if (labelMode !== "none" && (labelMode === "all" || body.major || body.id === "sol")) {
+                        ctx.fillStyle = body.major ? "#bfffe0" : "#ffbf54";
+                        ctx.font = "10px monospace";
+                        ctx.fillText(body.name.toUpperCase(), p.x + px + 7, p.y - px - 4);
+                    }
+                    state.renderBodies.push({ body, screen: p, state: bs, radius: px + 9 });
+                }
+            }
+
+            function drawShip() {
+                const ship = currentShipState();
+                const p = project(ship.pos);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                const dir = Math.atan2(-ship.vel.y, ship.vel.x);
+                ctx.rotate(-dir);
+                ctx.strokeStyle = "#63d7ff";
+                ctx.fillStyle = "rgba(99,215,255,0.18)";
+                ctx.shadowColor = "#63d7ff";
+                ctx.shadowBlur = 14;
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(-7, -5);
+                ctx.lineTo(-4, 0);
+                ctx.lineTo(-7, 5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function drawSelectionMarkers(absTime) {
+                drawTargetMarker(state.origin, absTime, "#41ff9d", "ORG");
+                drawTargetMarker(state.dest, absTime, "#ffbf54", "DST");
+            }
+
+            function drawTargetMarker(target, absTime, color, label) {
+                if (!target) return;
+                const t = targetAt(target, absTime);
+                const p = project(t.pos);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(p.x - 12, p.y);
+                ctx.lineTo(p.x + 12, p.y);
+                ctx.moveTo(p.x, p.y - 12);
+                ctx.lineTo(p.x, p.y + 12);
+                ctx.stroke();
+                ctx.fillStyle = color;
+                ctx.font = "11px monospace";
+                ctx.fillText(label, p.x + 14, p.y + 4);
+            }
+
+            function drawCrosshair() {
+                ctx.strokeStyle = "rgba(65,255,157,0.22)";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(state.width / 2 - 18, state.height / 2);
+                ctx.lineTo(state.width / 2 + 18, state.height / 2);
+                ctx.moveTo(state.width / 2, state.height / 2 - 18);
+                ctx.lineTo(state.width / 2, state.height / 2 + 18);
+                ctx.stroke();
+            }
+
+            function renderTelemetry() {
+                const ship = currentShipState();
+                const absTime = currentAbsTime();
+                const dest = state.dest ? targetAt(state.dest, absTime) : parseTarget(els.destInput.value, absTime);
+                const distDest = dest ? v3.mag(v3.sub(dest.pos, ship.pos)) : NaN;
+                const elapsed = state.simTime;
+                const speed = v3.mag(ship.vel);
+                const acc = v3.mag(ship.acc || acceleration(ship.pos, absTime));
+                const eta = state.plan ? Math.max(0, state.plan.arrivalTime - elapsed) : 0;
+                els.telemetry.innerHTML = [
+                    stat("MET", fmtDays(elapsed)),
+                    stat("VEL", fmtSpeed(speed)),
+                    stat("DST", fmtAU(distDest)),
+                    stat("DSOL", fmtAU(v3.mag(ship.pos))),
+                    stat("FUL", state.ship ? fmtFuel(state.ship.fuel) : fmtFuel(SHIP.fuelCapacity)),
+                    stat("BRN", state.burnMode),
+                    stat("ACC", fmtAcc(acc)),
+                    stat("ETA", state.plan ? fmtDays(eta) : "--"),
+                    stat("UTC", j2000ToDate(absTime).toISOString().slice(0, 10))
+                ].join("");
+                const mode = state.complete ? "ORBT" : !state.running ? "STBY" : state.paused ? "HOLD" : state.launched ? state.burnMode : "WAIT";
+                els.missionState.textContent = mode;
+                els.statusStrip.textContent = state.plan
+                    ? `ORG ${state.plan.origin.name.toUpperCase()} | DST ${state.plan.dest.name.toUpperCase()} | WIN ${fmtDays(state.plan.waitSec)} | TOF ${fmtDays(state.plan.transferSec)} | ERR ${fmtAU(state.plan.miss)}`
+                    : "Awaiting plan.";
+            }
+
+            function renderPlanStats() {
+                if (!state.plan) {
+                    els.planStats.innerHTML = "";
+                    return;
+                }
+                const rows = [
+                    stat("WIN", fmtDays(state.plan.waitSec)),
+                    stat("TOF", fmtDays(state.plan.transferSec)),
+                    stat("DV1", fmtSpeed(state.plan.dvDepart)),
+                    state.plan.kind === "interstellar" ? stat("BRK", fmtSpeed(state.plan.dvBrake || 0)) : stat("TCM", fmtSpeed(state.plan.dvCorrection || 0)),
+                    state.plan.kind === "interstellar" ? stat("HOH", fmtSpeed(state.plan.dvHohmann || 0)) : "",
+                    stat("DV2", fmtSpeed(state.plan.dvArrive)),
+                    stat("DVT", fmtSpeed(state.plan.dvTotal)),
+                    stat("FUL", fmtFuel(state.plan.fuel.total)),
+                    stat("REM", fmtFuel(state.plan.fuel.remaining)),
+                    stat("BTM", fmtDays(state.plan.burnDepartSec + state.plan.burnArriveSec + state.plan.burnCorrectionSec)),
+                    stat("ORB", state.plan.captureOrbit ? fmtAU(state.plan.captureOrbit) : "--"),
+                    stat("ERR", fmtAU(state.plan.miss))
+                ];
+                els.planStats.innerHTML = rows.join("");
+            }
+
+            function stat(code, value) {
+                return `<div class="stat"><code>${code}</code><span>${value}</span></div>`;
+            }
+
+            function fmtDays(sec) {
+                if (!Number.isFinite(sec)) return "--";
+                return `${(sec / DAY).toFixed(Math.abs(sec) < 10 * DAY ? 1 : 0)}d`;
+            }
+
+            function fmtSpeed(v) {
+                if (!Number.isFinite(v)) return "--";
+                return v >= 1000 ? `${(v / 1000).toFixed(2)}km/s` : `${v.toFixed(0)}m/s`;
+            }
+
+            function fmtAcc(a) {
+                if (!Number.isFinite(a)) return "--";
+                return `${a.toExponential(2)}m/s2`;
+            }
+
+            function fmtFuel(kg) {
+                if (!Number.isFinite(kg)) return "--";
+                if (Math.abs(kg) >= 1000) return `${(kg / 1000).toFixed(2)}t`;
+                if (Math.abs(kg) >= 1) return `${kg.toFixed(2)}kg`;
+                return `${(kg * 1000).toFixed(2)}g`;
+            }
+
+            function fmtAU(m) {
+                if (!Number.isFinite(m)) return "--";
+                const ly = m / LY;
+                if (Math.abs(ly) >= 0.1) return `${ly.toFixed(Math.abs(ly) >= 10 ? 1 : 2)}ly`;
+                const au = m / AU;
+                if (Math.abs(au) >= 0.01) return `${au.toFixed(3)}AU`;
+                if (Math.abs(m) >= 1000000) return `${(m / 1000000).toFixed(1)}Mm`;
+                return `${(m / 1000).toFixed(0)}km`;
+            }
+
+            function fmtZoom() {
+                const kmPerPx = 1 / state.view.zoom / 1000;
+                const lyPerPx = kmPerPx * 1000 / LY;
+                if (lyPerPx >= 0.001) return `${lyPerPx.toFixed(3)}ly/px`;
+                if (kmPerPx > 1e6) return `${(kmPerPx / 1e6).toFixed(2)}Gkm/px`;
+                if (kmPerPx > 1000) return `${(kmPerPx / 1000).toFixed(2)}Mkm/px`;
+                return `${kmPerPx.toFixed(1)}km/px`;
+            }
+
+            function writeLog(msg) {
+                const line = document.createElement("div");
+                line.textContent = `${new Date().toISOString().slice(11, 19)} ${msg}`;
+                els.log.prepend(line);
+                while (els.log.children.length > 30) els.log.lastChild.remove();
+            }
+
+            function setPickMode(mode) {
+                state.pickMode = state.pickMode === mode ? null : mode;
+                els.pickOrigin.classList.toggle("active", state.pickMode === "origin");
+                els.pickDest.classList.toggle("active", state.pickMode === "dest");
+                els.canvas.style.cursor = state.pickMode ? "crosshair" : "grab";
+            }
+
+            function selectAt(x, y) {
+                if (!state.pickMode) return;
+                const hit = state.renderBodies
+                    .map(item => ({ item, d: Math.hypot(item.screen.x - x, item.screen.y - y) }))
+                    .filter(hit => hit.d <= hit.item.radius)
+                    .sort((a, b) => a.d - b.d)[0];
+                let label;
+                if (hit) {
+                    label = hit.item.body.name;
+                } else {
+                    const world = unproject(x, y);
+                    label = `${(world.x / AU).toFixed(4)}, ${(world.y / AU).toFixed(4)} AU`;
+                }
+                const assigned = state.pickMode;
+                if (state.pickMode === "origin") {
+                    els.originInput.value = label;
+                } else {
+                    els.destInput.value = label;
+                }
+                state.pickMode = null;
+                els.pickOrigin.classList.remove("active");
+                els.pickDest.classList.remove("active");
+                els.canvas.style.cursor = "grab";
+                state.plan = null;
+                state.origin = parseTarget(els.originInput.value, state.epochSec);
+                state.dest = parseTarget(els.destInput.value, state.epochSec);
+                renderPlanStats();
+                writeLog(`${assigned === "origin" ? "ORG" : "DST"} SET: ${label}.`);
+            }
+
+            function initUI() {
+                els.epochInput.value = todayISO();
+                for (const body of bodies) {
+                    if (body.group === "barycenter") continue;
+                    const opt = document.createElement("option");
+                    opt.value = body.name;
+                    els.bodyList.append(opt);
+                    const pill = document.createElement("div");
+                    pill.className = "pill";
+                    pill.textContent = body.name.toUpperCase();
+                    pill.title = `${body.group} / ${body.name}`;
+                    pill.addEventListener("click", () => {
+                        if (!state.pickMode) {
+                            writeLog(`ARM ORG/DST FIRST: ${body.name} available.`);
+                            return;
+                        }
+                        if (state.pickMode === "origin") {
+                            els.originInput.value = body.name;
+                        } else {
+                            els.destInput.value = body.name;
+                        }
+                        state.pickMode = null;
+                        els.pickOrigin.classList.remove("active");
+                        els.pickDest.classList.remove("active");
+                        els.canvas.style.cursor = "grab";
+                        state.plan = null;
+                    });
+                    els.catalogPills.append(pill);
+                }
+
+                els.pickOrigin.addEventListener("click", () => setPickMode("origin"));
+                els.pickDest.addEventListener("click", () => setPickMode("dest"));
+                els.planBtn.addEventListener("click", planMission);
+                els.startBtn.addEventListener("click", startMission);
+                els.pauseBtn.addEventListener("click", () => {
+                    state.paused = !state.paused;
+                    writeLog(state.paused ? "SIM PAUSE." : "SIM RESUME.");
+                });
+                els.resetBtn.addEventListener("click", resetMission);
+                els.originInput.addEventListener("change", () => { state.plan = null; });
+                els.destInput.addEventListener("change", () => { state.plan = null; });
+                els.epochInput.addEventListener("change", () => { state.plan = null; state.epochSec = dateInputToJ2000(els.epochInput.value); });
+                els.scaleSelect.addEventListener("change", () => {
+                    if (els.scaleSelect.value === "linear") state.view.zoom = Math.min(state.view.zoom, 34 / AU);
+                    else state.view.zoom = Math.max(state.view.zoom, 120 / AU);
+                });
+
+                els.canvas.addEventListener("mousedown", e => {
+                    state.view.dragging = true;
+                    state.view.lastX = e.offsetX;
+                    state.view.lastY = e.offsetY;
+                    state.view.dragDistance = 0;
+                });
+                window.addEventListener("mouseup", () => { state.view.dragging = false; });
+                els.canvas.addEventListener("mousemove", e => {
+                    state.mouseWorld = unproject(e.offsetX, e.offsetY);
+                    if (!state.view.dragging) return;
+                    const dx = e.offsetX - state.view.lastX;
+                    const dy = e.offsetY - state.view.lastY;
+                    state.view.dragDistance += Math.hypot(dx, dy);
+                    const c = displayPos(state.view.center);
+                    const shifted = inverseDisplay({ x: c.x - dx / state.view.zoom, y: c.y + dy / state.view.zoom, z: 0 });
+                    state.view.center = shifted;
+                    state.view.lastX = e.offsetX;
+                    state.view.lastY = e.offsetY;
+                    els.followSelect.value = "free";
+                });
+                els.canvas.addEventListener("click", e => {
+                    if (state.view.dragDistance < 4) selectAt(e.offsetX, e.offsetY);
+                });
+                els.canvas.addEventListener("wheel", e => {
+                    e.preventDefault();
+                    const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+                    state.view.zoom = Math.max(1.8 / AU, Math.min(500000 / AU, state.view.zoom * factor));
+                }, { passive: false });
+
+                window.addEventListener("resize", resize);
+                writeLog("NAV READY: plan a transfer or click targets.");
+                state.origin = parseTarget(els.originInput.value, state.epochSec);
+                state.dest = parseTarget(els.destInput.value, state.epochSec);
+            }
+
+            initUI();
+            resize();
+            planMission();
+            render();
+        })();
+    </script>
+</body>
+</html>
