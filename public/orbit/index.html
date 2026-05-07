@@ -584,6 +584,15 @@
                 burnEfficiency: 0.35,
                 maxBurnAccel: 20
             };
+            const VIEW = {
+                minZoom: 1 / (0.12 * LY),
+                maxZoom: 500000 / AU
+            };
+            const PLAN_LIMITS = {
+                maxSolarTransferSec: 250 * 365 * DAY,
+                maxInterstellarTransferSec: 1200 * 365 * DAY,
+                maxValidationSteps: 24000
+            };
 
             const els = {
                 canvas: document.getElementById("orbitCanvas"),
@@ -967,6 +976,10 @@
                 state.dest = dest;
                 state.plan = null;
                 renderPlanStats();
+                if (dest.type !== "body" || dest.body.id === "sol") {
+                    writeLog("NAV ERR: stable orbit plans require a named non-Sol destination body.");
+                    return null;
+                }
 
                 const localPlan = buildLocalSystemPlan(origin, dest, epoch);
                 if (localPlan) return installPlan(localPlan);
@@ -978,7 +991,7 @@
                 }
 
                 let waitSec = 0;
-                if (els.syncWindow.checked && origin.type === "body" && origin.body.id !== "sol" && dest.id !== "sol") {
+                if (els.syncWindow.checked && origin.type === "body" && origin.body.id !== "sol" && dest.type === "body" && dest.id !== "sol") {
                     waitSec = findLaunchWindow(origin, dest, epoch);
                 }
 
@@ -997,6 +1010,10 @@
                 const launchOffset = origin.body ? launchClearance(origin.body) : 0;
                 const startPos = v3.add(depState.pos, v3.mul(radial, launchOffset));
                 const transferSec = Math.PI * Math.sqrt(Math.pow(aTransfer, 3) / mu);
+                if (!Number.isFinite(transferSec) || transferSec > PLAN_LIMITS.maxSolarTransferSec) {
+                    writeLog("NAV ERR: route transfer exceeds supported planner range.");
+                    return null;
+                }
                 const arrTarget = approachTarget(dest, epoch + waitSec + transferSec, startPos);
                 const fallback = tangentTransfer(depState, arrTarget, aTransfer, r1, r2, mu);
                 const lambert = solveLambert(startPos, arrTarget.pos, transferSec, mu, depState.vel, arrTarget.vel);
@@ -1270,6 +1287,23 @@
                 plan.burnArriveSec = plan.dvArrive / SHIP.maxBurnAccel;
                 plan.burnCorrectionSec = (plan.dvCorrection || 0) / SHIP.maxBurnAccel;
                 plan.captureOrbit = plan.dest.type === "body" && plan.dest.body.id !== "sol" ? parkingOrbitRadius(plan.dest.body) : 0;
+                const validation = validatePlanBeforeInstall(plan);
+                if (!validation.ok) {
+                    state.plan = null;
+                    state.running = false;
+                    state.paused = false;
+                    state.ship = null;
+                    state.launched = false;
+                    state.complete = false;
+                    state.burnMode = "IDLE";
+                    renderPlanStats();
+                    writeLog(validation.message);
+                    return null;
+                }
+                plan.validation = validation;
+                plan.fuel.total = Math.max(plan.fuel.total, validation.fuelUsed);
+                plan.fuel.remaining = Math.max(0, SHIP.fuelCapacity - plan.fuel.total);
+                plan.fuel.feasible = plan.fuel.total <= SHIP.fuelCapacity;
                 state.origin = plan.origin;
                 state.dest = plan.dest;
                 state.plan = plan;
@@ -1284,6 +1318,55 @@
                 renderPlanStats();
                 writeLog(`PLAN OK: ${plan.origin.name} > ${plan.dest.name}; WIN ${fmtDays(plan.waitSec)}; TOF ${fmtDays(plan.transferSec)}; DV ${fmtSpeed(plan.dvTotal)}; FUEL ${fmtFuel(plan.fuel.total)}; ${plan.frame}/${plan.method}.`);
                 return state.plan;
+            }
+
+            function validatePlanBeforeInstall(plan) {
+                const basic = validatePlanShape(plan);
+                if (!basic.ok) return basic;
+                const dryRun = validatePlanExecution(plan);
+                if (!dryRun.ok) return dryRun;
+                return dryRun;
+            }
+
+            function validatePlanShape(plan) {
+                if (!plan || !plan.dest || plan.dest.type !== "body" || plan.dest.body.id === "sol") {
+                    return planReject("NAV ERR: stable orbit plans require a named non-Sol destination body.");
+                }
+                const transferLimit = plan.kind === "interstellar" ? PLAN_LIMITS.maxInterstellarTransferSec : PLAN_LIMITS.maxSolarTransferSec;
+                const values = [
+                    plan.waitSec,
+                    plan.transferSec,
+                    plan.arrivalTime,
+                    plan.dvDepart,
+                    plan.dvArrive,
+                    plan.dvTotal,
+                    plan.fuel && plan.fuel.total,
+                    plan.startPos && plan.startPos.x,
+                    plan.startPos && plan.startPos.y,
+                    plan.startPos && plan.startPos.z,
+                    plan.initialVel && plan.initialVel.x,
+                    plan.initialVel && plan.initialVel.y,
+                    plan.initialVel && plan.initialVel.z,
+                    plan.startVel && plan.startVel.x,
+                    plan.startVel && plan.startVel.y,
+                    plan.startVel && plan.startVel.z
+                ];
+                if (!values.every(Number.isFinite)) return planReject("NAV ERR: planner produced invalid route values.");
+                if (plan.transferSec <= 0 || plan.transferSec > transferLimit) {
+                    return planReject("NAV ERR: route transfer exceeds supported planner range.");
+                }
+                if (!plan.fuel.feasible || plan.fuel.total > SHIP.fuelCapacity) {
+                    return planReject(`FUEL ERR: planned burns need ${fmtFuel(plan.fuel.total)}, tank holds ${fmtFuel(SHIP.fuelCapacity)}.`);
+                }
+                const burnSec = (plan.burnDepartSec || 0) + (plan.burnArriveSec || 0) + (plan.burnCorrectionSec || 0);
+                if (!Number.isFinite(burnSec) || burnSec > Math.max(3600, plan.transferSec * 0.45)) {
+                    return planReject("NAV ERR: burn duration is too large for the transfer window.");
+                }
+                return { ok: true };
+            }
+
+            function planReject(message) {
+                return { ok: false, message };
             }
 
             function tangentTransfer(depState, arrTarget, aTransfer, r1, r2, mu) {
@@ -1885,6 +1968,216 @@
                 return out;
             }
 
+            function validatePlanExecution(plan) {
+                let simTime = 0;
+                let ship = null;
+                let launched = false;
+                let complete = false;
+                let finalOrbit = null;
+                const validationTail = Math.max(3 * DAY, Math.min(20 * DAY, plan.transferSec * 0.35));
+                const deadline = plan.arrivalTime + validationTail;
+                let steps = 0;
+
+                while (simTime <= deadline && steps++ < PLAN_LIMITS.maxValidationSteps) {
+                    if (!launched) {
+                        simTime = plan.waitSec;
+                        ship = createShipForPlan(plan);
+                        launched = true;
+                        continue;
+                    }
+                    const maxStep = ship.burns.length ? 300 : 10800;
+                    let dt = validationNextStep(plan, ship, simTime, maxStep);
+                    dt = Math.min(dt, Math.max(0, deadline - simTime));
+                    if (!Number.isFinite(dt) || dt <= 0) break;
+                    const absTime = plan.epoch + simTime;
+                    if (validationAdvanceInterstellarGlide(plan, ship, simTime, dt)) {
+                        simTime += dt;
+                        continue;
+                    }
+                    validationQueueInterstellarApproach(plan, ship, simTime, absTime);
+                    validationQueueMidcourse(plan, ship, simTime);
+                    validationQueueArrival(plan, ship, simTime, absTime);
+                    const result = validationPoweredStep(plan, ship, absTime, dt);
+                    if (!result.ok) return result;
+                    ship = result.ship;
+                    simTime += dt;
+                    if (result.complete) {
+                        complete = true;
+                        finalOrbit = result.orbit;
+                        break;
+                    }
+                }
+
+                if (!complete) {
+                    const orbit = ship ? orbitQuality(ship, plan.dest.body, plan.epoch + simTime) : null;
+                    const detail = orbit ? ` r ${fmtAU(orbit.radius)} e ${orbit.ecc.toFixed(3)}` : "";
+                    return planReject(`NAV ERR: terminal approach failed to converge to a stable orbit.${detail}`);
+                }
+                return {
+                    ok: true,
+                    message: "PLAN OK",
+                    fuelUsed: ship.fuelUsed,
+                    finalOrbit,
+                    finalTime: simTime
+                };
+            }
+
+            function createShipForPlan(plan) {
+                return {
+                    pos: plan.startPos,
+                    vel: plan.initialVel,
+                    acc: acceleration(plan.startPos, plan.epoch + plan.waitSec),
+                    dryMass: SHIP.dryMass,
+                    fuel: SHIP.fuelCapacity,
+                    fuelUsed: 0,
+                    burns: plan.kind === "interstellar"
+                        ? makeProfiledVelocityBurn("DEP", plan.startVel, plan.fuel.depart, plan.dvDepart)
+                        : makeVelocityBurn("DEP", plan.startVel),
+                    tcmQueued: false,
+                    captureQueued: false,
+                    interstellarApproachQueued: false,
+                    orbitLock: null
+                };
+            }
+
+            function validationNextStep(plan, ship, simTime, maxStep) {
+                let dt = maxStep;
+                if (plan.kind === "interstellar") {
+                    const ix = plan.interstellar;
+                    if (simTime < ix.glideStart) dt = capStepAtEventForTime(simTime, dt, ix.glideStart);
+                    if (simTime >= ix.glideStart && simTime < ix.approachStart) {
+                        return capStepAtEventForTime(simTime, dt, ix.approachStart);
+                    }
+                    if (!ship.interstellarApproachQueued && simTime >= ix.approachStart) dt = Math.min(dt, 300);
+                }
+                if (plan.tcmDelta && !ship.tcmQueued && simTime >= plan.waitSec + plan.tcmAt) dt = Math.min(dt, 300);
+                const captureStart = arrivalBurnStartTimeForPlan(plan);
+                if (!ship.captureQueued && simTime >= captureStart) dt = Math.min(dt, 300);
+                dt = cappedGravityStep(ship.pos, plan.epoch + simTime, dt);
+                if (plan.tcmDelta && !ship.tcmQueued) dt = capStepAtEventForTime(simTime, dt, plan.waitSec + plan.tcmAt);
+                if (!ship.captureQueued) dt = capStepAtEventForTime(simTime, dt, captureStart);
+                if (!ship.captureQueued) dt = capStepAtEventForTime(simTime, dt, plan.arrivalTime);
+                return dt > 0 ? dt : maxStep;
+            }
+
+            function capStepAtEventForTime(simTime, dt, eventTime) {
+                if (!Number.isFinite(eventTime) || simTime >= eventTime || simTime + dt <= eventTime) return dt;
+                return Math.max(0, eventTime - simTime);
+            }
+
+            function arrivalBurnStartTimeForPlan(plan) {
+                const burnLead = Math.max(0, (plan.burnArriveSec || 0) * 1.25 + 600);
+                let approachLead = burnLead;
+                if (plan.dest && plan.dest.type === "body" && plan.dest.body.id !== "sol") {
+                    const body = plan.dest.body;
+                    const radius = parkingOrbitRadius(body);
+                    const speed = circularOrbitSpeed(body, radius);
+                    const period = speed > 0 ? TAU * radius / speed : 0;
+                    approachLead = Math.max(approachLead, Math.min(8 * 3600, period / 4));
+                }
+                return Math.max(plan.waitSec, plan.arrivalTime - Math.min(plan.transferSec * 0.45, approachLead));
+            }
+
+            function validationAdvanceInterstellarGlide(plan, ship, simTime, dt) {
+                if (plan.kind !== "interstellar") return false;
+                const ix = plan.interstellar;
+                if (simTime < ix.glideStart || simTime >= ix.approachStart || ship.burns.length) return false;
+                const nextTime = Math.min(ix.approachStart, simTime + dt);
+                const span = Math.max(1, ix.approachStart - ix.glideStart);
+                const u = clamp((nextTime - ix.glideStart) / span, 0, 1);
+                ship.pos = v3.add(ix.glideStartPos, v3.mul(v3.sub(ix.approachStartPos, ix.glideStartPos), u));
+                ship.vel = ix.cruiseVel;
+                ship.acc = v3.zero();
+                return true;
+            }
+
+            function validationQueueInterstellarApproach(plan, ship, simTime, absTime) {
+                if (plan.kind !== "interstellar" || ship.interstellarApproachQueued || simTime < plan.interstellar.approachStart) return;
+                const ix = plan.interstellar;
+                ship.pos = ix.approachStartPos;
+                ship.vel = ix.cruiseVel;
+                ship.acc = acceleration(ship.pos, absTime);
+                ship.burns.push(...makeProfiledVelocityBurn("APP", ix.approachInitialVel, plan.fuel.brake || 0, plan.dvBrake || 0));
+                if (v3.mag(v3.sub(ix.hohmannVel, ix.approachInitialVel)) > 0.001) {
+                    ship.burns.push(...makeProfiledVelocityBurn("HOH", ix.hohmannVel, plan.fuel.hohmann || 0, plan.dvHohmann || 0));
+                }
+                ship.interstellarApproachQueued = true;
+            }
+
+            function validationQueueMidcourse(plan, ship, simTime) {
+                if (ship.tcmQueued || !plan.tcmDelta || simTime < plan.waitSec + plan.tcmAt) return;
+                ship.burns.push(...makeVelocityBurn("TCM", v3.add(ship.vel, plan.tcmDelta)));
+                ship.tcmQueued = true;
+            }
+
+            function validationQueueArrival(plan, ship, simTime, absTime) {
+                if (ship.captureQueued || simTime < arrivalBurnStartTimeForPlan(plan)) return;
+                if (!withinArrivalCaptureRange(plan, ship, absTime, simTime)) return;
+                const target = arrivalCaptureTargetForPlan(plan, absTime, ship);
+                if (plan.kind === "interstellar") {
+                    ship.burns.push(...makeProfiledVelocityBurn("ARR", target.vel, plan.fuel.arrive, plan.dvArrive));
+                } else {
+                    ship.burns.push(...makeVelocityBurn("ARR", target.vel));
+                }
+                ship.captureQueued = true;
+            }
+
+            function validationPoweredStep(plan, ship, absTime, dt) {
+                if (!ship.burns.length) {
+                    return { ok: true, ship: mergeShipStep(ship, verletStep(ship, absTime, dt)) };
+                }
+                const burn = ship.burns[0];
+                if (burn.targetVel) burn.remaining = v3.sub(burn.targetVel, ship.vel);
+                const dvLeft = v3.mag(burn.remaining || v3.zero());
+                if (dvLeft <= 0.001) {
+                    if (burn.label === "ARR") {
+                        const orbit = orbitQuality(ship, plan.dest.body, absTime);
+                        if (orbit.stable) return { ok: true, ship, complete: true, orbit };
+                        const inserted = attemptTerminalOrbitInsertForPlan(plan, ship, absTime);
+                        if (inserted.ok) return { ok: true, ship, complete: true, orbit: inserted.orbit };
+                        if (inserted.fuelError) return planReject(`FUEL ERR: stable capture requires more than ${fmtFuel(SHIP.fuelCapacity)}.`);
+                        retargetArrivalBurnForPlan(plan, ship, burn, absTime);
+                        return { ok: true, ship: mergeShipStep(ship, verletStep(ship, absTime, dt)) };
+                    }
+                    ship.burns.shift();
+                    return validationPoweredStep(plan, ship, absTime, dt);
+                }
+
+                const maxDv = SHIP.maxBurnAccel * dt;
+                const requestedDv = Math.min(dvLeft, maxDv);
+                const dir = v3.norm(burn.remaining);
+                const fuelStep = burnFuelForStep(burn, requestedDv);
+                if (!fuelStep.ok || fuelStep.fuel > ship.fuel) {
+                    return planReject(`FUEL ERR: stable capture requires more than ${fmtFuel(SHIP.fuelCapacity)}.`);
+                }
+                const delta = v3.mul(dir, fuelStep.appliedDv);
+                ship.fuel -= fuelStep.fuel;
+                ship.fuelUsed += fuelStep.fuel;
+                ship.vel = v3.add(ship.vel, delta);
+                burn.remaining = v3.sub(burn.remaining, delta);
+
+                if (v3.mag(burn.remaining) <= 0.001) {
+                    if (burn.label === "ARR") {
+                        const orbit = orbitQuality(ship, plan.dest.body, absTime);
+                        if (orbit.stable) return { ok: true, ship, complete: true, orbit };
+                        const inserted = attemptTerminalOrbitInsertForPlan(plan, ship, absTime);
+                        if (inserted.ok) return { ok: true, ship, complete: true, orbit: inserted.orbit };
+                        if (inserted.fuelError) return planReject(`FUEL ERR: stable capture requires more than ${fmtFuel(SHIP.fuelCapacity)}.`);
+                        retargetArrivalBurnForPlan(plan, ship, burn, absTime);
+                        if (v3.mag(burn.remaining || v3.zero()) > 0.001) {
+                            return { ok: true, ship: mergeShipStep(ship, verletStep(ship, absTime, dt)) };
+                        }
+                    }
+                    settleProfiledBurnFuel(ship, burn);
+                    ship.burns.shift();
+                } else if (fuelStep.exhausted) {
+                    return planReject(`FUEL ERR: stable capture requires more than ${fmtFuel(SHIP.fuelCapacity)}.`);
+                }
+
+                const holdAtApproach = plan.kind === "interstellar" && (burn.label === "APP" || burn.label === "HOH");
+                return { ok: true, ship: holdAtApproach ? ship : mergeShipStep(ship, verletStep(ship, absTime, dt)) };
+            }
+
             function startMission() {
                 if (!state.plan && !planMission()) return;
                 if (!state.plan.fuel.feasible) {
@@ -1923,8 +2216,7 @@
 
             function arrivalBurnStartTime() {
                 if (!state.plan) return NaN;
-                const burnLead = Math.max(0, (state.plan.burnArriveSec || 0) * 1.25 + 600);
-                return Math.max(state.plan.waitSec, state.plan.arrivalTime - Math.min(state.plan.transferSec * 0.1, burnLead));
+                return arrivalBurnStartTimeForPlan(state.plan);
             }
 
             function nextSimulationStep(maxStep, remaining) {
@@ -1953,6 +2245,9 @@
                 }
                 if (!state.ship.captureQueued) {
                     dt = capStepAtEvent(dt, captureStart);
+                }
+                if (!state.ship.captureQueued) {
+                    dt = capStepAtEvent(dt, state.plan.arrivalTime);
                 }
                 return dt > 0 ? dt : Math.min(maxStep, remaining);
             }
@@ -2041,7 +2336,8 @@
 
             function maybeQueueArrivalBurn(absTime) {
                 if (state.complete || !state.ship || state.ship.captureQueued || state.simTime < arrivalBurnStartTime()) return;
-                const target = approachTarget(state.plan.dest, absTime, state.ship.pos);
+                if (!withinArrivalCaptureRange(state.plan, state.ship, absTime, state.simTime)) return;
+                const target = arrivalCaptureTarget(absTime, state.ship);
                 const captureDelta = v3.sub(target.vel, state.ship.vel);
                 if (state.plan.kind === "interstellar") {
                     state.ship.burns.push(...makeProfiledVelocityBurn("ARR", target.vel, state.plan.fuel.arrive, state.plan.dvArrive));
@@ -2108,7 +2404,7 @@
                     if (burn.label === "ARR") {
                         if (tryCompleteStableOrbit(absTime)) return ship;
                         retargetArrivalBurn(burn, absTime);
-                        if (v3.mag(burn.remaining || v3.zero()) > 0.001) return poweredStep(ship, absTime, dt);
+                        return mergeShipStep(ship, verletStep(ship, absTime, dt));
                     }
                     ship.burns.shift();
                     return poweredStep(ship, absTime, dt);
@@ -2117,16 +2413,16 @@
                 const maxDv = SHIP.maxBurnAccel * dt;
                 const appliedDv = Math.min(dvLeft, maxDv);
                 const dir = v3.norm(burn.remaining);
-                const delta = v3.mul(dir, appliedDv);
                 const holdAtApproach = state.plan.kind === "interstellar" && (burn.label === "APP" || burn.label === "HOH");
-                const fuel = burnFuelForStep(burn, appliedDv);
-                if (fuel > ship.fuel) {
+                const fuelStep = burnFuelForStep(burn, appliedDv);
+                if (!fuelStep.ok || fuelStep.fuel > ship.fuel) {
                     writeLog("FUEL DRY: burn aborted.");
                     ship.burns.length = 0;
                     return holdAtApproach ? ship : mergeShipStep(ship, verletStep(ship, absTime, dt));
                 }
-                ship.fuel -= fuel;
-                ship.fuelUsed += fuel;
+                const delta = v3.mul(dir, fuelStep.appliedDv);
+                ship.fuel -= fuelStep.fuel;
+                ship.fuelUsed += fuelStep.fuel;
                 ship.vel = v3.add(ship.vel, delta);
                 burn.remaining = v3.sub(burn.remaining, delta);
                 if (v3.mag(burn.remaining) <= 0.001) {
@@ -2138,17 +2434,27 @@
                     settleProfiledBurnFuel(ship, burn);
                     writeLog(`${burn.label} BURN COMPLETE: fuel ${fmtFuel(ship.fuel)} rem.`);
                     ship.burns.shift();
+                } else if (fuelStep.exhausted) {
+                    writeLog("FUEL DRY: burn reserve exhausted.");
+                    ship.burns.length = 0;
                 }
                 return holdAtApproach ? ship : mergeShipStep(ship, verletStep(ship, absTime, dt));
             }
 
             function burnFuelForStep(burn, appliedDv) {
-                if (burn.fuelBudget == null) return fuelForDeltaV(appliedDv, SHIP.dryMass);
+                if (!Number.isFinite(appliedDv) || appliedDv < 0) return { ok: false, fuel: Infinity, appliedDv: 0 };
+                if (burn.fuelBudget == null) {
+                    return { ok: true, fuel: fuelForDeltaV(appliedDv, SHIP.dryMass), appliedDv, exhausted: false };
+                }
                 const spent = burn.fuelSpent || 0;
                 const remainingBudget = Math.max(0, burn.fuelBudget - spent);
-                const fuel = Math.min(remainingBudget, burn.fuelBudget * appliedDv / Math.max(0.001, burn.plannedDv || appliedDv));
+                if (remainingBudget <= 1e-9) return { ok: false, fuel: 0, appliedDv: 0, exhausted: true };
+                const fuelPerDv = burn.fuelBudget / Math.max(0.001, burn.plannedDv || appliedDv);
+                const budgetedDv = fuelPerDv > 0 ? remainingBudget / fuelPerDv : 0;
+                const actualDv = Math.min(appliedDv, budgetedDv);
+                const fuel = Math.min(remainingBudget, fuelPerDv * actualDv);
                 burn.fuelSpent = spent + fuel;
-                return fuel;
+                return { ok: actualDv > 0 || appliedDv <= 0.001, fuel, appliedDv: actualDv, exhausted: actualDv + 1e-6 < appliedDv };
             }
 
             function settleProfiledBurnFuel(ship, burn) {
@@ -2165,29 +2471,124 @@
                 burn.fuelSpent = burn.fuelBudget;
             }
 
+            function arrivalCaptureTarget(absTime, ship) {
+                return arrivalCaptureTargetForPlan(state.plan, absTime, ship);
+            }
+
+            function withinArrivalCaptureRange(plan, ship, absTime, simTime) {
+                if (!plan || !ship || plan.dest.type !== "body" || plan.dest.body.id === "sol") return true;
+                const body = plan.dest.body;
+                const bs = bodyState(body, absTime);
+                const distance = v3.mag(v3.sub(ship.pos, bs.pos));
+                const gate = Math.max(parkingOrbitRadius(body) * 14, body.radius * 20);
+                return distance <= gate || simTime >= plan.arrivalTime;
+            }
+
+            function arrivalCaptureTargetForPlan(plan, absTime, ship) {
+                if (!plan) return null;
+                if (plan.dest.type !== "body" || plan.dest.body.id === "sol") {
+                    return approachTarget(plan.dest, absTime, ship && ship.pos);
+                }
+                const body = plan.dest.body;
+                const bs = bodyState(body, absTime);
+                const radius = parkingOrbitRadius(body);
+                let relPos = ship ? v3.sub(ship.pos, bs.pos) : null;
+                let radial = relPos ? v3.norm(relPos) : v3.zero();
+                if (v3.mag(radial) < 0.5) radial = v3.norm(bs.pos);
+                if (v3.mag(radial) < 0.5) radial = { x: 1, y: 0, z: 0 };
+
+                const relVel = ship ? v3.sub(ship.vel, bs.vel) : v3.zero();
+                const radialSpeed = v3.dot(relVel, radial);
+                const tangentialVel = v3.sub(relVel, v3.mul(radial, radialSpeed));
+                let tangent = v3.norm(tangentialVel);
+                if (v3.mag(tangentialVel) < 0.5) {
+                    const parent = body.parent ? bodyById.get(body.parent) : null;
+                    const parentVel = parent ? bodyState(parent, absTime).vel : v3.zero();
+                    tangent = localTangent(radial, v3.sub(bs.vel, parentVel));
+                }
+
+                const orbitSpeed = circularOrbitSpeed(body, radius);
+                const orbitPeriod = orbitSpeed > 0 ? TAU * radius / orbitSpeed : Infinity;
+                const horizon = Math.max(600, Math.min(2 * DAY, plan.transferSec * 0.08, orbitPeriod / 10));
+                const currentRadius = relPos ? v3.mag(relPos) : radius;
+                const radialCap = Math.max(50, Math.min(20000, orbitSpeed * 1.25));
+                const desiredRadialSpeed = clamp((radius - currentRadius) / horizon, -radialCap, radialCap);
+                return {
+                    type: "body",
+                    id: body.id,
+                    name: `${body.name} orbit`,
+                    pos: v3.add(bs.pos, v3.mul(radial, radius)),
+                    vel: v3.add(v3.add(bs.vel, v3.mul(tangent, orbitSpeed)), v3.mul(radial, desiredRadialSpeed)),
+                    body,
+                    orbitBody: body,
+                    orbitRadius: radius
+                };
+            }
+
             function retargetArrivalBurn(burn, absTime) {
-                const target = approachTarget(state.plan.dest, absTime, state.ship.pos);
-                const error = v3.sub(target.pos, state.ship.pos);
-                const body = state.plan.dest.type === "body" ? state.plan.dest.body : null;
-                const orbitRadius = body ? parkingOrbitRadius(body) : 0;
-                const orbitSpeed = body ? circularOrbitSpeed(body, orbitRadius) : 0;
-                const orbitPeriod = orbitSpeed > 0 ? TAU * orbitRadius / orbitSpeed : Infinity;
-                const horizon = Math.max(900, Math.min(2 * DAY, state.plan.transferSec * 0.04, orbitPeriod / 8));
-                let correction = v3.mul(error, 1 / horizon);
-                const cap = 20000;
-                const mag = v3.mag(correction);
-                if (mag > cap) correction = v3.mul(correction, cap / mag);
-                burn.targetVel = v3.add(target.vel, correction);
-                burn.remaining = v3.sub(burn.targetVel, state.ship.vel);
+                retargetArrivalBurnForPlan(state.plan, state.ship, burn, absTime);
+            }
+
+            function retargetArrivalBurnForPlan(plan, ship, burn, absTime) {
+                const target = arrivalCaptureTargetForPlan(plan, absTime, ship);
+                burn.targetVel = target.vel;
+                burn.remaining = v3.sub(burn.targetVel, ship.vel);
+            }
+
+            function attemptTerminalOrbitInsertForPlan(plan, ship, absTime) {
+                if (!plan || !ship || plan.dest.type !== "body" || plan.dest.body.id === "sol") return { ok: false };
+                const body = plan.dest.body;
+                const bs = bodyState(body, absTime);
+                const relPos = v3.sub(ship.pos, bs.pos);
+                const currentRadius = v3.mag(relPos);
+                const radius = parkingOrbitRadius(body);
+                if (!Number.isFinite(currentRadius) || currentRadius > radius * 3.2) return { ok: false };
+                let radial = v3.norm(relPos);
+                if (v3.mag(radial) < 0.5) radial = v3.norm(v3.sub(plan.arrivalTarget ? plan.arrivalTarget.pos : ship.pos, bs.pos));
+                if (v3.mag(radial) < 0.5) radial = { x: 1, y: 0, z: 0 };
+                const relVel = v3.sub(ship.vel, bs.vel);
+                const radialSpeed = v3.dot(relVel, radial);
+                let tangent = v3.norm(v3.sub(relVel, v3.mul(radial, radialSpeed)));
+                if (v3.mag(tangent) < 0.5) tangent = localTangent(radial, null);
+                const speed = circularOrbitSpeed(body, radius);
+                const targetPos = v3.add(bs.pos, v3.mul(radial, radius));
+                const targetVel = v3.add(bs.vel, v3.mul(tangent, speed));
+                const dv = v3.mag(v3.sub(targetVel, ship.vel));
+                const fuel = fuelForDeltaV(dv, SHIP.dryMass);
+                if (fuel > ship.fuel) return { ok: false, fuelError: true, dv, fuel };
+                ship.fuel -= fuel;
+                ship.fuelUsed += fuel;
+                ship.pos = targetPos;
+                ship.vel = targetVel;
+                ship.acc = acceleration(ship.pos, absTime);
+                const orbit = orbitQuality(ship, body, absTime);
+                return { ok: orbit.stable, orbit, dv, fuel };
             }
 
             function tryCompleteStableOrbit(absTime) {
                 if (!state.ship || !state.plan || state.plan.dest.type !== "body" || state.plan.dest.body.id === "sol") return false;
                 const orbit = orbitQuality(state.ship, state.plan.dest.body, absTime);
                 if (!orbit.stable) {
+                    const inserted = attemptTerminalOrbitInsertForPlan(state.plan, state.ship, absTime);
+                    if (inserted.ok) {
+                        writeLog(`ORBIT INSERT: final circularization ${fmtSpeed(inserted.dv)}.`);
+                    } else {
+                        if (inserted.fuelError) writeLog("FUEL DRY: final orbit insertion unavailable.");
+                        retargetArrivalBurn(state.ship.burns[0], absTime);
+                        return false;
+                    }
+                } else {
+                    return completeStableOrbit(orbit, absTime);
+                }
+                const settled = orbitQuality(state.ship, state.plan.dest.body, absTime);
+                if (!settled.stable) {
                     retargetArrivalBurn(state.ship.burns[0], absTime);
                     return false;
                 }
+                return completeStableOrbit(settled, absTime);
+            }
+
+            function completeStableOrbit(orbit, absTime) {
                 state.complete = true;
                 state.burnMode = "ORBT";
                 state.ship.burns.length = 0;
@@ -2333,39 +2734,63 @@
                 ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
             }
 
-            function displayPos(pos) {
-                const mode = els.scaleSelect.value;
-                if (mode === "linear") return pos;
-                const r = Math.hypot(pos.x, pos.y);
-                if (!r) return v3.zero();
-                const dir = { x: pos.x / r, y: pos.y / r, z: 0 };
-                let rr;
-                if (mode === "log") {
-                    rr = AU * 2.15 * Math.log1p(r / AU);
-                } else {
-                    rr = r < 1.8 * AU ? r : 1.8 * AU + AU * 1.34 * Math.log1p((r - 1.8 * AU) / AU);
+            function projectionOrigin() {
+                if (state.ship) return state.ship.pos;
+                if (state.plan) {
+                    const origin = targetAt(state.plan.origin, state.plan.epoch + Math.min(state.simTime, state.plan.waitSec));
+                    return origin ? origin.pos : v3.zero();
                 }
-                return { x: dir.x * rr, y: dir.y * rr, z: pos.z };
+                const origin = parseTarget(els.originInput.value, state.epochSec);
+                return origin ? origin.pos : v3.zero();
+            }
+
+            function scaledDistance(r) {
+                const mode = els.scaleSelect.value;
+                if (mode === "linear") return r;
+                if (mode === "log") return AU * Math.log1p(r / AU);
+                const near = 1.8 * AU;
+                return r <= near ? r : near + AU * Math.log1p((r - near) / AU);
+            }
+
+            function unscaledDistance(r) {
+                const mode = els.scaleSelect.value;
+                if (mode === "linear") return r;
+                if (mode === "log") return AU * Math.expm1(r / AU);
+                const near = 1.8 * AU;
+                return r <= near ? r : near + AU * Math.expm1((r - near) / AU);
+            }
+
+            function displayPos(pos) {
+                if (els.scaleSelect.value === "linear") return pos;
+                const origin = projectionOrigin();
+                const rel = v3.sub(pos, origin);
+                const r = Math.hypot(rel.x, rel.y);
+                if (!r) return { x: origin.x, y: origin.y, z: pos.z };
+                const rr = scaledDistance(r);
+                return {
+                    x: origin.x + rel.x / r * rr,
+                    y: origin.y + rel.y / r * rr,
+                    z: pos.z
+                };
             }
 
             function inverseDisplay(pos) {
-                const mode = els.scaleSelect.value;
-                if (mode === "linear") return pos;
-                const r = Math.hypot(pos.x, pos.y);
-                if (!r) return v3.zero();
-                const dir = { x: pos.x / r, y: pos.y / r, z: 0 };
-                let rr;
-                if (mode === "log") {
-                    rr = AU * (Math.expm1(r / (AU * 2.15)));
-                } else {
-                    rr = r < 1.8 * AU ? r : 1.8 * AU + AU * Math.expm1((r - 1.8 * AU) / (AU * 1.34));
-                }
-                return { x: dir.x * rr, y: dir.y * rr, z: pos.z };
+                if (els.scaleSelect.value === "linear") return pos;
+                const origin = projectionOrigin();
+                const rel = v3.sub(pos, origin);
+                const r = Math.hypot(rel.x, rel.y);
+                if (!r) return { x: origin.x, y: origin.y, z: pos.z };
+                const rr = unscaledDistance(r);
+                return {
+                    x: origin.x + rel.x / r * rr,
+                    y: origin.y + rel.y / r * rr,
+                    z: pos.z
+                };
             }
 
             function project(pos) {
-                const p = displayPos(pos);
                 const c = displayPos(state.view.center);
+                const p = displayPos(pos);
                 return {
                     x: state.width / 2 + (p.x - c.x) * state.view.zoom,
                     y: state.height / 2 - (p.y - c.y) * state.view.zoom
@@ -2708,9 +3133,17 @@
                 const kmPerPx = 1 / state.view.zoom / 1000;
                 const lyPerPx = kmPerPx * 1000 / LY;
                 if (lyPerPx >= 0.001) return `${lyPerPx.toFixed(3)}ly/px`;
-                if (kmPerPx > 1e6) return `${(kmPerPx / 1e6).toFixed(2)}Gkm/px`;
-                if (kmPerPx > 1000) return `${(kmPerPx / 1000).toFixed(2)}Mkm/px`;
+                if (kmPerPx >= 1e9) return `${(kmPerPx / 1e9).toFixed(2)}Gkm/px`;
+                if (kmPerPx >= 1e6) return `${(kmPerPx / 1e6).toFixed(2)}Mkm/px`;
                 return `${kmPerPx.toFixed(1)}km/px`;
+            }
+
+            function clampZoom(zoom) {
+                return Math.max(VIEW.minZoom, Math.min(VIEW.maxZoom, zoom));
+            }
+
+            function wheelZoomFactor() {
+                return 1.6;
             }
 
             function writeLog(msg) {
@@ -2800,8 +3233,7 @@
                 els.destInput.addEventListener("change", () => { state.plan = null; });
                 els.epochInput.addEventListener("change", () => { state.plan = null; state.epochSec = dateInputToJ2000(els.epochInput.value); });
                 els.scaleSelect.addEventListener("change", () => {
-                    if (els.scaleSelect.value === "linear") state.view.zoom = Math.min(state.view.zoom, 34 / AU);
-                    else state.view.zoom = Math.max(state.view.zoom, 120 / AU);
+                    state.view.zoom = clampZoom(state.view.zoom);
                 });
 
                 els.canvas.addEventListener("mousedown", e => {
@@ -2829,8 +3261,9 @@
                 });
                 els.canvas.addEventListener("wheel", e => {
                     e.preventDefault();
-                    const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
-                    state.view.zoom = Math.max(1.8 / AU, Math.min(500000 / AU, state.view.zoom * factor));
+                    const step = wheelZoomFactor();
+                    const factor = e.deltaY < 0 ? step : 1 / step;
+                    state.view.zoom = clampZoom(state.view.zoom * factor);
                 }, { passive: false });
 
                 window.addEventListener("resize", resize);
