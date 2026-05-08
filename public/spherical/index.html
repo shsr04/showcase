@@ -205,6 +205,7 @@
             margin-bottom: 1.5rem;
             position: relative;
             border: 1px solid var(--color-glass-border);
+            background: #181818;
         }
 
         .panel-media img {
@@ -212,6 +213,42 @@
             height: 100%;
             object-fit: cover;
             animation: panZoom 20s infinite alternate linear;
+        }
+
+        .panel-media figcaption {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            padding: 0.55rem 0.75rem;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.72rem;
+            line-height: 1.4;
+        }
+
+        .panel-media figcaption a {
+            color: rgba(255, 255, 255, 0.92);
+            text-decoration-color: rgba(212, 175, 55, 0.7);
+        }
+
+        .panel-media-fallback {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            place-items: center;
+            padding: 2rem;
+            background:
+                radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.22), transparent 28%),
+                linear-gradient(135deg, var(--fallback-color, #3f4f63), #101010 75%);
+            color: rgba(255, 255, 255, 0.92);
+            text-align: center;
+            font-family: var(--font-heading);
+            font-size: 1.55rem;
+        }
+
+        .panel-media.fallback figcaption {
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0));
         }
 
         @keyframes panZoom {
@@ -292,10 +329,42 @@
 
         const positions = getFibonacciSpherePoints(topicKeys.length, 1);
 
+        const COMMONS_FILE_ROOT = 'https://commons.wikimedia.org/wiki/Special:FilePath/';
+        const COMMONS_PAGE_ROOT = 'https://commons.wikimedia.org/wiki/File:';
+
+        function getCommonsImageUrl(fileName, width) {
+            return `${COMMONS_FILE_ROOT}${encodeURIComponent(fileName)}?width=${width}`;
+        }
+
+        function getProxiedImageUrl(fileName, width) {
+            return `/spherical/api/image?file=${encodeURIComponent(fileName)}&width=${width}`;
+        }
+
+        function getCommonsPageUrl(fileName) {
+            return `${COMMONS_PAGE_ROOT}${encodeURIComponent(fileName).replace(/%20/g, '_')}`;
+        }
+
+        function createCommonsMedia(fileName, alt, author, license, fallbackColor) {
+            const fileUrl = getCommonsPageUrl(fileName);
+            return {
+                src: getCommonsImageUrl(fileName, 1200),
+                thumbSrc: getProxiedImageUrl(fileName, 420),
+                alt,
+                fallbackColor,
+                credit: `Foto: ${author}, <a href="${fileUrl}" target="_blank" rel="noreferrer">Wikimedia Commons</a>, ${license}`
+            };
+        }
+
         const TOPICS = {
             arte: {
                 title: 'Arte e Letteratura',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicily%20greek%20theatre%20taormina%20art%20sunset%20cinematic',
+                media: createCommonsMedia(
+                    'The Greek theatre Taormina.jpg',
+                    'Teatro greco di Taormina al tramonto',
+                    'Solomonn Levi',
+                    'CC BY-SA 4.0',
+                    '#8f5f31'
+                ),
                 content: `
                     <p>La Sicilia è musa ispiratrice. Terra di Luigi Pirandello e Giovanni Verga, ha dato i natali al Verismo e ha ospitato la corte poetica di Federico II.</p>
                     <h3>Il Teatro</h3>
@@ -304,7 +373,13 @@
             },
             storia: {
                 title: 'Storia Antica',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicily%20ancient%20greek%20temple%20ruins%20history%20cinematic',
+                media: createCommonsMedia(
+                    'Temple of Concordia, Agrigento BW 2012-10-07 13-09-13.jpg',
+                    'Tempio della Concordia nella Valle dei Templi',
+                    'Berthold Werner',
+                    'CC BY-SA 3.0',
+                    '#6d6240'
+                ),
                 content: `
                     <p>Cuore del Mediterraneo, la Sicilia è stata fenicia, greca, romana, bizantina, araba, normanna, sveva, angioina, aragonese e spagnola.</p>
                     <h3>La Magna Grecia</h3>
@@ -313,7 +388,13 @@
             },
             cucina: {
                 title: 'Gastronomia',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20food%20pasta%20cannoli%20feast%20cinematic',
+                media: createCommonsMedia(
+                    'Cannoli sicily.jpg',
+                    'Cannoli siciliani con crema di ricotta',
+                    'AnnaVie',
+                    'CC0',
+                    '#8a4f3c'
+                ),
                 content: `
                     <p>Un trionfo di sapori: la dolcezza della ricotta, l'acidità degli agrumi, la sapidità del mare. Arancini, caponata e pasta alla Norma sono icone globali.</p>
                     <h3>I Dolci</h3>
@@ -322,7 +403,13 @@
             },
             etna: {
                 title: 'L\'Etna',
-                imageUrl: 'https://image.pollinations.ai/prompt/mount%20etna%20volcano%20eruption%20lava%20night%20cinematic',
+                media: createCommonsMedia(
+                    'Erupting Volcano Mount Etna.jpg',
+                    'Eruzione dell\'Etna vista dallo spazio',
+                    'NASA',
+                    'Public domain',
+                    '#7b332b'
+                ),
                 content: `
                     <p>'A Muntagna', come la chiamano i catanesi, è il vulcano attivo più alto d'Europa. Patrimonio UNESCO, è una divinità capricciosa che fertilizza la terra e disegna il paesaggio.</p>
                     <h3>Mito e Natura</h3>
@@ -331,7 +418,13 @@
             },
             valle_templi: {
                 title: 'Valle dei Templi',
-                imageUrl: 'https://image.pollinations.ai/prompt/agrigento%20valley%20of%20temples%20concordia%20sunset%20cinematic',
+                media: createCommonsMedia(
+                    'Temple of Concordia (Agrigento) - Valle dei Templi, Agrigento, Sicily, Italy - 17 Oct. 2010.jpg',
+                    'Il Tempio della Concordia ad Agrigento',
+                    'Dennis G. Jarvis',
+                    'CC BY-SA 2.0',
+                    '#9a7a3d'
+                ),
                 content: `
                     <p>Ad Agrigento sorge una delle più straordinarie testimonianze dell'architettura dorica nel mondo. Il Tempio della Concordia è giunto a noi quasi intatto.</p>
                     <h3>Akragas</h3>
@@ -340,7 +433,13 @@
             },
             barocco: {
                 title: 'Barocco Siciliano',
-                imageUrl: 'https://image.pollinations.ai/prompt/noto%20sicily%20baroque%20cathedral%20architecture%20golden%20hour%20cinematic',
+                media: createCommonsMedia(
+                    'View of Noto, in Sicily - Cathedral and Chiesa di San Francesco d\'Assisi all\'Immacolata.jpg',
+                    'Vista del centro barocco di Noto',
+                    'Berthold Werner',
+                    'CC BY-SA 4.0',
+                    '#b18147'
+                ),
                 content: `
                     <p>Dopo il terremoto del 1693, il Val di Noto risorse in uno stile unico: esuberante, teatrale, dorato. Noto, Modica e Ragusa Ibla sono gioielli di pietra.</p>
                     <h3>Mascheroni e Putti</h3>
@@ -349,7 +448,13 @@
             },
             mercati: {
                 title: 'I Mercati Storici',
-                imageUrl: 'https://image.pollinations.ai/prompt/palermo%20street%20market%20food%20vibrant%20colors%20cinematic',
+                media: createCommonsMedia(
+                    'Ballarò Palermo.JPG',
+                    'Mercato di Ballaro a Palermo',
+                    'Effems',
+                    'CC BY-SA 4.0',
+                    '#735d37'
+                ),
                 content: `
                     <p>Vucciria, Ballarò, Il Capo a Palermo; la Pescheria a Catania. Luoghi dove il tempo si ferma e i sensi vengono assaliti da colori, odori e "abbanniate" (grida) dei venditori.</p>
                     <h3>Cibo di Strada</h3>
@@ -358,7 +463,13 @@
             },
             ceramica: {
                 title: 'Ceramica di Caltagirone',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20ceramics%20caltagirone%20majolica%20art%20cinematic',
+                media: createCommonsMedia(
+                    'Anthropomorphic ceramic vase of Caltagirone.jpg',
+                    'Vaso antropomorfo in ceramica di Caltagirone',
+                    'Agatino Caruso',
+                    'CC BY-SA 4.0',
+                    '#2f6d87'
+                ),
                 content: `
                     <p>Da millenni a Caltagirone si modella l'argilla. Le sue scalinate maiolicate e le Teste di Moro sono simboli di un artigianato che si fa arte.</p>
                     <h3>Le Teste di Moro</h3>
@@ -367,7 +478,13 @@
             },
             vini: {
                 title: 'Vini di Sicilia',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20vineyard%20wine%20grapes%20sunset%20cinematic',
+                media: createCommonsMedia(
+                    'Etna Wine Agriturismo, Passopisciaro, Sicily, Italy. Field blend.jpg',
+                    'Vigneto sulle pendici dell\'Etna',
+                    'Neil Weightman',
+                    'CC BY-SA 2.0',
+                    '#516b37'
+                ),
                 content: `
                     <p>Terra di vigneti baciati dal sole. Dal robusto Nero d'Avola ai minerali bianchi dell'Etna, fino al dolce Marsala e al Passito di Pantelleria.</p>
                     <h3>Rinascimento Enologico</h3>
@@ -376,7 +493,13 @@
             },
             pupi: {
                 title: 'I Pupi Siciliani',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicilian%20puppet%20theatre%20knights%20armor%20cinematic',
+                media: createCommonsMedia(
+                    'Sicilian puppets.JPG',
+                    'Pupi siciliani tradizionali',
+                    'Wikimedia Commons contributor',
+                    'CC BY-SA',
+                    '#7a3f55'
+                ),
                 content: `
                     <p>L'Opera dei Pupi non è un semplice spettacolo di marionette, ma un rito epico che narra le gesta di Orlando e dei Paladini di Francia.</p>
                     <h3>Patrimonio Immateriale</h3>
@@ -385,7 +508,13 @@
             },
             archimede: {
                 title: 'Archimede',
-                imageUrl: 'https://image.pollinations.ai/prompt/archimedes%20syracuse%20geometry%20ancient%20greece%20cinematic',
+                media: createCommonsMedia(
+                    'Archimedes and Hiero of Syracuse.jpg',
+                    'Archimede e Ierone di Siracusa',
+                    'Sebastiano Ricci',
+                    'Public domain',
+                    '#4f6385'
+                ),
                 content: `
                     <p>Il più grande genio dell'antichità visse e morì a Siracusa. Matematico, fisico, inventore, difese la sua città dalle navi romane con i suoi specchi ustori.</p>
                     <h3>Eureka!</h3>
@@ -394,7 +523,13 @@
             },
             gattopardo: {
                 title: 'Il Gattopardo',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicily%2019th%20century%20ballroom%20dance%20elegant%20cinematic',
+                media: createCommonsMedia(
+                    'Il gattopardo.jpg',
+                    'Scena del film Il Gattopardo',
+                    'Luchino Visconti',
+                    'Public domain in Italy',
+                    '#775148'
+                ),
                 content: `
                     <p>Il capolavoro di Tomasi di Lampedusa è l'affresco definitivo della Sicilia nel momento del passaggio dai Borbone all'Italia.</p>
                     <h3>"Tutto cambi..."</h3>
@@ -403,7 +538,13 @@
             },
             feste: {
                 title: 'Feste Religiose',
-                imageUrl: 'https://image.pollinations.ai/prompt/sicily%20religious%20procession%20festival%20crowd%20night%20cinematic',
+                media: createCommonsMedia(
+                    'Festa di Sant\'Agata (Catania) 03 02 2026 188.jpg',
+                    'Corteo processionale della Festa di Sant\'Agata a Catania',
+                    'Sailko',
+                    'CC BY-SA 4.0',
+                    '#7d2f2f'
+                ),
                 content: `
                     <p>La devozione in Sicilia è spettacolo. Il Festino di Santa Rosalia a Palermo e la Festa di Sant'Agata a Catania sono eventi grandiosi che paralizzano le città.</p>
                     <h3>Folklore e Fede</h3>
@@ -412,7 +553,13 @@
             },
             eolie: {
                 title: 'Le Isole Eolie',
-                imageUrl: 'https://image.pollinations.ai/prompt/aeolian%20islands%20stromboli%20sea%20volcano%20cinematic',
+                media: createCommonsMedia(
+                    'Stromboli Island.jpg',
+                    'Isola di Stromboli nelle Eolie',
+                    'Michela Mariotti',
+                    'CC BY-SA 4.0',
+                    '#275e73'
+                ),
                 content: `
                     <p>Sette perle vulcaniche nel Tirreno. Stromboli e Vulcano offrono spettacoli di fuoco, mentre Panarea e Salina incantano con la loro mondanità e natura.</p>
                     <h3>Patrimonio UNESCO</h3>
@@ -421,7 +568,13 @@
             },
             cioccolato: {
                 title: 'Cioccolato di Modica',
-                imageUrl: 'https://image.pollinations.ai/prompt/modica%20chocolate%20bar%20rustic%20sicily%20cinematic',
+                media: createCommonsMedia(
+                    'Chocolate Bar.jpg',
+                    'Barretta di cioccolato',
+                    'Fatimah Bello',
+                    'CC BY-SA 4.0',
+                    '#5a3528'
+                ),
                 content: `
                     <p>Un cioccolato unico, lavorato a freddo secondo un'antica ricetta azteca portata dagli spagnoli. Granuloso, aromatico, puro.</p>
                     <h3>Tradizione Dolciaria</h3>
@@ -430,7 +583,13 @@
             },
             arabo_normanno: {
                 title: 'Palermo Arabo-Normanna',
-                imageUrl: 'https://image.pollinations.ai/prompt/palermo%20arab%20norman%20palace%20mosaics%20gold%20cinematic',
+                media: createCommonsMedia(
+                    'Palermo - Mosaics of Palatine Chapel.jpg',
+                    'Mosaici della Cappella Palatina a Palermo',
+                    'Josep Renalias',
+                    'CC BY-SA 3.0',
+                    '#a47b2d'
+                ),
                 content: `
                     <p>Il Palazzo dei Normanni, la Cappella Palatina, la Zisa. Monumenti che testimoniano una convivenza pacifica e feconda tra culture diverse.</p>
                     <h3>Sincretismo</h3>
@@ -505,7 +664,6 @@
         sphere.add(markersGroup);
 
         const textureLoader = new THREE.TextureLoader();
-        textureLoader.crossOrigin = 'anonymous'; // Important for external images
 
         const markerGeometry = new THREE.RingGeometry(0.6, 0.65, 32); // Slightly larger frame
         const markerMaterial = new THREE.MeshBasicMaterial({
@@ -514,6 +672,383 @@
             transparent: true,
             opacity: 0.8
         });
+
+        function drawSky(ctx, topColor, bottomColor) {
+            const sky = ctx.createLinearGradient(0, 0, 0, 512);
+            sky.addColorStop(0, topColor);
+            sky.addColorStop(0.62, bottomColor);
+            sky.addColorStop(1, '#151515');
+            ctx.fillStyle = sky;
+            ctx.fillRect(0, 0, 512, 512);
+        }
+
+        function drawSun(ctx, x = 392, y = 116, radius = 46) {
+            const glow = ctx.createRadialGradient(x, y, 8, x, y, radius * 2.2);
+            glow.addColorStop(0, 'rgba(255, 230, 145, 0.95)');
+            glow.addColorStop(1, 'rgba(255, 180, 70, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(x, y, radius * 2.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#f7d36b';
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawSea(ctx, y = 350, color = '#245f78') {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, y, 512, 512 - y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+            ctx.lineWidth = 5;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(36, y + 24 + i * 28);
+                ctx.bezierCurveTo(142, y + 2 + i * 28, 220, y + 48 + i * 28, 332, y + 20 + i * 28);
+                ctx.bezierCurveTo(392, y + 6 + i * 28, 438, y + 18 + i * 28, 492, y + 6 + i * 28);
+                ctx.stroke();
+            }
+        }
+
+        function drawTemple(ctx) {
+            ctx.fillStyle = '#cda465';
+            ctx.fillRect(104, 324, 304, 30);
+            ctx.fillRect(82, 354, 348, 38);
+            ctx.fillStyle = '#e6c17d';
+            ctx.beginPath();
+            ctx.moveTo(76, 298);
+            ctx.lineTo(436, 298);
+            ctx.lineTo(392, 242);
+            ctx.lineTo(120, 242);
+            ctx.closePath();
+            ctx.fill();
+            for (let x = 122; x <= 354; x += 58) {
+                ctx.fillRect(x, 292, 32, 76);
+            }
+        }
+
+        function drawVolcano(ctx) {
+            ctx.fillStyle = '#342922';
+            ctx.beginPath();
+            ctx.moveTo(54, 396);
+            ctx.lineTo(222, 164);
+            ctx.lineTo(288, 164);
+            ctx.lineTo(468, 396);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#ff7145';
+            ctx.beginPath();
+            ctx.moveTo(232, 168);
+            ctx.lineTo(278, 168);
+            ctx.lineTo(256, 218);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#ef4d2f';
+            ctx.lineWidth = 16;
+            ctx.beginPath();
+            ctx.moveTo(256, 218);
+            ctx.bezierCurveTo(248, 268, 294, 304, 276, 384);
+            ctx.stroke();
+        }
+
+        function drawFood(ctx) {
+            ctx.fillStyle = '#f3d8a2';
+            ctx.beginPath();
+            ctx.ellipse(256, 308, 178, 88, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#c18439';
+            ctx.lineWidth = 16;
+            ctx.stroke();
+            ctx.fillStyle = '#7a2d28';
+            for (let i = 0; i < 11; i++) {
+                ctx.beginPath();
+                ctx.arc(132 + i * 24, 292 + Math.sin(i) * 24, 15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#fff1cc';
+            ctx.beginPath();
+            ctx.ellipse(332, 224, 96, 38, -0.45, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#9a5b2d';
+            ctx.lineWidth = 12;
+            ctx.stroke();
+        }
+
+        function drawCathedral(ctx) {
+            ctx.fillStyle = '#c99959';
+            ctx.fillRect(112, 226, 288, 166);
+            ctx.fillStyle = '#dfbb77';
+            ctx.fillRect(148, 184, 74, 208);
+            ctx.fillRect(290, 184, 74, 208);
+            ctx.beginPath();
+            ctx.moveTo(256, 138);
+            ctx.lineTo(408, 226);
+            ctx.lineTo(104, 226);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#3a2a28';
+            ctx.fillRect(228, 304, 56, 88);
+            ctx.fillRect(164, 236, 40, 52);
+            ctx.fillRect(308, 236, 40, 52);
+        }
+
+        function drawMarket(ctx) {
+            ctx.fillStyle = '#b93636';
+            ctx.fillRect(54, 188, 404, 90);
+            ctx.fillStyle = '#f3cf72';
+            for (let x = 54; x < 458; x += 58) {
+                ctx.beginPath();
+                ctx.moveTo(x, 188);
+                ctx.lineTo(x + 29, 278);
+                ctx.lineTo(x + 58, 188);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.fillStyle = '#6b3d23';
+            ctx.fillRect(84, 278, 344, 120);
+            ['#d8482f', '#f0bd42', '#4d8b45'].forEach((color, row) => {
+                ctx.fillStyle = color;
+                for (let i = 0; i < 7; i++) {
+                    ctx.beginPath();
+                    ctx.arc(124 + i * 44, 316 + row * 30, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        function drawCeramic(ctx) {
+            ctx.fillStyle = '#e8e0c7';
+            ctx.beginPath();
+            ctx.ellipse(256, 278, 96, 136, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#1d6f92';
+            ctx.lineWidth = 14;
+            ctx.stroke();
+            ctx.strokeStyle = '#d1a82f';
+            ctx.lineWidth = 8;
+            for (let y = 216; y <= 332; y += 36) {
+                ctx.beginPath();
+                ctx.moveTo(178, y);
+                ctx.bezierCurveTo(230, y - 24, 282, y + 24, 334, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawVineyard(ctx) {
+            ctx.strokeStyle = '#3b5d2e';
+            ctx.lineWidth = 8;
+            for (let x = 64; x <= 448; x += 54) {
+                ctx.beginPath();
+                ctx.moveTo(x, 392);
+                ctx.lineTo(256, 204);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#5d2f67';
+            for (let i = 0; i < 28; i++) {
+                ctx.beginPath();
+                ctx.arc(104 + (i % 7) * 50, 314 + Math.floor(i / 7) * 22, 12, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawPuppet(ctx) {
+            ctx.fillStyle = '#cfd4df';
+            ctx.fillRect(198, 156, 116, 178);
+            ctx.fillStyle = '#7f263d';
+            ctx.fillRect(178, 246, 156, 146);
+            ctx.fillStyle = '#d6b446';
+            ctx.fillRect(190, 170, 92, 22);
+            ctx.fillRect(230, 132, 62, 44);
+            ctx.strokeStyle = '#d6b446';
+            ctx.lineWidth = 12;
+            ctx.beginPath();
+            ctx.moveTo(336, 168);
+            ctx.lineTo(398, 104);
+            ctx.stroke();
+            ctx.fillStyle = '#b8c0cf';
+            ctx.fillRect(360, 96, 24, 210);
+        }
+
+        function drawArchimedes(ctx) {
+            ctx.strokeStyle = '#d9c07a';
+            ctx.lineWidth = 6;
+            for (let r = 46; r <= 150; r += 34) {
+                ctx.beginPath();
+                ctx.arc(256, 260, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.moveTo(128, 352);
+            ctx.lineTo(384, 168);
+            ctx.moveTo(138, 168);
+            ctx.lineTo(372, 352);
+            ctx.stroke();
+            ctx.fillStyle = '#eee1b2';
+            ctx.fillRect(138, 356, 236, 24);
+        }
+
+        function drawBallroom(ctx) {
+            ctx.fillStyle = '#d5b36c';
+            for (let x = 92; x <= 420; x += 82) {
+                ctx.fillRect(x, 132, 28, 260);
+            }
+            ctx.fillStyle = '#7b3541';
+            ctx.beginPath();
+            ctx.ellipse(220, 316, 46, 94, -0.24, 0, Math.PI * 2);
+            ctx.ellipse(306, 318, 42, 90, 0.24, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#f0d4a8';
+            ctx.beginPath();
+            ctx.arc(222, 202, 24, 0, Math.PI * 2);
+            ctx.arc(306, 204, 24, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawProcession(ctx) {
+            ctx.fillStyle = '#f2d074';
+            ctx.fillRect(222, 124, 68, 156);
+            ctx.fillStyle = '#b12f35';
+            ctx.fillRect(166, 278, 180, 92);
+            ctx.fillStyle = '#ece6d5';
+            for (let i = 0; i < 9; i++) {
+                ctx.beginPath();
+                ctx.arc(92 + i * 42, 384, 17, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawIslands(ctx) {
+            drawSea(ctx, 274, '#1e6682');
+            ctx.fillStyle = '#263324';
+            [[126, 318, 88], [260, 290, 116], [398, 332, 78]].forEach(([x, y, w]) => {
+                ctx.beginPath();
+                ctx.ellipse(x, y, w, 34, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.fillStyle = '#4b332a';
+            ctx.beginPath();
+            ctx.moveTo(232, 286);
+            ctx.lineTo(276, 184);
+            ctx.lineTo(326, 286);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawChocolate(ctx) {
+            ctx.save();
+            ctx.translate(256, 282);
+            ctx.rotate(-0.18);
+            ctx.fillStyle = '#4b241a';
+            ctx.fillRect(-142, -88, 284, 176);
+            ctx.strokeStyle = '#7a4632';
+            ctx.lineWidth = 10;
+            for (let x = -70; x <= 70; x += 70) {
+                ctx.beginPath();
+                ctx.moveTo(x, -88);
+                ctx.lineTo(x, 88);
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.moveTo(-142, 0);
+            ctx.lineTo(142, 0);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawMosaics(ctx) {
+            const colors = ['#c99a32', '#9d6c2d', '#244e6b', '#d7bd68'];
+            for (let y = 120; y < 390; y += 38) {
+                for (let x = 96; x < 420; x += 38) {
+                    ctx.fillStyle = colors[(x + y) % colors.length];
+                    ctx.fillRect(x + 2, y + 2, 32, 32);
+                }
+            }
+            ctx.fillStyle = 'rgba(255, 241, 184, 0.88)';
+            ctx.beginPath();
+            ctx.arc(256, 246, 64, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawMarkerScene(ctx, topic) {
+            const color = topic.media?.fallbackColor || '#4b5563';
+            drawSky(ctx, color, '#252525');
+            drawSun(ctx);
+
+            const sceneDrawers = {
+                arte: drawTemple,
+                storia: drawTemple,
+                cucina: drawFood,
+                etna: drawVolcano,
+                valle_templi: drawTemple,
+                barocco: drawCathedral,
+                mercati: drawMarket,
+                ceramica: drawCeramic,
+                vini: drawVineyard,
+                pupi: drawPuppet,
+                archimede: drawArchimedes,
+                gattopardo: drawBallroom,
+                feste: drawProcession,
+                eolie: drawIslands,
+                cioccolato: drawChocolate,
+                arabo_normanno: drawMosaics
+            };
+
+            const drawScene = sceneDrawers[topic.id] || drawTemple;
+            drawScene(ctx);
+        }
+
+        function createMarkerTexture(topic) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+
+            const ctx = canvas.getContext('2d');
+            drawMarkerScene(ctx, topic);
+
+            ctx.strokeStyle = 'rgba(212, 175, 55, 0.45)';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.arc(256, 256, 210, 0, Math.PI * 2);
+            ctx.stroke();
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function loadMarkerTexture(topic, material) {
+            const imageUrl = topic.media?.thumbSrc;
+            if (!imageUrl) return;
+
+            fetch(imageUrl, { cache: 'force-cache' })
+                .then(response => {
+                    if (!response.ok) throw new Error('Marker thumbnail unavailable');
+                    return response.blob();
+                })
+                .then(blob => {
+                    const objectUrl = URL.createObjectURL(blob);
+                    textureLoader.load(
+                        objectUrl,
+                        loadedTexture => {
+                            URL.revokeObjectURL(objectUrl);
+                            loadedTexture.colorSpace = THREE.SRGBColorSpace;
+                            loadedTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            material.map.dispose();
+                            material.map = loadedTexture;
+                            material.needsUpdate = true;
+                        },
+                        undefined,
+                        () => {
+                            URL.revokeObjectURL(objectUrl);
+                            material.needsUpdate = true;
+                        }
+                    );
+                })
+                .catch(() => {
+                    material.needsUpdate = true;
+                });
+        }
 
         // Helper to add markers
         function addMarker(topicKey) {
@@ -529,14 +1064,14 @@
 
             // 1. The Image Patch
             const imageGeo = new THREE.CircleGeometry(0.6, 32);
-            const texture = textureLoader.load(topic.imageUrl);
-            // Fix color space if needed, but standard is usually fine for these
-            texture.colorSpace = THREE.SRGBColorSpace;
+            const texture = createMarkerTexture(topic);
 
             const imageMat = new THREE.MeshBasicMaterial({
                 map: texture,
                 side: THREE.DoubleSide
             });
+            loadMarkerTexture(topic, imageMat);
+
             const imageMesh = new THREE.Mesh(imageGeo, imageMat);
             markerGroup.add(imageMesh);
 
@@ -629,6 +1164,56 @@
         const panelTitle = document.getElementById('panel-title');
         const panelBody = document.getElementById('panel-body');
 
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[character]);
+        }
+
+        function createPanelMediaHtml(topic) {
+            const media = topic.media;
+            if (!media) return '';
+
+            return `
+                <figure class="panel-media" data-fallback-color="${escapeHtml(media.fallbackColor)}" data-fallback-title="${escapeHtml(topic.title)}">
+                    <img src="${escapeHtml(media.src)}" alt="${escapeHtml(media.alt)}">
+                    <figcaption>${media.credit}</figcaption>
+                </figure>
+            `;
+        }
+
+        function showPanelMediaFallback(mediaElement) {
+            if (!mediaElement || mediaElement.classList.contains('fallback')) return;
+
+            const image = mediaElement.querySelector('img');
+            if (image) image.remove();
+
+            const fallback = document.createElement('div');
+            fallback.className = 'panel-media-fallback';
+            fallback.style.setProperty('--fallback-color', mediaElement.dataset.fallbackColor || '#4b5563');
+            fallback.textContent = mediaElement.dataset.fallbackTitle || 'Sicilia';
+
+            mediaElement.classList.add('fallback');
+            mediaElement.prepend(fallback);
+        }
+
+        function bindPanelImageFallback() {
+            const panelImage = panelBody.querySelector('.panel-media img');
+            if (!panelImage) return;
+
+            panelImage.addEventListener('error', () => {
+                showPanelMediaFallback(panelImage.closest('.panel-media'));
+            }, { once: true });
+
+            if (panelImage.complete && panelImage.naturalWidth === 0) {
+                showPanelMediaFallback(panelImage.closest('.panel-media'));
+            }
+        }
+
         function openPanel(topicId) {
             state.isPanelOpen = true;
             state.activeTopic = topicId;
@@ -639,8 +1224,9 @@
             panelTitle.textContent = topic.title;
 
             // Inject Media + Content
-            const mediaHtml = topic.imageUrl ? `<div class="panel-media"><img src="${topic.imageUrl}" alt="${topic.title}"></div>` : '';
+            const mediaHtml = createPanelMediaHtml(topic);
             panelBody.innerHTML = mediaHtml + topic.content;
+            bindPanelImageFallback();
 
             // Animate Camera/Sphere to center the marker
             // We want the marker to face the camera (0,0,1)
