@@ -419,14 +419,15 @@ h1::after {
     will-change: transform;
 }
 
-.diskette:nth-child(1) { --x: 4%; --y: 8%; --tilt: -8deg; z-index: 3; }
-.diskette:nth-child(2) { --x: 17%; --y: 1%; --tilt: 5deg; z-index: 7; }
-.diskette:nth-child(3) { --x: 30%; --y: 10%; --tilt: -4deg; z-index: 4; }
-.diskette:nth-child(4) { --x: 44%; --y: 3%; --tilt: 8deg; --disk-hue: var(--secondary); z-index: 8; }
-.diskette:nth-child(5) { --x: 57%; --y: 12%; --tilt: -6deg; --disk-hue: var(--accent); z-index: 5; }
-.diskette:nth-child(6) { --x: 70%; --y: 4%; --tilt: 4deg; z-index: 6; }
-.diskette:nth-child(7) { --x: 78%; --y: 22%; --tilt: 7deg; z-index: 2; }
-.diskette:nth-child(8) { --x: 86%; --y: 24%; --tilt: -7deg; z-index: 1; }
+.diskette:nth-child(1) { --x: 2%; --y: 8%; --tilt: -8deg; z-index: 3; }
+.diskette:nth-child(2) { --x: 14%; --y: 1%; --tilt: 5deg; z-index: 7; }
+.diskette:nth-child(3) { --x: 26%; --y: 10%; --tilt: -4deg; z-index: 4; }
+.diskette:nth-child(4) { --x: 38%; --y: 3%; --tilt: 8deg; --disk-hue: var(--secondary); z-index: 8; }
+.diskette:nth-child(5) { --x: 50%; --y: 12%; --tilt: -6deg; --disk-hue: var(--accent); z-index: 5; }
+.diskette:nth-child(6) { --x: 62%; --y: 4%; --tilt: 4deg; z-index: 1; }
+.diskette:nth-child(7) { --x: 72%; --y: 22%; --tilt: 7deg; z-index: 2; }
+.diskette:nth-child(8) { --x: 81%; --y: 24%; --tilt: -7deg; z-index: 4; }
+.diskette:nth-child(9) { --x: 88%; --y: 6%; --tilt: 6deg; --disk-hue: var(--warning); z-index: 6; }
 
 .diskette:hover,
 .diskette:focus-visible,
@@ -734,7 +735,8 @@ h1::after {
     .diskette:nth-child(5) { --x: 41%; --y: 19%; }
     .diskette:nth-child(6) { --x: 67%; --y: 26%; }
     .diskette:nth-child(7) { --x: 5%; --y: 41%; }
-    .diskette:nth-child(8) { --x: 46%; --y: 39%; }
+    .diskette:nth-child(8) { --x: 36%; --y: 39%; }
+    .diskette:nth-child(9) { --x: 63%; --y: 43%; }
 
     .reader-column {
         top: 76%;
@@ -770,8 +772,9 @@ h1::after {
     .diskette:nth-child(4) { --x: 8%; --y: 21%; }
     .diskette:nth-child(5) { --x: 38%; --y: 18%; }
     .diskette:nth-child(6) { --x: 66%; --y: 25%; }
-    .diskette:nth-child(7) { --x: 4%; --y: 39%; }
-    .diskette:nth-child(8) { --x: 44%; --y: 38%; }
+    .diskette:nth-child(7) { --x: 3%; --y: 39%; }
+    .diskette:nth-child(8) { --x: 35%; --y: 38%; }
+    .diskette:nth-child(9) { --x: 64%; --y: 43%; }
 
     .disk-label {
         min-height: 6.6rem;

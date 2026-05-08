@@ -77,23 +77,38 @@
         layout(location = 1) in vec3 a_normal;
         layout(location = 2) in vec3 a_instancePosition;
         layout(location = 3) in vec3 a_instanceScale;
-        layout(location = 4) in vec3 a_instanceColor; // r,g,b, emission_strength
-        layout(location = 5) in float a_instanceType; // 0=building, 1=neon
+        layout(location = 4) in vec3 a_instanceColor;
+        layout(location = 5) in float a_instanceType; // 0=building, 1=neon, 2=billboard, 3=antenna, 4=skybridge, 5=traffic
+        layout(location = 6) in float a_instanceSeed;
 
         uniform mat4 u_viewProjection;
         uniform float u_time;
 
         out vec3 v_normal;
         out vec3 v_worldPosition;
+        out vec3 v_localPosition;
+        out vec3 v_scale;
         out vec3 v_color;
         out float v_type;
+        out float v_seed;
 
         void main() {
             vec3 pos = a_position * a_instanceScale + a_instancePosition;
+            if (a_instanceType > 4.5) {
+                float lanePhase = fract(a_instanceSeed * 0.731 + u_time * (0.025 + fract(a_instanceSeed * 2.17) * 0.035));
+                float laneTravel = (lanePhase - 0.5) * 420.0;
+                float axis = step(0.5, fract(a_instanceSeed));
+                pos.x += laneTravel * (1.0 - axis);
+                pos.z += laneTravel * axis;
+                pos.y += sin(u_time * 3.0 + a_instanceSeed * 17.0) * 0.35;
+            }
             v_worldPosition = pos;
+            v_localPosition = a_position * a_instanceScale;
+            v_scale = a_instanceScale;
             v_normal = a_normal;
             v_color = a_instanceColor;
             v_type = a_instanceType;
+            v_seed = a_instanceSeed;
 
             gl_Position = u_viewProjection * vec4(pos, 1.0);
         }
@@ -105,18 +120,27 @@
 
         in vec3 v_normal;
         in vec3 v_worldPosition;
+        in vec3 v_localPosition;
+        in vec3 v_scale;
         in vec3 v_color;
         in float v_type;
+        in float v_seed;
 
         uniform vec3 u_cameraPosition;
         uniform vec3 u_fogColor;
         uniform float u_fogDensity;
+        uniform float u_time;
 
         out vec4 outColor;
 
         // Pseudo-random helper (needs to be declared before use in GLSL)
         float random(vec2 st) {
             return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+        }
+
+        float stripe(float value, float width) {
+            float centered = abs(fract(value) - 0.5);
+            return 1.0 - smoothstep(width, width + 0.025, centered);
         }
 
         void main() {
@@ -130,21 +154,43 @@
             vec3 baseColor = v_color;
             vec3 finalColor = baseColor * (0.2 + 0.8 * diff); // Ambient + Diffuse
 
-            // Emissive logic for neon
+            // Emissive logic for neon/detail types
             if (v_type > 0.5) {
-                finalColor = v_color * 2.0; // Boost brightness for neon
+                float pulse = 0.85 + 0.15 * sin(u_time * 2.0 + v_seed * 31.0);
+                finalColor = v_color * (v_type > 1.5 ? 2.4 : 2.0) * pulse;
+
+                if (v_type > 1.5 && v_type < 2.5) {
+                    vec2 signUv = abs(normal.z) > 0.5 ? v_localPosition.xy : v_localPosition.zy;
+                    float bars = stripe(signUv.y * 0.32 + v_seed, 0.08);
+                    float glyphs = step(0.55, random(floor(signUv * vec2(0.7, 1.8)) + vec2(v_seed)));
+                    finalColor *= 0.55 + bars * 0.45 + glyphs * 0.35;
+                }
+
+                if (v_type > 4.5) {
+                    float core = 1.0 - smoothstep(0.12, 0.55, length(v_localPosition.xz / max(v_scale.xz, vec2(0.01))));
+                    finalColor = v_color * (3.0 + core * 2.0);
+                }
             } else {
-                // Windows/Building texture procedural generation
-                // Simple grid pattern based on world position
-                float windowSize = 0.5;
-                float wx = step(0.1, mod(v_worldPosition.x, windowSize));
-                float wy = step(0.1, mod(v_worldPosition.y, windowSize));
-                float wz = step(0.1, mod(v_worldPosition.z, windowSize));
-                
-                // Only show windows on sides
-                float isWindow = wx * wy * wz;
-                if (isWindow > 0.5 && random(floor(v_worldPosition.xy/windowSize)) > 0.5) {
-                     finalColor += vec3(0.8, 0.9, 1.0) * 0.5; // Window light
+                // Procedural facade: window columns, service bands, mullions, and dark mechanical floors.
+                if (abs(normal.y) < 0.5) {
+                    vec2 facadeUv = abs(normal.z) > 0.5 ? v_localPosition.xy : v_localPosition.zy;
+                    float col = floor((facadeUv.x + v_scale.x * 0.5) / 2.35);
+                    float row = floor((facadeUv.y + v_scale.y * 0.5) / 2.0);
+                    vec2 cell = fract(vec2((facadeUv.x + v_scale.x * 0.5) / 2.35, (facadeUv.y + v_scale.y * 0.5) / 2.0));
+                    float pane = step(0.18, cell.x) * step(cell.x, 0.78) * step(0.24, cell.y) * step(cell.y, 0.68);
+                    float lit = step(0.58, random(vec2(col, row) + vec2(v_seed)));
+                    float mechFloor = step(0.84, random(vec2(row, floor(v_seed * 9.0))));
+                    float flicker = 0.72 + 0.28 * step(0.45, sin(u_time * (1.0 + random(vec2(col, v_seed)) * 4.0) + random(vec2(row, v_seed)) * 9.0));
+                    vec3 windowColor = mix(vec3(0.25, 0.65, 0.9), vec3(0.95, 0.25, 0.9), random(vec2(col, v_seed)) * 0.18);
+                    finalColor += windowColor * pane * lit * (1.0 - mechFloor) * flicker * 0.45;
+
+                    float serviceBand = stripe((facadeUv.y + v_seed * 7.0) * 0.045, 0.018);
+                    float verticalRib = stripe((facadeUv.x + v_seed * 3.0) * 0.17, 0.015);
+                    finalColor += vec3(0.0, 0.6, 0.9) * serviceBand * 0.07;
+                    finalColor *= 0.82 + verticalRib * 0.12;
+                } else if (normal.y > 0.5) {
+                    float roofGrid = stripe(v_localPosition.x * 0.08 + v_seed, 0.018) + stripe(v_localPosition.z * 0.08 - v_seed, 0.018);
+                    finalColor += vec3(0.0, 0.35, 0.45) * min(roofGrid, 1.0) * 0.08;
                 }
             }
 
@@ -171,7 +217,7 @@
             speed: 20.0, // Base units per second (constant forward flight)
             worldSize: 2000,
             chunkSize: 200,
-            buildingCount: 5000
+            buildingCount: 4800
         };
 
         // --- STATE ---
@@ -183,6 +229,7 @@
             lastTime: 0,
             gl: null,
             program: null,
+            uniforms: null,
             audioCtx: null
         };
 
@@ -204,6 +251,13 @@
             const vsSource = document.getElementById('vertex-shader').text.trim();
             const fsSource = document.getElementById('fragment-shader').text.trim();
             state.program = createProgram(gl, vsSource, fsSource);
+            state.uniforms = {
+                viewProjection: gl.getUniformLocation(state.program, 'u_viewProjection'),
+                time: gl.getUniformLocation(state.program, 'u_time'),
+                cameraPosition: gl.getUniformLocation(state.program, 'u_cameraPosition'),
+                fogColor: gl.getUniformLocation(state.program, 'u_fogColor'),
+                fogDensity: gl.getUniformLocation(state.program, 'u_fogDensity')
+            };
 
             // Setup Geometry (Instanced Cubes)
             setupGeometry(gl);
@@ -436,95 +490,161 @@
             gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
 
             // --- INSTANCE DATA GENERATION ---
-            const instanceCount = CONFIG.buildingCount;
-            const instancePositions = new Float32Array(instanceCount * 3);
-            const instanceScales = new Float32Array(instanceCount * 3);
-            const instanceColors = new Float32Array(instanceCount * 3);
-            const instanceTypes = new Float32Array(instanceCount);
+            const positionsData = [];
+            const scalesData = [];
+            const colorsData = [];
+            const typesData = [];
+            const seedsData = [];
+            const buildings = [];
+            let rngState = 0xC0FFEE;
 
-            const gridSize = Math.sqrt(instanceCount);
+            function rnd() {
+                rngState = (rngState * 1664525 + 1013904223) >>> 0;
+                return rngState / 4294967296;
+            }
+
+            function pushInstance(x, y, z, width, height, depth, color, type, seed) {
+                positionsData.push(x, y, z);
+                scalesData.push(width, height, depth);
+                colorsData.push(color[0], color[1], color[2]);
+                typesData.push(type);
+                seedsData.push(seed);
+            }
+
+            function accentColor(warmBias = 0.0) {
+                const pick = rnd();
+                if (pick < warmBias) return [0.95, 0.12, 0.85];
+                if (pick < 0.55) return [0.0, 0.85, 1.0];
+                if (pick < 0.82) return [0.15, 0.35, 1.0];
+                return [0.8, 0.15, 1.0];
+            }
+
+            const gridSize = Math.ceil(Math.sqrt(CONFIG.buildingCount));
             const spacing = CONFIG.worldSize / gridSize;
+            const halfWorld = CONFIG.worldSize * 0.5;
 
-            for (let i = 0; i < instanceCount; i++) {
-                // Grid layout with some noise
+            function addBuilding(x, z, width, depth, height, seed) {
+                const shade = 0.04 + rnd() * 0.09;
+                const baseColor = [shade, shade, shade + 0.05];
+                pushInstance(x, height / 2, z, width, height, depth, baseColor, 0.0, seed);
+                buildings.push({ x, z, width, depth, height, seed });
+
+                if (height > 75 && rnd() > 0.55) {
+                    const capHeight = 10 + rnd() * 45;
+                    const capWidth = width * (0.45 + rnd() * 0.25);
+                    const capDepth = depth * (0.45 + rnd() * 0.25);
+                    pushInstance(x, height + capHeight / 2, z, capWidth, capHeight, capDepth, baseColor.map(v => v * 0.9), 0.0, seed + 0.11);
+                }
+
+                if (height > 90 && rnd() > 0.62) {
+                    const antennaHeight = 12 + rnd() * 36;
+                    pushInstance(x, height + antennaHeight / 2 + 2, z, 1.2, antennaHeight, 1.2, accentColor(), 3.0, seed + 0.21);
+                }
+
+                if (height > 55 && rnd() > 0.58) {
+                    const side = rnd() > 0.5 ? 1 : -1;
+                    const stripHeight = height * (0.28 + rnd() * 0.34);
+                    pushInstance(x + side * (width * 0.5 + 0.22), height * (0.38 + rnd() * 0.2), z, 0.45, stripHeight, 0.5, accentColor(0.18), 1.0, seed + 0.31);
+                }
+
+                if (height > 60 && rnd() > 0.64) {
+                    const onZFace = rnd() > 0.5;
+                    const signHeight = 5 + rnd() * 13;
+                    const signWidth = Math.min(onZFace ? width * 0.8 : depth * 0.8, 28);
+                    const signY = height * (0.35 + rnd() * 0.35);
+                    if (onZFace) {
+                        const side = rnd() > 0.5 ? 1 : -1;
+                        pushInstance(x, signY, z + side * (depth * 0.5 + 0.38), signWidth, signHeight, 0.42, accentColor(0.35), 2.0, seed + 0.41);
+                    } else {
+                        const side = rnd() > 0.5 ? 1 : -1;
+                        pushInstance(x + side * (width * 0.5 + 0.38), signY, z, 0.42, signHeight, signWidth, accentColor(0.35), 2.0, seed + 0.41);
+                    }
+                }
+            }
+
+            function addRoadCell(x, z, width, depth, seed) {
+                pushInstance(x, 0.5, z, width, 1.0, depth, [0.055, 0.055, 0.07], 0.0, seed);
+
+                if (rnd() > 0.3) {
+                    const alongX = Math.abs(z % 200) < Math.abs(x % 200);
+                    const color = rnd() > 0.72 ? [0.75, 0.1, 0.9] : [0.0, 0.75, 1.0];
+                    if (alongX) {
+                        pushInstance(x, 1.1, z, width * 0.82, 0.16, 0.55, color, 1.0, seed + 0.51);
+                    } else {
+                        pushInstance(x, 1.1, z, 0.55, 0.16, depth * 0.82, color, 1.0, seed + 0.51);
+                    }
+                }
+            }
+
+            for (let i = 0; i < CONFIG.buildingCount; i++) {
                 const row = Math.floor(i / gridSize);
                 const col = i % gridSize;
-
                 let x = (col - gridSize / 2) * spacing;
                 let z = (row - gridSize / 2) * spacing;
+                x += (rnd() - 0.5) * spacing * 0.5;
+                z += (rnd() - 0.5) * spacing * 0.5;
 
-                // Add some randomness to position
-                x += (Math.random() - 0.5) * spacing * 0.5;
-                z += (Math.random() - 0.5) * spacing * 0.5;
-
-                // Create "Trenches" (Roads)
-                // If x or z is close to 0 or multiples of larger blocks, make it empty or low
-                const isMainRoad = Math.abs(x) < 20 || Math.abs(z) < 20;
+                const isMainRoad = Math.abs(x) < 22 || Math.abs(z) < 22;
                 const isSideRoad = (Math.abs(x) % 200 < 15) || (Math.abs(z) % 200 < 15);
+                const seed = i * 0.137 + rnd();
 
-                let width = spacing * (0.5 + Math.random() * 0.5);
-                let depth = spacing * (0.5 + Math.random() * 0.5);
-                let height = 10 + Math.random() * 50; // Base height
+                let width = spacing * (0.5 + rnd() * 0.5);
+                let depth = spacing * (0.5 + rnd() * 0.5);
+                let height = 12 + rnd() * 48;
 
-                // Skyscrapers
-                if (Math.random() > 0.95 && !isMainRoad) {
-                    height = 100 + Math.random() * 200;
-                    width *= 1.5;
-                    depth *= 1.5;
-                } else if (Math.random() > 0.8 && !isMainRoad) {
-                    height = 50 + Math.random() * 100;
+                if (rnd() > 0.955 && !isMainRoad) {
+                    height = 125 + rnd() * 210;
+                    width *= 1.55;
+                    depth *= 1.55;
+                } else if (rnd() > 0.79 && !isMainRoad) {
+                    height = 55 + rnd() * 105;
                 }
 
                 if (isMainRoad || isSideRoad) {
-                    // Road or low structure
-                    height = 1;
-                    width = spacing * 0.9;
-                    depth = spacing * 0.9;
-                    // Maybe make it a neon road line?
-                    if (Math.random() > 0.5) {
-                        // Neon line
-                        instanceTypes[i] = 1.0; // Neon
-                        instanceColors[i * 3] = 0.0;
-                        instanceColors[i * 3 + 1] = 0.8;
-                        instanceColors[i * 3 + 2] = 1.0;
-                        height = 0.2;
-                        width = spacing * 0.1;
-                    } else {
-                        instanceTypes[i] = 0.0; // Pavement
-                        instanceColors[i * 3] = 0.1;
-                        instanceColors[i * 3 + 1] = 0.1;
-                        instanceColors[i * 3 + 2] = 0.1;
-                    }
+                    addRoadCell(x, z, spacing * 0.9, spacing * 0.9, seed);
                 } else {
-                    // Building
-                    instanceTypes[i] = 0.0;
-                    // Dark building colors
-                    const shade = 0.05 + Math.random() * 0.1;
-                    instanceColors[i * 3] = shade;
-                    instanceColors[i * 3 + 1] = shade;
-                    instanceColors[i * 3 + 2] = shade + 0.05; // Slight blue tint
+                    addBuilding(x, z, width, depth, height, seed);
                 }
-
-                // Neon Signs attached to buildings?
-                // For simplicity in this pass, we just make some random buildings glow or have neon bits
-                // A better way for instancing is to have separate neon instances, but let's just make some "neon pillars" for now
-                if (height > 50 && Math.random() > 0.8) {
-                    // Make this a "cyber" tower with neon edges (simulated by just being a neon block for now, or we could add a second instance)
-                    // Let's just make it a colored tower
-                    instanceColors[i * 3] = 0.0;
-                    instanceColors[i * 3 + 1] = Math.random();
-                    instanceColors[i * 3 + 2] = 1.0;
-                    instanceTypes[i] = 1.0; // Emissive
-                }
-
-                instancePositions[i * 3] = x;
-                instancePositions[i * 3 + 1] = height / 2; // Center y
-                instancePositions[i * 3 + 2] = z;
-
-                instanceScales[i * 3] = width;
-                instanceScales[i * 3 + 1] = height;
-                instanceScales[i * 3 + 2] = depth;
             }
+
+            for (let i = 0; i < 130; i++) {
+                const a = buildings[Math.floor(rnd() * buildings.length)];
+                const b = buildings[Math.floor(rnd() * buildings.length)];
+                if (!a || !b || a === b) continue;
+                const dx = Math.abs(a.x - b.x);
+                const dz = Math.abs(a.z - b.z);
+                const y = Math.min(a.height, b.height) * (0.35 + rnd() * 0.25);
+                if (y < 28 || y > 120) continue;
+
+                if (dx > 45 && dx < 145 && dz < 25) {
+                    pushInstance((a.x + b.x) * 0.5, y, (a.z + b.z) * 0.5, dx, 3.2, 4.4, [0.03, 0.06, 0.08], 4.0, a.seed + b.seed);
+                    if (rnd() > 0.35) pushInstance((a.x + b.x) * 0.5, y + 2.2, (a.z + b.z) * 0.5, dx * 0.88, 0.22, 0.42, accentColor(), 1.0, a.seed + 0.71);
+                } else if (dz > 45 && dz < 145 && dx < 25) {
+                    pushInstance((a.x + b.x) * 0.5, y, (a.z + b.z) * 0.5, 4.4, 3.2, dz, [0.03, 0.06, 0.08], 4.0, a.seed + b.seed);
+                    if (rnd() > 0.35) pushInstance((a.x + b.x) * 0.5, y + 2.2, (a.z + b.z) * 0.5, 0.42, 0.22, dz * 0.88, accentColor(), 1.0, a.seed + 0.71);
+                }
+            }
+
+            for (let i = 0; i < 180; i++) {
+                const axis = rnd() > 0.5 ? 1 : 0;
+                const roadCoord = (Math.floor(rnd() * 10) - 5) * 200;
+                const crossCoord = (rnd() - 0.5) * CONFIG.worldSize;
+                const y = 7 + rnd() * 28;
+                const color = rnd() > 0.5 ? [0.0, 0.9, 1.0] : [0.95, 0.12, 0.8];
+                const seed = i * 0.917 + (axis ? 0.67 : 0.17);
+                if (axis) {
+                    pushInstance(crossCoord, y, roadCoord, 2.2, 0.8, 0.9, color, 5.0, seed);
+                } else {
+                    pushInstance(roadCoord, y, crossCoord, 0.9, 0.8, 2.2, color, 5.0, seed);
+                }
+            }
+
+            const instanceCount = typesData.length;
+            const instancePositions = new Float32Array(positionsData);
+            const instanceScales = new Float32Array(scalesData);
+            const instanceColors = new Float32Array(colorsData);
+            const instanceTypes = new Float32Array(typesData);
+            const instanceSeeds = new Float32Array(seedsData);
 
             // Instance Position Buffer
             const instPosBuffer = gl.createBuffer();
@@ -557,6 +677,14 @@
             gl.enableVertexAttribArray(5);
             gl.vertexAttribPointer(5, 1, gl.FLOAT, false, 0, 0);
             gl.vertexAttribDivisor(5, 1);
+
+            // Instance Seed Buffer
+            const instSeedBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, instSeedBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, instanceSeeds, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(6);
+            gl.vertexAttribPointer(6, 1, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(6, 1);
 
             state.vao = vao;
             state.instanceCount = instanceCount;
@@ -709,20 +837,11 @@
             Mat4.multiply(viewProjection, projection, view);
 
             // Uniforms
-            const uVP = gl.getUniformLocation(state.program, 'u_viewProjection');
-            gl.uniformMatrix4fv(uVP, false, viewProjection);
-
-            const uTime = gl.getUniformLocation(state.program, 'u_time');
-            gl.uniform1f(uTime, time);
-
-            const uCamPos = gl.getUniformLocation(state.program, 'u_cameraPosition');
-            gl.uniform3fv(uCamPos, eye);
-
-            const uFogColor = gl.getUniformLocation(state.program, 'u_fogColor');
-            gl.uniform3fv(uFogColor, CONFIG.fogColor);
-
-            const uFogDensity = gl.getUniformLocation(state.program, 'u_fogDensity');
-            gl.uniform1f(uFogDensity, CONFIG.fogDensity);
+            gl.uniformMatrix4fv(state.uniforms.viewProjection, false, viewProjection);
+            gl.uniform1f(state.uniforms.time, time);
+            gl.uniform3fv(state.uniforms.cameraPosition, eye);
+            gl.uniform3fv(state.uniforms.fogColor, CONFIG.fogColor);
+            gl.uniform1f(state.uniforms.fogDensity, CONFIG.fogDensity);
 
             // Draw Instanced
             gl.bindVertexArray(state.vao);
