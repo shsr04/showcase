@@ -3,90 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exotic Minigames | Bioluminescent Jungle</title>
+    <title>Digital Dreams // Boot Loader</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <canvas id="bgCanvas"></canvas>
-    
-    <div class="overlay"></div>
+    <canvas id="bgCanvas" aria-hidden="true"></canvas>
+    <canvas id="warpCanvas" aria-hidden="true"></canvas>
+    <div class="crt-overlay" aria-hidden="true"></div>
+    <div class="cursor-aura" aria-hidden="true"></div>
 
-    <main class="container">
-        <header class="hero">
-            <h1 class="glitch" data-text="NEON JUNGLE">NEON JUNGLE</h1>
-            <p class="subtitle">Explore the digital wilderness</p>
+    <main class="selector-shell" aria-labelledby="page-title">
+        <header class="terminal-header">
+            <p class="terminal-kicker">BOOT LOADER V1.0</p>
+            <h1 id="page-title" data-text="DIGITAL DREAMS">DIGITAL DREAMS</h1>
+            <p class="terminal-subtitle">Explore the cyberspace wilderness.</p>
         </header>
 
-        <div class="grid">
-            <a href="./glider" class="card">
-                <div class="card-content">
-                    <div class="card-icon">I</div>
-                    <h3>Voxel Glider</h3>
-                    <p>Navigate the voxel labyrinth.</p>
+        <section class="control-deck" aria-label="Minigame disk selector">
+            <div class="reader-column">
+                <div class="reader" id="reader" aria-label="Game reader drop target">
+                    <div class="reader-screen">
+                        <span class="screen-label">CYB-PORTAL</span>
+                        <strong id="readerTitle">NO DISK</strong>
+                        <span id="readerMessage">Feed the drive a diskette to open a minigame.</span>
+                    </div>
+                    <div class="reader-mouth" aria-hidden="true">
+                        <div class="reader-lights">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <div class="slot">
+                            <span class="slot-beam"></span>
+                        </div>
+                    </div>
+                    <div class="reader-status" id="readerStatus" aria-live="polite">WAITING FOR PROGRAM DISK</div>
                 </div>
-                <div class="card-glow"></div>
-            </a>
-            <a href="./cyberflight" class="card">
-                <div class="card-content">
-                    <div class="card-icon">II</div>
-                    <h3>Cyberflight</h3>
-                    <p>Experience the futuristic megacity.</p>
-                </div>
-                <div class="card-glow"></div>
-            </a>
-            <a href="./spherical" class="card">
-                <div class="card-content">
-                    <div class="card-icon">III</div>
-                    <h3>Spherical</h3>
-                    <p>Explore a topic in spherical space.</p>
-                </div>
-                <div class="card-glow"></div>
-            </a>
-            <a href="./aether" class="card">
-                <div class="card-content">
-                    <div class="card-icon">IV</div>
-                    <h3>Aether Protocol</h3>
-                    <p>Send secret messages over the air.</p>
-                </div>
-                <div class="card-glow"></div>
-            </a>
-            <a href="./translator" class="card">
-                <div class="card-content">
-                    <div class="card-icon">V</div>
-                    <h3>Translator</h3>
-                    <p>Translate foreign languages in real-time.</p>
-                </div>
-                <div class="card-glow"></div>
-            </a>
-            <a href="./pinball" class="card">
-                <div class="card-content">
-                    <div class="card-icon">VI</div>
-                    <h3>Space Cadet</h3>
-                    <p>Conquer outer space using your pinball skills.</p>
-                </div>
-                <div class="card-glow"></div>
-            </a>
-            <a href="./radio" class="card">
-                <div class="card-content">
-                    <div class="card-icon">VII</div>
-                    <h3>Radio Player</h3>
-                    <p>Dive into electronic dimensions.</p>
-                </div>
-                <div class="card-glow"></div>
-            </a>
-            <a href="./orbit" class="card">
-                <div class="card-content">
-                    <div class="card-icon">VIII</div>
-                    <h3>Orbital Navigator</h3>
-                    <p>Plot Hohmann transfers across Sol.</p>
-                </div>
-                <div class="card-glow"></div>
-            </a>
-        </div>
+
+            </div>
+
+            <div class="disk-grid" id="diskGrid">
+                <a class="diskette" href="./glider" draggable="true" data-tone="glider" data-code="NVG-01" data-title="Voxel Glider" data-copy="Navigate the voxel labyrinth." aria-label="Voxel Glider diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">NVG-01</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Voxel Glider</strong>
+                        <span>Navigate the voxel labyrinth.</span>
+                    </span>
+                </a>
+
+                <a class="diskette" href="./cyberflight" draggable="true" data-tone="cyberflight" data-code="CBF-02" data-title="Cyberflight" data-copy="Experience the futuristic megacity." aria-label="Cyberflight diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">CBF-02</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Cyberflight</strong>
+                        <span>Experience the futuristic megacity.</span>
+                    </span>
+                </a>
+
+                <a class="diskette" href="./spherical" draggable="true" data-tone="spherical" data-code="SPH-03" data-title="Spherical" data-copy="Explore a topic in spherical space." aria-label="Spherical diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">SPH-03</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Spherical</strong>
+                        <span>Explore a topic in spherical space.</span>
+                    </span>
+                </a>
+
+                <a class="diskette" href="./aether" draggable="true" data-tone="aether" data-code="AET-04" data-title="Aether Protocol" data-copy="Send secret messages over the air." aria-label="Aether Protocol diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">AET-04</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Aether Protocol</strong>
+                        <span>Send secret messages over the air.</span>
+                    </span>
+                </a>
+
+                <a class="diskette" href="./translator" draggable="true" data-tone="translator" data-code="LNG-05" data-title="Translator" data-copy="Translate foreign languages in real-time." aria-label="Translator diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">LNG-05</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Translator</strong>
+                        <span>Translate foreign languages in real-time.</span>
+                    </span>
+                </a>
+
+                <a class="diskette" href="./pinball" draggable="true" data-tone="pinball" data-code="SPC-06" data-title="Space Cadet" data-copy="Conquer outer space using your pinball skills." aria-label="Space Cadet diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">SPC-06</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Space Cadet</strong>
+                        <span>Conquer outer space using your pinball skills.</span>
+                    </span>
+                </a>
+
+                <a class="diskette" href="./radio" draggable="true" data-tone="radio" data-code="RAD-07" data-title="Radio Player" data-copy="Dive into electronic dimensions." aria-label="Radio Player diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">RAD-07</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Radio Player</strong>
+                        <span>Dive into electronic dimensions.</span>
+                    </span>
+                </a>
+
+                <a class="diskette" href="./orbit" draggable="true" data-tone="orbit" data-code="ORB-08" data-title="Orbital Navigator" data-copy="Plot Hohmann transfers across Sol." aria-label="Orbital Navigator diskette. Drag to reader.">
+                    <span class="disk-top">
+                        <span class="disk-code">ORB-08</span>
+                        <span class="write-protect"></span>
+                    </span>
+                    <span class="disk-shutter"></span>
+                    <span class="disk-label">
+                        <strong>Orbital Navigator</strong>
+                        <span>Plot Hohmann transfers across Sol.</span>
+                    </span>
+                </a>
+            </div>
+        </section>
     </main>
+
+    <div class="drag-ghost" id="dragGhost" aria-hidden="true"></div>
 
     <script src="script.js"></script>
 </body>
