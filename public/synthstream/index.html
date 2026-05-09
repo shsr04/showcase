@@ -20,6 +20,9 @@
             --blue: #65b7ff;
             --red: #ff6b62;
             --shadow: rgba(117, 255, 214, 0.28);
+            --knob-sm: 34px;
+            --knob-md: 50px;
+            --knob-lg: 58px;
             --font: "Inter", "Segoe UI", system-ui, sans-serif;
             --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         }
@@ -41,6 +44,8 @@
         body {
             display: grid;
             place-items: center;
+            min-height: 100vh;
+            padding: 12px;
             background:
                 linear-gradient(rgba(117, 255, 214, 0.035) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(117, 255, 214, 0.025) 1px, transparent 1px),
@@ -86,11 +91,42 @@
             position: relative;
             z-index: 1;
             display: grid;
-            grid-template-rows: auto 1fr auto;
+            grid-template-rows: 74px minmax(0, 1fr) 210px;
             gap: 12px;
-            width: min(1240px, calc(100vw - 24px));
-            min-height: min(760px, calc(100vh - 24px));
+            width: min(1600px, calc(100vw - 24px), calc((100vh - 24px) * 16 / 9));
+            aspect-ratio: 16 / 9;
+            min-height: 0;
             padding: 12px;
+        }
+
+        .app.is-station-locked,
+        .app.is-station-locked * {
+            cursor: none;
+        }
+
+        .virtual-cursor {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 20;
+            width: 16px;
+            height: 16px;
+            border: 1px solid rgba(233, 255, 249, 0.95);
+            border-radius: 50%;
+            background: rgba(117, 255, 214, 0.2);
+            box-shadow: 0 0 14px rgba(117, 255, 214, 0.42);
+            opacity: 0;
+            pointer-events: none;
+            transform: translate3d(-999px, -999px, 0);
+            transition: opacity 120ms ease;
+        }
+
+        .app.is-station-locked .virtual-cursor {
+            opacity: 1;
+        }
+
+        .app.is-virtual-knob-dragging .virtual-cursor {
+            opacity: 0;
         }
 
         .topbar,
@@ -234,18 +270,35 @@
         }
 
         .eq-bank {
-            display: grid;
+            display: inline-grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 4px;
-            align-items: center;
-            min-width: 0;
+            gap: 6px;
+            align-items: start;
             width: 100%;
         }
 
-        .eq-button,
-        .lane-toggle,
+        .eq-band {
+            display: grid;
+            justify-items: center;
+            align-content: start;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .eq-band-label {
+            font-family: var(--mono);
+            font-size: 0.56rem;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+
+        .eq-band-label {
+            color: var(--muted);
+        }
+
         .transport-button,
-        .division-button {
+        .division-button,
+        .knob-button {
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 6px;
             color: var(--text);
@@ -254,30 +307,11 @@
             transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
         }
 
-        .eq-button {
-            width: 100%;
-            min-width: 0;
-            max-width: 24px;
-            height: 24px;
-            padding: 0;
-            justify-self: center;
-            color: rgba(255, 107, 98, 0.86);
-            font-family: var(--mono);
-            font-size: 0.62rem;
-        }
-
-        .eq-button.is-on {
-            color: rgba(233, 255, 249, 0.84);
-            border-color: rgba(117, 255, 214, 0.34);
-            background: rgba(117, 255, 214, 0.08);
-            box-shadow: none;
-        }
-
         .lane-grid {
             display: grid;
-            grid-template-columns: minmax(58px, 0.75fr) minmax(142px, 1.4fr) minmax(100px, 0.9fr) 34px;
+            grid-template-columns: 72px 40px minmax(260px, 1fr) 18px;
             align-content: start;
-            gap: 7px 8px;
+            gap: 5px 8px;
             padding: 12px 0;
             min-height: 0;
         }
@@ -289,13 +323,12 @@
         .lane-cell {
             display: flex;
             align-items: center;
-            min-height: 32px;
+            min-height: 30px;
             min-width: 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .lane-name {
-            gap: 7px;
             color: var(--muted);
             font-size: 0.7rem;
             font-weight: 700;
@@ -303,37 +336,6 @@
 
         .lane.is-enabled .lane-name {
             color: var(--text);
-        }
-
-        .lane-toggle {
-            display: grid;
-            place-items: center;
-            width: 18px;
-            height: 18px;
-            flex: 0 0 auto;
-            padding: 0;
-        }
-
-        .lane-toggle::before {
-            content: "";
-            width: 8px;
-            aspect-ratio: 1;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.16);
-        }
-
-        .lane.is-enabled .lane-toggle {
-            border-color: var(--line-hot);
-        }
-
-        .lane.is-enabled .lane-toggle::before {
-            background: var(--green);
-            box-shadow: 0 0 12px var(--green);
-        }
-
-        .lane.is-pulsing .lane-toggle::before {
-            background: var(--amber);
-            box-shadow: 0 0 14px var(--amber);
         }
 
         .pattern {
@@ -377,11 +379,7 @@
         }
 
         .level {
-            gap: 7px;
-        }
-
-        .level input {
-            width: 100%;
+            justify-content: center;
         }
 
         .value {
@@ -397,8 +395,8 @@
         }
 
         .lane-meter span {
-            width: 8px;
-            height: 18px;
+            width: 7px;
+            height: 16px;
             border-radius: 999px;
             background: rgba(255, 255, 255, 0.1);
         }
@@ -410,19 +408,20 @@
 
         .deck-strip {
             display: grid;
-            grid-template-columns: minmax(76px, 0.8fr) repeat(3, minmax(116px, 1fr)) minmax(132px, 1.08fr);
+            grid-template-columns: 1fr repeat(3, 92px) minmax(160px, 1fr);
             gap: 8px;
-            align-items: center;
+            align-items: start;
             padding-top: 10px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .strip-block {
             display: grid;
-            align-content: center;
+            align-content: start;
+            justify-items: start;
             gap: 6px;
             min-width: 0;
-            min-height: 66px;
+            min-height: 74px;
             padding: 8px;
             border: 1px solid rgba(255, 255, 255, 0.09);
             border-radius: 7px;
@@ -436,16 +435,13 @@
         }
 
         .control-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 32px;
+            display: inline-grid;
+            grid-template-columns: max-content;
             align-items: center;
-            gap: 6px;
-            min-width: 0;
-        }
-
-        .control-row input[type="range"] {
-            min-width: 0;
-            width: 100%;
+            justify-items: center;
+            gap: 4px;
+            width: max-content;
+            min-width: max-content;
         }
 
         .control-label,
@@ -458,6 +454,7 @@
             display: grid;
             gap: 5px;
             align-content: center;
+            justify-items: stretch;
         }
 
         .meter-track {
@@ -488,9 +485,9 @@
 
         .mixer {
             display: grid;
-            grid-template-columns: minmax(230px, 0.9fr) minmax(280px, 1.2fr) minmax(260px, 1fr);
+            grid-template-columns: minmax(330px, 0.95fr) minmax(390px, 1.08fr) minmax(340px, 0.95fr);
             gap: 12px;
-            min-height: 156px;
+            min-height: 0;
             padding: 12px;
         }
 
@@ -629,29 +626,50 @@
         .fx-row,
         .master-row {
             display: grid;
-            grid-template-columns: 82px 1fr 40px;
+            grid-template-columns: 82px max-content minmax(0, 1fr);
             align-items: center;
             gap: 8px;
         }
 
         .division-group {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 5px;
+            display: inline-grid;
+            grid-template-columns: repeat(4, 42px);
+            gap: 0;
+            overflow: hidden;
+            width: max-content;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.24);
         }
 
         .division-button {
-            min-height: 30px;
-            padding: 0 6px;
+            min-height: 28px;
+            padding: 0;
+            border: 0;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0;
             color: var(--muted);
             font-family: var(--mono);
             font-size: 0.68rem;
+        }
+
+        .division-button:last-child {
+            border-right: 0;
         }
 
         .division-button.is-active {
             color: #03100d;
             border-color: var(--green);
             background: var(--green);
+        }
+
+        [data-control].is-virtual-hover {
+            border-color: rgba(117, 255, 214, 0.52);
+            box-shadow: 0 0 0 1px rgba(117, 255, 214, 0.12), 0 0 16px rgba(117, 255, 214, 0.18);
+        }
+
+        [data-control].is-virtual-pressed {
+            transform: translateY(1px);
         }
 
         .xfade {
@@ -687,7 +705,7 @@
 
         .scope {
             position: relative;
-            min-height: 84px;
+            min-height: 0;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 7px;
@@ -731,10 +749,130 @@
             accent-color: var(--green);
         }
 
+        .knob-button {
+            --knob-size: var(--knob-md);
+            --knob-color: var(--green);
+            position: relative;
+            display: inline-grid;
+            place-items: center;
+            width: var(--knob-size);
+            min-width: var(--knob-size);
+            max-width: var(--knob-size);
+            height: var(--knob-size);
+            min-height: var(--knob-size);
+            max-height: var(--knob-size);
+            aspect-ratio: 1 / 1;
+            flex: 0 0 auto;
+            padding: 0;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle, rgba(0, 0, 0, 0.88) 0 57%, transparent 58%);
+            touch-action: none;
+            user-select: none;
+        }
+
+        .knob-button::before {
+            content: "";
+            position: absolute;
+            inset: 5px;
+            z-index: 1;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle at 50% 34%, rgba(255, 255, 255, 0.12), transparent 46%),
+                rgba(0, 0, 0, 0.82);
+            box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.06);
+        }
+
+        .knob-ring {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .knob-track,
+        .knob-active {
+            fill: none;
+            stroke-linecap: round;
+            stroke-width: 5;
+        }
+
+        .knob-track {
+            stroke: rgba(255, 255, 255, 0.12);
+        }
+
+        .knob-active {
+            stroke: var(--knob-color);
+        }
+
+        .knob-notch {
+            stroke: rgba(233, 255, 249, 0.72);
+            stroke-linecap: round;
+            stroke-width: 4;
+        }
+
+        .knob-button.is-off {
+            color: rgba(255, 107, 98, 0.86);
+            border-color: rgba(255, 107, 98, 0.3);
+        }
+
+        .knob-button.is-bipolar {
+            --knob-size: var(--knob-md);
+        }
+
+        .knob-button.is-lane-knob {
+            --knob-size: var(--knob-sm);
+        }
+
+        .knob-button.is-master-knob {
+            --knob-size: var(--knob-lg);
+        }
+
+        .knob-button.is-negative {
+            color: rgba(101, 183, 255, 0.9);
+        }
+
+        .knob-value {
+            position: relative;
+            z-index: 3;
+            max-width: calc(var(--knob-size) - 10px);
+            overflow: hidden;
+            color: currentColor;
+            font-family: var(--mono);
+            font-size: 0.58rem;
+            font-weight: 800;
+            line-height: 1;
+            text-align: center;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .knob-button.is-lane-knob .knob-value,
+        .knob-button.is-compact .knob-value {
+            display: none;
+        }
+
+        .knob-button.is-bipolar::before {
+            box-shadow:
+                inset 0 0 16px rgba(255, 255, 255, 0.06),
+                0 -12px 0 -11px rgba(255, 209, 102, 0.82);
+        }
+
+        .knob-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
         @media (max-width: 980px) {
             .app {
-                width: min(100vw, 100%);
-                min-height: 100vh;
+                width: calc(100vw - 16px);
+                height: auto;
+                min-height: calc(100vh - 16px);
+                aspect-ratio: auto;
+                grid-template-rows: auto auto auto;
                 padding: 8px;
             }
 
@@ -758,8 +896,8 @@
             }
 
             .lane-grid {
-                grid-template-columns: 72px 210px 120px 34px;
-                min-width: 450px;
+                grid-template-columns: 72px 40px 210px 18px;
+                min-width: 410px;
             }
 
             .deck-strip {
@@ -772,13 +910,13 @@
 
             .fx-row,
             .master-row {
-                grid-template-columns: 72px 1fr 34px;
+                grid-template-columns: 72px max-content minmax(0, 1fr);
             }
         }
     </style>
 </head>
 <body>
-    <main class="app" aria-label="Synthstream generative DJ station">
+    <main class="app" id="station" aria-label="Synthstream generative DJ station">
         <header class="topbar">
             <div class="brand">
                 <h1>Generative DJ Synth Station</h1>
@@ -795,9 +933,9 @@
         <section class="mixer" aria-label="Transport and master mixer">
             <div class="transport">
                 <div class="transport-buttons">
-                    <button class="transport-button primary" id="playButton" type="button">Play</button>
-                    <button class="transport-button" id="stopButton" type="button">Stop</button>
-                    <button class="transport-button hot" id="mutateButton" type="button">Mutate</button>
+                    <button class="transport-button primary" id="playButton" type="button" data-control="button">Play</button>
+                    <button class="transport-button" id="stopButton" type="button" data-control="button">Stop</button>
+                    <button class="transport-button hot" id="mutateButton" type="button" data-control="button">Mutate</button>
                 </div>
                 <div class="step-module">
                     <div class="step-topline">
@@ -809,7 +947,7 @@
                     <div class="step-grid" id="stepGrid" aria-label="16-step position display"></div>
                 </div>
                 <div class="status" id="status">Press Play to unlock audio</div>
-                <button class="transport-button reset-button" id="resetButton" type="button">Reset Station</button>
+                <button class="transport-button reset-button" id="resetButton" type="button" data-control="button">Reset Station</button>
             </div>
 
             <div class="fx-panel">
@@ -818,16 +956,24 @@
                     <div class="division-group" id="divisionGroup" aria-label="Delay division"></div>
                     <span class="value" id="divisionValue">1/4</span>
                 </div>
-                <label class="fx-row">
+                <div class="fx-row">
                     <span class="control-label">Feedback</span>
-                    <input id="feedbackControl" type="range" min="0" max="100" value="48">
+                    <span class="control-row">
+                        <button class="knob-button" type="button" data-control="knob" data-knob data-input="feedbackControl" data-kind="unipolar" aria-label="Feedback">
+                        </button>
+                        <input class="knob-input" id="feedbackControl" type="range" min="0" max="100" value="48" tabindex="-1">
+                    </span>
                     <span class="value" id="feedbackValue">48</span>
-                </label>
-                <label class="fx-row">
+                </div>
+                <div class="fx-row">
                     <span class="control-label">FX Return</span>
-                    <input id="fxReturnControl" type="range" min="0" max="100" value="42">
+                    <span class="control-row">
+                        <button class="knob-button" type="button" data-control="knob" data-knob data-input="fxReturnControl" data-kind="unipolar" aria-label="FX Return">
+                        </button>
+                        <input class="knob-input" id="fxReturnControl" type="range" min="0" max="100" value="42" tabindex="-1">
+                    </span>
                     <span class="value" id="fxReturnValue">42</span>
-                </label>
+                </div>
                 <div class="scope" aria-label="Compact oscilloscope">
                     <canvas id="scopeCanvas"></canvas>
                 </div>
@@ -839,21 +985,26 @@
                     <div class="meter-track"><span class="meter-fill" data-master-meter></span></div>
                     <span class="meter-hint">Output</span>
                 </div>
-                <label class="master-row">
+                <div class="master-row">
                     <span class="control-label">Output</span>
-                    <input id="masterControl" type="range" min="0" max="100" value="58">
+                    <span class="control-row">
+                        <button class="knob-button is-master-knob" type="button" data-control="knob" data-knob data-input="masterControl" data-kind="unipolar" aria-label="Master output">
+                        </button>
+                        <input class="knob-input" id="masterControl" type="range" min="0" max="100" value="58" tabindex="-1">
+                    </span>
                     <span class="value" id="masterValue">58</span>
-                </label>
+                </div>
                 <div class="xfade-block">
                     <span class="xfade-title">Crossfader</span>
                     <label class="xfade">
                         <span>A</span>
-                        <input id="crossfaderControl" type="range" min="0" max="100" value="50" aria-label="Crossfader">
+                        <input id="crossfaderControl" type="range" min="0" max="100" value="50" aria-label="Crossfader" data-control="slider">
                         <span>B</span>
                     </label>
                 </div>
             </div>
         </section>
+        <span class="virtual-cursor" id="virtualCursor" aria-hidden="true"></span>
     </main>
 
     <script>
@@ -861,6 +1012,9 @@
         const STEPS = 16;
         const LOOKAHEAD_MS = 25;
         const SCHEDULE_AHEAD = 0.14;
+        const KNOB_SENSITIVITY = 0.75;
+        const KNOB_DRAG_WIDTH = 220;
+        const LANE_OFF_LEVEL = 1;
         const SCALE = [36.71, 41.2, 43.65, 49, 55, 61.74, 65.41, 73.42, 82.41, 87.31, 98, 110, 123.47, 146.83, 164.81, 174.61, 196, 220, 246.94, 293.66];
         const DIVISIONS = [
             { label: "1/2", steps: 8 },
@@ -905,6 +1059,8 @@
         ];
 
         const els = {
+            station: document.getElementById("station"),
+            virtualCursor: document.getElementById("virtualCursor"),
             decks: document.getElementById("decks"),
             play: document.getElementById("playButton"),
             stop: document.getElementById("stopButton"),
@@ -958,13 +1114,26 @@
         let timeData;
         let masterMeterData;
         let uiTimers = [];
+        let activeKnobDrag = null;
+        let activeVirtualDrag = null;
+        let virtualPressedControl = null;
+        let virtualHoverControl = null;
+        let virtualCursorX = 0;
+        let virtualCursorY = 0;
 
         function cloneDecks() {
             return BASE_DECKS.map(deck => ({
                 ...deck,
-                eq: { high: true, mid: true, low: true },
+                eq: { low: 0, mid: 0, high: 0 },
                 controls: { ...deck.defaults },
-                lanes: deck.lanes.map(lane => ({ ...lane, pattern: normalizePattern(lane.pattern), lastPulse: 0 })),
+                lanes: deck.lanes.map(lane => ({
+                    ...lane,
+                    level: lane.enabled ? lane.level : 0,
+                    defaultLevel: lane.level,
+                    lastNonZeroLevel: lane.level,
+                    pattern: normalizePattern(lane.pattern),
+                    lastPulse: 0,
+                })),
             }));
         }
 
@@ -997,6 +1166,394 @@
             return `${deckId}:${laneId}`;
         }
 
+        function isLaneActive(lane) {
+            return lane.level > LANE_OFF_LEVEL;
+        }
+
+        function knobRingMarkup() {
+            return `
+                <svg class="knob-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                    <path class="knob-track"></path>
+                    <path class="knob-active"></path>
+                    <line class="knob-notch" x1="50" y1="13" x2="50" y2="24"></line>
+                </svg>
+            `;
+        }
+
+        function knobMarkup({ id, value, min = 0, max = 100, kind = "unipolar", label, dataset = "", inputAttrs = "", className = "", showValue = true }) {
+            return `
+                <button class="knob-button ${kind === "bipolar" ? "is-bipolar" : ""} ${className}" type="button" data-control="knob" data-knob data-input="${id}" data-kind="${kind}" data-show-value="${showValue}" aria-label="${label}" ${dataset}>
+                    ${knobRingMarkup()}
+                    ${showValue ? `<span class="knob-value">${formatKnobValue(value, min, max, kind)}</span>` : ""}
+                </button>
+                <input class="knob-input" id="${id}" type="range" min="${min}" max="${max}" value="${value}" tabindex="-1" ${inputAttrs}>
+            `;
+        }
+
+        function formatKnobValue(value, min, max, kind) {
+            const rounded = Math.round(value);
+            if (kind === "unipolar") {
+                if (rounded <= min) return "OFF";
+                if (rounded >= max) return "MAX";
+            }
+            if (kind === "bipolar" && rounded === 0) return "0";
+            return String(rounded);
+        }
+
+        function formatEqGain(value) {
+            const rounded = Math.round(value);
+            return `${rounded > 0 ? "+" : ""}${rounded}`;
+        }
+
+        function initKnobs(root = document) {
+            root.querySelectorAll("[data-knob]").forEach(button => {
+                refreshKnob(button);
+                if (button.dataset.knobReady === "true") return;
+                button.dataset.knobReady = "true";
+                button.addEventListener("pointerdown", startKnobDrag);
+                button.addEventListener("keydown", handleKnobKeydown);
+            });
+        }
+
+        function knobInput(button) {
+            return document.getElementById(button.dataset.input);
+        }
+
+        function knobBounds(input) {
+            return {
+                min: Number(input.min || 0),
+                max: Number(input.max || 100),
+            };
+        }
+
+        function setInputValue(input, value) {
+            const { min, max } = knobBounds(input);
+            const rounded = Math.round(clamp(value, min, max));
+            if (Number(input.value) === rounded) return;
+            input.value = String(rounded);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            refreshKnob(document.querySelector(`[data-knob][data-input="${input.id}"]`));
+        }
+
+        function ensureKnobRing(button) {
+            if (!button.querySelector(".knob-ring")) button.insertAdjacentHTML("afterbegin", knobRingMarkup());
+        }
+
+        function knobPoint(cx, cy, radius, angle) {
+            const radians = angle * Math.PI / 180;
+            return {
+                x: cx + radius * Math.sin(radians),
+                y: cy - radius * Math.cos(radians),
+            };
+        }
+
+        function describeKnobArc(startAngle, endAngle) {
+            const start = knobPoint(50, 50, 42, startAngle);
+            const end = knobPoint(50, 50, 42, endAngle);
+            const largeArc = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
+            const sweep = endAngle >= startAngle ? 1 : 0;
+            return `M ${start.x.toFixed(3)} ${start.y.toFixed(3)} A 42 42 0 ${largeArc} ${sweep} ${end.x.toFixed(3)} ${end.y.toFixed(3)}`;
+        }
+
+        function setKnobRendering(button, trackStart, trackEnd, activeStart, activeEnd, color) {
+            ensureKnobRing(button);
+            const track = button.querySelector(".knob-track");
+            const active = button.querySelector(".knob-active");
+            const notch = button.querySelector(".knob-notch");
+            const hasActiveArc = Math.abs(activeEnd - activeStart) > 0.001;
+
+            if (track) track.setAttribute("d", describeKnobArc(trackStart, trackEnd));
+            if (active) {
+                active.setAttribute("d", hasActiveArc ? describeKnobArc(activeStart, activeEnd) : "");
+                active.style.display = hasActiveArc ? "" : "none";
+            }
+            if (notch) notch.setAttribute("transform", `rotate(${activeEnd} 50 50)`);
+            button.style.setProperty("--knob-color", color);
+        }
+
+        function refreshKnob(button) {
+            if (!button) return;
+            const input = knobInput(button);
+            if (!input) return;
+            const { min, max } = knobBounds(input);
+            const value = Number(input.value);
+            const kind = button.dataset.kind || "unipolar";
+            const norm = clamp((value - min) / (max - min), 0, 1);
+            const display = button.querySelector(".knob-value");
+            const color = kind === "bipolar" && value < 0 ? "var(--blue)" : value >= max ? "var(--amber)" : "var(--green)";
+
+            if (display && button.dataset.showValue !== "false") display.textContent = formatKnobValue(value, min, max, kind);
+            button.classList.toggle("is-off", kind === "unipolar" && value <= min);
+            button.classList.toggle("is-negative", kind === "bipolar" && value < 0);
+
+            if (kind === "bipolar") {
+                const maxAbs = Math.max(Math.abs(min), Math.abs(max));
+                const angle = maxAbs > 0 ? clamp(value / maxAbs, -1, 1) * 150 : 0;
+                setKnobRendering(button, -150, 150, 0, angle, color);
+                return;
+            }
+
+            const angle = -150 + norm * 300;
+            setKnobRendering(button, -150, 150, -150, angle, color);
+        }
+
+        function startKnobDrag(event) {
+            const button = event.currentTarget;
+            const input = knobInput(button);
+            if (!input) return;
+
+            if (event.shiftKey && button.dataset.laneKnob) {
+                event.preventDefault();
+                toggleLaneKnob(button);
+                return;
+            }
+
+            const { min, max } = knobBounds(input);
+            const startValue = Number(input.value);
+
+            activeKnobDrag = {
+                button,
+                input,
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startNorm: (startValue - min) / (max - min),
+                norm: (startValue - min) / (max - min),
+                min,
+                max,
+            };
+
+            button.setPointerCapture(event.pointerId);
+            window.addEventListener("pointermove", moveKnobDrag);
+            window.addEventListener("pointerup", finishKnobDrag);
+            window.addEventListener("pointercancel", finishKnobDrag);
+            window.addEventListener("keydown", cancelKnobOnEscape);
+            event.preventDefault();
+        }
+
+        function moveKnobDrag(event) {
+            if (!activeKnobDrag || event.pointerId !== activeKnobDrag.pointerId) return;
+            const hasPointerLock = document.pointerLockElement === activeKnobDrag.button;
+            const delta = hasPointerLock
+                ? event.movementX / KNOB_DRAG_WIDTH * KNOB_SENSITIVITY
+                : (event.clientX - activeKnobDrag.startX) / KNOB_DRAG_WIDTH * KNOB_SENSITIVITY;
+            const norm = clamp(hasPointerLock ? activeKnobDrag.norm + delta : activeKnobDrag.startNorm + delta, 0, 1);
+            activeKnobDrag.norm = norm;
+            const value = activeKnobDrag.min + norm * (activeKnobDrag.max - activeKnobDrag.min);
+            setInputValue(activeKnobDrag.input, value);
+            event.preventDefault();
+        }
+
+        function finishKnobDrag(event) {
+            if (!activeKnobDrag || event.pointerId !== activeKnobDrag.pointerId) return;
+            closeKnobDrag();
+        }
+
+        function cancelKnobOnEscape(event) {
+            if (event.key === "Escape") closeKnobDrag();
+        }
+
+        function closeKnobDrag() {
+            if (!activeKnobDrag) return;
+            if (activeKnobDrag.button.hasPointerCapture?.(activeKnobDrag.pointerId)) {
+                activeKnobDrag.button.releasePointerCapture(activeKnobDrag.pointerId);
+            }
+            activeKnobDrag = null;
+            window.removeEventListener("pointermove", moveKnobDrag);
+            window.removeEventListener("pointerup", finishKnobDrag);
+            window.removeEventListener("pointercancel", finishKnobDrag);
+            window.removeEventListener("keydown", cancelKnobOnEscape);
+        }
+
+        function isStationLocked() {
+            return document.pointerLockElement === els.station;
+        }
+
+        function stationBounds() {
+            return els.station.getBoundingClientRect();
+        }
+
+        function clampVirtualCursor() {
+            const bounds = stationBounds();
+            virtualCursorX = clamp(virtualCursorX, bounds.left, bounds.right - 1);
+            virtualCursorY = clamp(virtualCursorY, bounds.top, bounds.bottom - 1);
+        }
+
+        function renderVirtualCursor() {
+            els.virtualCursor.style.transform = `translate3d(${virtualCursorX - 8}px, ${virtualCursorY - 8}px, 0)`;
+        }
+
+        function setVirtualCursorFromEvent(event) {
+            virtualCursorX = event.clientX;
+            virtualCursorY = event.clientY;
+            clampVirtualCursor();
+            renderVirtualCursor();
+        }
+
+        function moveVirtualCursor(event) {
+            virtualCursorX += event.movementX || 0;
+            virtualCursorY += event.movementY || 0;
+            clampVirtualCursor();
+            renderVirtualCursor();
+        }
+
+        function resolveVirtualControl() {
+            const target = document.elementFromPoint(virtualCursorX, virtualCursorY);
+            return target?.closest?.("[data-control]") || null;
+        }
+
+        function setVirtualHover(control) {
+            if (virtualHoverControl === control) return;
+            virtualHoverControl?.classList.remove("is-virtual-hover");
+            virtualHoverControl = control;
+            virtualHoverControl?.classList.add("is-virtual-hover");
+        }
+
+        function clearVirtualPressed() {
+            virtualPressedControl?.classList.remove("is-virtual-pressed");
+            virtualPressedControl = null;
+        }
+
+        function beginVirtualKnobDrag(control, event) {
+            const input = knobInput(control);
+            if (!input) return;
+
+            if (event.shiftKey && control.dataset.laneKnob) {
+                toggleLaneKnob(control);
+                return;
+            }
+
+            const { min, max } = knobBounds(input);
+            const value = Number(input.value);
+            activeVirtualDrag = {
+                type: "knob",
+                control,
+                input,
+                norm: (value - min) / (max - min),
+                min,
+                max,
+            };
+            els.station.classList.add("is-virtual-knob-dragging");
+        }
+
+        function beginVirtualSliderDrag(control) {
+            activeVirtualDrag = { type: "slider", control };
+            updateVirtualSlider(control);
+        }
+
+        function updateVirtualKnob(event) {
+            const delta = (event.movementX || 0) / KNOB_DRAG_WIDTH * KNOB_SENSITIVITY;
+            activeVirtualDrag.norm = clamp(activeVirtualDrag.norm + delta, 0, 1);
+            const value = activeVirtualDrag.min + activeVirtualDrag.norm * (activeVirtualDrag.max - activeVirtualDrag.min);
+            setInputValue(activeVirtualDrag.input, value);
+        }
+
+        function updateVirtualSlider(control) {
+            const bounds = control.getBoundingClientRect();
+            const min = Number(control.min || 0);
+            const max = Number(control.max || 100);
+            const norm = bounds.width > 0 ? clamp((virtualCursorX - bounds.left) / bounds.width, 0, 1) : 0;
+            const value = Math.round(min + norm * (max - min));
+            if (Number(control.value) === value) return;
+            control.value = String(value);
+            control.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+        function handleVirtualPointerDown(event) {
+            if (!isStationLocked()) return;
+            if (event.button !== 0) return;
+            const control = resolveVirtualControl();
+            if (!control) return;
+
+            setVirtualHover(control);
+            virtualPressedControl = control;
+            virtualPressedControl.classList.add("is-virtual-pressed");
+
+            if (control.dataset.control === "knob") beginVirtualKnobDrag(control, event);
+            if (control.dataset.control === "slider") beginVirtualSliderDrag(control);
+
+            event.preventDefault();
+        }
+
+        function handleVirtualPointerMove(event) {
+            if (!isStationLocked()) return;
+
+            if (activeVirtualDrag?.type === "knob") {
+                updateVirtualKnob(event);
+            } else {
+                moveVirtualCursor(event);
+                if (activeVirtualDrag?.type === "slider") updateVirtualSlider(activeVirtualDrag.control);
+                else setVirtualHover(resolveVirtualControl());
+            }
+
+            event.preventDefault();
+        }
+
+        function handleVirtualPointerUp(event) {
+            if (!isStationLocked()) return;
+            if (event.button !== 0) return;
+            const releaseControl = resolveVirtualControl();
+            if (virtualPressedControl?.dataset.control === "button" && releaseControl === virtualPressedControl) {
+                virtualPressedControl.click();
+            }
+            activeVirtualDrag = null;
+            els.station.classList.remove("is-virtual-knob-dragging");
+            clearVirtualPressed();
+            setVirtualHover(releaseControl);
+            event.preventDefault();
+        }
+
+        function handleStationPointerDown(event) {
+            if (!els.station.contains(event.target)) return;
+            if (!isStationLocked() && typeof els.station.requestPointerLock === "function") {
+                setVirtualCursorFromEvent(event);
+                els.station.requestPointerLock();
+            }
+        }
+
+        function handleStationPointerLockChange() {
+            const locked = isStationLocked();
+            els.station.classList.toggle("is-station-locked", locked);
+            if (!locked) {
+                activeVirtualDrag = null;
+                els.station.classList.remove("is-virtual-knob-dragging");
+                setVirtualHover(null);
+                clearVirtualPressed();
+            } else {
+                clampVirtualCursor();
+                renderVirtualCursor();
+                setVirtualHover(resolveVirtualControl());
+            }
+        }
+
+        function toggleLaneKnob(button) {
+            const input = knobInput(button);
+            const [deckId, laneId] = button.dataset.laneKnob.split(":");
+            const lane = laneById(deckId, laneId);
+            if (!input || !lane) return;
+            if (isLaneActive(lane)) {
+                if (lane.level > LANE_OFF_LEVEL) lane.lastNonZeroLevel = lane.level;
+                setInputValue(input, 0);
+                setStatus(`${lane.label} muted on ${deckById(deckId).label}`);
+                return;
+            }
+            setInputValue(input, lane.lastNonZeroLevel || lane.defaultLevel || 64);
+            setStatus(`${lane.label} restored on ${deckById(deckId).label}`);
+        }
+
+        function handleKnobKeydown(event) {
+            const input = knobInput(event.currentTarget);
+            if (!input) return;
+            const step = event.shiftKey ? 10 : 1;
+            if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+                setInputValue(input, Number(input.value) + step);
+                event.preventDefault();
+            }
+            if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+                setInputValue(input, Number(input.value) - step);
+                event.preventDefault();
+            }
+        }
+
         function renderStaticUi() {
             els.decks.innerHTML = decks.map(deck => `
                 <article class="deck" data-deck="${deck.id}" style="--deck-color: ${deck.color}">
@@ -1013,33 +1570,43 @@
                     <div class="deck-strip">
                         <div class="strip-block">
                             <span class="control-label">EQ</span>
-                            <div class="eq-bank" aria-label="${deck.label} EQ toggles">
+                            <div class="eq-bank" aria-label="${deck.label} EQ controls">
                                 ${["low", "mid", "high"].map(band => `
-                                    <button class="eq-button is-on" type="button" data-eq="${deck.id}:${band}" aria-pressed="true">${band[0].toUpperCase()}</button>
+                                    <span class="eq-band">
+                                        <span class="eq-band-label">${band[0].toUpperCase()}</span>
+                                        ${knobMarkup({
+                                            id: `eq-${deck.id}-${band}`,
+                                            value: deck.eq[band],
+                                            min: -26,
+                                            max: 6,
+                                            kind: "bipolar",
+                                            label: `${deck.label} EQ ${band}`,
+                                            inputAttrs: `data-eq-band="${deck.id}:${band}"`,
+                                            className: "is-eq-knob",
+                                            showValue: false
+                                        })}
+                                    </span>
                                 `).join("")}
                             </div>
                         </div>
-                        <label class="strip-block">
+                        <div class="strip-block">
                             <span class="control-label">Filter</span>
                             <span class="control-row">
-                                <input type="range" min="-100" max="100" value="${deck.controls.filter}" data-filter="${deck.id}" aria-label="${deck.label} filter">
-                                <span class="value" data-filter-value="${deck.id}">${deck.controls.filter}</span>
+                                ${knobMarkup({ id: `filter-${deck.id}`, value: deck.controls.filter, min: -100, max: 100, kind: "bipolar", label: `${deck.label} filter`, inputAttrs: `data-filter="${deck.id}"`, showValue: false })}
                             </span>
-                        </label>
-                        <label class="strip-block deck-level">
+                        </div>
+                        <div class="strip-block deck-level">
                             <span class="control-label">CH Level</span>
                             <span class="control-row">
-                                <input type="range" min="0" max="100" value="${deck.controls.level}" data-deck-level="${deck.id}" aria-label="${deck.label} channel level">
-                                <span class="value" data-deck-level-value="${deck.id}">${deck.controls.level}</span>
+                                ${knobMarkup({ id: `deck-level-${deck.id}`, value: deck.controls.level, label: `${deck.label} channel level`, inputAttrs: `data-deck-level="${deck.id}"`, showValue: false })}
                             </span>
-                        </label>
-                        <label class="strip-block">
+                        </div>
+                        <div class="strip-block">
                             <span class="control-label">FX Send</span>
                             <span class="control-row">
-                                <input type="range" min="0" max="100" value="${deck.controls.send}" data-send="${deck.id}" aria-label="${deck.label} FX send">
-                                <span class="value" data-send-value="${deck.id}">${deck.controls.send}</span>
+                                ${knobMarkup({ id: `send-${deck.id}`, value: deck.controls.send, label: `${deck.label} FX send`, inputAttrs: `data-send="${deck.id}"`, showValue: false })}
                             </span>
-                        </label>
+                        </div>
                         <div class="strip-block meter">
                             <span class="meter-label">${deck.label} Meter</span>
                             <div class="meter-track"><span class="meter-fill" data-deck-meter="${deck.id}"></span></div>
@@ -1051,7 +1618,7 @@
 
             els.stepGrid.innerHTML = Array.from({ length: STEPS }, (_, index) => `<span class="${index % 4 === 0 ? "is-beat" : ""}" data-step-cell="${index}" aria-label="Step ${index + 1}"></span>`).join("");
             els.divisionGroup.innerHTML = DIVISIONS.map(division => `
-                <button class="division-button ${division.label === selectedDivision ? "is-active" : ""}" type="button" data-division="${division.label}">${division.label}</button>
+                <button class="division-button ${division.label === selectedDivision ? "is-active" : ""}" type="button" data-control="button" data-division="${division.label}">${division.label}</button>
             `).join("");
             bindDynamicEvents();
             renderState();
@@ -1068,35 +1635,22 @@
             }).join("");
 
             return `
-                <div class="lane ${lane.enabled ? "is-enabled" : ""}" data-lane="${deck.id}:${lane.id}">
+                <div class="lane ${isLaneActive(lane) ? "is-enabled" : ""}" data-lane="${deck.id}:${lane.id}">
                     <div class="lane-cell lane-name">
-                        <button class="lane-toggle" type="button" data-lane-toggle="${deck.id}:${lane.id}" aria-label="${deck.label} ${lane.label} on/off" aria-pressed="${lane.enabled}"></button>
                         <span>${lane.label}</span>
+                    </div>
+                    <div class="lane-cell level">
+                        ${knobMarkup({ id: `lane-level-${deck.id}-${lane.id}`, value: lane.level, label: `${deck.label} ${lane.label} level`, dataset: `data-lane-knob="${deck.id}:${lane.id}"`, inputAttrs: `data-lane-level="${deck.id}:${lane.id}"`, className: "is-lane-knob", showValue: false })}
                     </div>
                     <div class="lane-cell">
                         <div class="pattern" aria-label="${lane.label} pattern">${pattern}</div>
                     </div>
-                    <label class="lane-cell level">
-                        <span class="control-label">Lv</span>
-                        <input type="range" min="0" max="100" value="${lane.level}" data-lane-level="${deck.id}:${lane.id}" aria-label="${deck.label} ${lane.label} level">
-                        <span class="value" data-lane-level-value="${deck.id}:${lane.id}">${lane.level}</span>
-                    </label>
                     <div class="lane-cell lane-meter"><span aria-hidden="true"></span></div>
                 </div>
             `;
         }
 
         function bindDynamicEvents() {
-            document.querySelectorAll("[data-lane-toggle]").forEach(button => {
-                button.addEventListener("click", () => {
-                    const [deckId, laneId] = button.dataset.laneToggle.split(":");
-                    const lane = laneById(deckId, laneId);
-                    lane.enabled = !lane.enabled;
-                    setStatus(`${lane.label} ${lane.enabled ? "enabled" : "muted"} on ${deckById(deckId).label}`);
-                    renderState();
-                });
-            });
-
             document.querySelectorAll("[data-lane-level]").forEach(input => {
                 input.addEventListener("input", syncLaneLevel);
             });
@@ -1105,14 +1659,8 @@
                 input.addEventListener("input", syncDeckControls);
             });
 
-            document.querySelectorAll("[data-eq]").forEach(button => {
-                button.addEventListener("click", () => {
-                    const [deckId, band] = button.dataset.eq.split(":");
-                    const deck = deckById(deckId);
-                    deck.eq[band] = !deck.eq[band];
-                    syncEq();
-                    renderState();
-                });
+            document.querySelectorAll("[data-eq-band]").forEach(input => {
+                input.addEventListener("input", syncEq);
             });
 
             document.querySelectorAll("[data-division]").forEach(button => {
@@ -1123,6 +1671,8 @@
                     setStatus(`Delay division ${selectedDivision}`);
                 });
             });
+
+            initKnobs(els.decks);
         }
 
         function createNoiseBuffer(duration) {
@@ -1281,13 +1831,19 @@
             inputs.forEach(input => {
                 const [deckId, laneId] = input.dataset.laneLevel.split(":");
                 const lane = laneById(deckId, laneId);
-                const value = Number(input.value);
+                let value = Number(input.value);
+                if (value <= LANE_OFF_LEVEL) {
+                    value = 0;
+                    input.value = "0";
+                }
                 lane.level = value;
-                const valueEl = document.querySelector(`[data-lane-level-value="${deckId}:${laneId}"]`);
-                if (valueEl) valueEl.textContent = String(value);
+                lane.enabled = isLaneActive(lane);
+                if (isLaneActive(lane)) lane.lastNonZeroLevel = value;
+                refreshKnob(document.querySelector(`[data-knob][data-lane-knob="${deckId}:${laneId}"]`));
                 const node = laneNodes[nodeKey(deckId, laneId)];
                 if (node && audioCtx) rampParam(node.gain.gain, value / 100, audioCtx.currentTime, 0.035);
             });
+            renderState();
         }
 
         function syncDeckControls(event) {
@@ -1307,6 +1863,9 @@
                 if (levelValue) levelValue.textContent = String(deck.controls.level);
                 if (filterValue) filterValue.textContent = String(deck.controls.filter);
                 if (sendValue) sendValue.textContent = String(deck.controls.send);
+                refreshKnob(document.querySelector(`[data-knob][data-input="deck-level-${deckId}"]`));
+                refreshKnob(document.querySelector(`[data-knob][data-input="filter-${deckId}"]`));
+                refreshKnob(document.querySelector(`[data-knob][data-input="send-${deckId}"]`));
 
                 const nodes = deckNodes[deckId];
                 if (nodes && audioCtx) {
@@ -1317,21 +1876,23 @@
             });
         }
 
-        function syncEq() {
-            decks.forEach(deck => {
+        function syncEq(event) {
+            const deckIds = event ? [event.currentTarget.dataset.eqBand.split(":")[0]] : decks.map(deck => deck.id);
+            deckIds.forEach(deckId => {
+                const deck = deckById(deckId);
                 const nodes = deckNodes[deck.id];
                 ["high", "mid", "low"].forEach(band => {
-                    const button = document.querySelector(`[data-eq="${deck.id}:${band}"]`);
-                    if (button) {
-                        button.classList.toggle("is-on", deck.eq[band]);
-                        button.setAttribute("aria-pressed", String(deck.eq[band]));
-                    }
+                    const input = document.querySelector(`[data-eq-band="${deck.id}:${band}"]`);
+                    if (input) deck.eq[band] = Number(input.value);
+                    const value = document.querySelector(`[data-eq-value="${deck.id}:${band}"]`);
+                    if (value) value.textContent = formatEqGain(deck.eq[band]);
+                    refreshKnob(document.querySelector(`[data-knob][data-input="eq-${deck.id}-${band}"]`));
                 });
                 if (nodes && audioCtx) {
                     const now = audioCtx.currentTime;
-                    rampParam(nodes.low.gain, deck.eq.low ? 0 : -18, now, 0.04);
-                    rampParam(nodes.mid.gain, deck.eq.mid ? 0 : -18, now, 0.04);
-                    rampParam(nodes.high.gain, deck.eq.high ? 0 : -18, now, 0.04);
+                    rampParam(nodes.low.gain, deck.eq.low, now, 0.04);
+                    rampParam(nodes.mid.gain, deck.eq.mid, now, 0.04);
+                    rampParam(nodes.high.gain, deck.eq.high, now, 0.04);
                 }
             });
         }
@@ -1350,6 +1911,8 @@
         function syncFxControls() {
             els.feedbackValue.textContent = els.feedback.value;
             els.fxReturnValue.textContent = els.fxReturn.value;
+            refreshKnob(document.querySelector('[data-knob][data-input="feedbackControl"]'));
+            refreshKnob(document.querySelector('[data-knob][data-input="fxReturnControl"]'));
             els.divisionValue.textContent = selectedDivision;
             document.querySelectorAll("[data-division]").forEach(button => {
                 button.classList.toggle("is-active", button.dataset.division === selectedDivision);
@@ -1366,6 +1929,7 @@
 
         function syncMaster() {
             els.masterValue.textContent = els.master.value;
+            refreshKnob(document.querySelector('[data-knob][data-input="masterControl"]'));
             if (masterGain && audioCtx) rampParam(masterGain.gain, Number(els.master.value) / 100, audioCtx.currentTime, 0.03);
         }
 
@@ -1534,7 +2098,7 @@
         }
 
         function playLane(deck, lane, step, time) {
-            if (!lane.enabled) return;
+            if (!isLaneActive(lane)) return;
 
             const symbol = lane.pattern[step];
             if (!symbol || symbol === "-") return;
@@ -1674,7 +2238,7 @@
             const now = performance.now();
             decks.forEach(deck => {
                 const deckElement = document.querySelector(`[data-deck="${deck.id}"]`);
-                const hasEnabledLane = deck.lanes.some(lane => lane.enabled);
+                const hasEnabledLane = deck.lanes.some(lane => isLaneActive(lane));
                 const hasRecentPulse = deck.lanes.some(lane => now - lane.lastPulse < 130);
                 if (deckElement) {
                     deckElement.classList.toggle("has-enabled", hasEnabledLane);
@@ -1682,11 +2246,9 @@
                 }
                 deck.lanes.forEach(lane => {
                     const row = document.querySelector(`[data-lane="${deck.id}:${lane.id}"]`);
-                    const button = document.querySelector(`[data-lane-toggle="${deck.id}:${lane.id}"]`);
                     if (!row) return;
-                    row.classList.toggle("is-enabled", lane.enabled);
+                    row.classList.toggle("is-enabled", isLaneActive(lane));
                     row.classList.toggle("is-pulsing", now - lane.lastPulse < 130);
-                    if (button) button.setAttribute("aria-pressed", String(lane.enabled));
                 });
             });
             renderStep();
@@ -1800,9 +2362,15 @@
         els.fxReturn.addEventListener("input", syncFxControls);
         els.master.addEventListener("input", syncMaster);
         els.crossfader.addEventListener("input", syncCrossfader);
+        els.station.addEventListener("pointerdown", handleStationPointerDown);
+        window.addEventListener("mousemove", handleVirtualPointerMove);
+        window.addEventListener("mousedown", handleVirtualPointerDown);
+        window.addEventListener("mouseup", handleVirtualPointerUp);
+        document.addEventListener("pointerlockchange", handleStationPointerLockChange);
         window.addEventListener("resize", resize);
 
         renderStaticUi();
+        initKnobs();
         syncFxControls();
         syncMaster();
         resize();
