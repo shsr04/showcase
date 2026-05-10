@@ -269,15 +269,33 @@
             box-shadow: 0 0 14px rgba(255, 209, 102, 0.45);
         }
 
-        .eq-bank {
-            display: inline-grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+        .channel-cell {
+            display: grid;
+            justify-items: center;
+            align-content: start;
             gap: 6px;
-            align-items: start;
-            width: 100%;
+            min-width: 0;
         }
 
-        .eq-band {
+        .channel-label {
+            display: flex;
+            align-items: center;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 0.56rem;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+
+        .insert-fx-bank {
+            display: grid;
+            grid-template-columns: repeat(14, min-content);
+            gap: 5px;
+            align-items: start;
+            width: auto;
+        }
+
+        .insert-fx {
             display: grid;
             justify-items: center;
             align-content: start;
@@ -285,15 +303,12 @@
             min-width: 0;
         }
 
-        .eq-band-label {
+        .insert-fx-label {
+            color: var(--muted);
             font-family: var(--mono);
-            font-size: 0.56rem;
+            font-size: 0.5rem;
             line-height: 1;
             text-transform: uppercase;
-        }
-
-        .eq-band-label {
-            color: var(--muted);
         }
 
         .transport-button,
@@ -408,11 +423,15 @@
 
         .deck-strip {
             display: grid;
-            grid-template-columns: 1fr repeat(3, 92px) minmax(160px, 1fr);
+            grid-template-columns: 1fr;
             gap: 8px;
             align-items: start;
             padding-top: 10px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .insert-strip {
+            grid-column: 1 / -1;
         }
 
         .strip-block {
@@ -421,11 +440,39 @@
             justify-items: start;
             gap: 6px;
             min-width: 0;
-            min-height: 74px;
             padding: 8px;
             border: 1px solid rgba(255, 255, 255, 0.09);
             border-radius: 7px;
             background: rgba(0, 0, 0, 0.22);
+        }
+
+        .channel-strip-block {
+            align-items: start;
+            justify-items: stretch;
+        }
+
+        .channel-mixer-strip {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 58px)) minmax(16px, 1fr) minmax(58px, 72px) minmax(126px, 1fr);
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .eq-filter-bank {
+            display: contents;
+        }
+
+        .channel-output-bank {
+            display: contents;
+        }
+
+        .channel-output-bank .deck-level {
+            grid-column: 6;
+        }
+
+        .channel-output-bank .channel-meter {
+            grid-column: 7;
         }
 
         .deck-level {
@@ -631,6 +678,20 @@
             gap: 8px;
         }
 
+        .send-fx-row {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            align-items: start;
+            gap: 8px;
+        }
+
+        .send-fx-control {
+            display: grid;
+            justify-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+
         .division-group {
             display: inline-grid;
             grid-template-columns: repeat(4, 42px);
@@ -824,6 +885,10 @@
             --knob-size: var(--knob-sm);
         }
 
+        .knob-button.is-insert-knob {
+            --knob-size: var(--knob-sm);
+        }
+
         .knob-button.is-master-knob {
             --knob-size: var(--knob-lg);
         }
@@ -912,6 +977,10 @@
             .master-row {
                 grid-template-columns: 72px max-content minmax(0, 1fr);
             }
+
+            .send-fx-row {
+                grid-template-columns: repeat(4, minmax(58px, 1fr));
+            }
         }
     </style>
 </head>
@@ -924,7 +993,7 @@
             </div>
             <div class="readout" aria-live="polite">
                 <span id="tempoLight" class="tempo-light" aria-hidden="true"></span>
-                <span id="readout">124 BPM / 4/4 / 16 Steps / Standby</span>
+                <span id="readout">--- BPM / 4/4 / 16 Steps / Standby</span>
             </div>
         </header>
 
@@ -950,29 +1019,57 @@
                 <button class="transport-button reset-button" id="resetButton" type="button" data-control="button">Reset Station</button>
             </div>
 
-            <div class="fx-panel">
+            <div class="fx-panel" aria-label="Send FX">
                 <div class="fx-row">
                     <span class="control-label">Delay</span>
                     <div class="division-group" id="divisionGroup" aria-label="Delay division"></div>
                     <span class="value" id="divisionValue">1/4</span>
                 </div>
-                <div class="fx-row">
-                    <span class="control-label">Feedback</span>
-                    <span class="control-row">
-                        <button class="knob-button" type="button" data-control="knob" data-knob data-input="feedbackControl" data-kind="unipolar" aria-label="Feedback">
-                        </button>
-                        <input class="knob-input" id="feedbackControl" type="range" min="0" max="100" value="48" tabindex="-1">
+                <div class="send-fx-row">
+                    <span class="send-fx-control">
+                        <span class="control-label">Send A</span>
+                        <span class="control-row">
+                            <button class="knob-button" type="button" data-control="knob" data-knob data-input="send-a" data-kind="unipolar" data-show-value="false" aria-label="Deck A FX send">
+                                <svg class="knob-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                                    <path class="knob-track"></path>
+                                    <path class="knob-active"></path>
+                                    <line class="knob-notch" x1="50" y1="13" x2="50" y2="24"></line>
+                                </svg>
+                            </button>
+                            <input class="knob-input" id="send-a" type="range" min="0" max="100" value="18" tabindex="-1" data-send="a">
+                        </span>
                     </span>
-                    <span class="value" id="feedbackValue">48</span>
-                </div>
-                <div class="fx-row">
-                    <span class="control-label">FX Return</span>
-                    <span class="control-row">
-                        <button class="knob-button" type="button" data-control="knob" data-knob data-input="fxReturnControl" data-kind="unipolar" aria-label="FX Return">
-                        </button>
-                        <input class="knob-input" id="fxReturnControl" type="range" min="0" max="100" value="42" tabindex="-1">
+                    <span class="send-fx-control">
+                        <span class="control-label">Send B</span>
+                        <span class="control-row">
+                            <button class="knob-button" type="button" data-control="knob" data-knob data-input="send-b" data-kind="unipolar" data-show-value="false" aria-label="Deck B FX send">
+                                <svg class="knob-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                                    <path class="knob-track"></path>
+                                    <path class="knob-active"></path>
+                                    <line class="knob-notch" x1="50" y1="13" x2="50" y2="24"></line>
+                                </svg>
+                            </button>
+                            <input class="knob-input" id="send-b" type="range" min="0" max="100" value="24" tabindex="-1" data-send="b">
+                        </span>
                     </span>
-                    <span class="value" id="fxReturnValue">42</span>
+                    <span class="send-fx-control">
+                        <span class="control-label">Feedback</span>
+                        <span class="control-row">
+                            <button class="knob-button" type="button" data-control="knob" data-knob data-input="feedbackControl" data-kind="unipolar" aria-label="Feedback">
+                            </button>
+                            <input class="knob-input" id="feedbackControl" type="range" min="0" max="100" value="48" tabindex="-1">
+                        </span>
+                        <span class="value" id="feedbackValue">48</span>
+                    </span>
+                    <span class="send-fx-control">
+                        <span class="control-label">Return</span>
+                        <span class="control-row">
+                            <button class="knob-button" type="button" data-control="knob" data-knob data-input="fxReturnControl" data-kind="unipolar" aria-label="FX Return">
+                            </button>
+                            <input class="knob-input" id="fxReturnControl" type="range" min="0" max="100" value="42" tabindex="-1">
+                        </span>
+                        <span class="value" id="fxReturnValue">42</span>
+                    </span>
                 </div>
                 <div class="scope" aria-label="Compact oscilloscope">
                     <canvas id="scopeCanvas"></canvas>
@@ -1008,7 +1105,7 @@
     </main>
 
     <script>
-        const BPM = 124;
+        const BPM = 128;
         const STEPS = 16;
         const LOOKAHEAD_MS = 25;
         const SCHEDULE_AHEAD = 0.14;
@@ -1022,12 +1119,28 @@
             { label: "1/8", steps: 2 },
             { label: "3/16", steps: 3 },
         ];
+        const INSERT_FX = [
+            { id: "dirt", label: "Dirt" },
+            { id: "crush", label: "Crush" },
+            { id: "noise", label: "Noise" },
+            { id: "reso", label: "Reso" },
+            { id: "shift", label: "Shift" },
+            { id: "sweep", label: "Sweep" },
+            { id: "reverse", label: "Reverse" },
+            { id: "stutter", label: "Stutter" },
+            { id: "spiral", label: "Spiral" },
+            { id: "mobius", label: "Mobius" },
+            { id: "gate", label: "Gate" },
+            { id: "space", label: "Space" },
+            { id: "pump", label: "Pump" },
+            { id: "width", label: "Width" },
+        ];
 
         const BASE_DECKS = [
             {
                 id: "a",
                 label: "Deck A",
-                title: "Hypnotic / Driving Techno",
+                title: "Hypnotic Techno",
                 color: "var(--green)",
                 defaults: { level: 82, filter: 0, send: 18 },
                 lanes: [
@@ -1090,6 +1203,7 @@
         let audioCtx;
         let mixBus;
         let compressor;
+        let masterLimiter;
         let masterGain;
         let masterAnalyser;
         let delay;
@@ -1098,8 +1212,11 @@
         let delayLowpass;
         let delayReturn;
         let noiseBuffer;
+        let insertWorkletReady = false;
+        let insertWorkletStatusShown = false;
         let deckNodes = {};
         let laneNodes = {};
+        let bassPumpState = {};
         let schedulerId = 0;
         let nextStepTime = 0;
         let currentStep = 0;
@@ -1125,6 +1242,7 @@
             return BASE_DECKS.map(deck => ({
                 ...deck,
                 eq: { low: 0, mid: 0, high: 0 },
+                insertFx: Object.fromEntries(INSERT_FX.map(effect => [effect.id, 0])),
                 controls: { ...deck.defaults },
                 lanes: deck.lanes.map(lane => ({
                     ...lane,
@@ -1559,8 +1677,8 @@
                 <article class="deck" data-deck="${deck.id}" style="--deck-color: ${deck.color}">
                     <header class="deck-header">
                         <div class="deck-title">
-                            <strong>${deck.label} - ${deck.title}</strong>
-                            <span class="deck-kicker">${deck.id === "a" ? "Stable foundation" : "Acidic escalation"}</span>
+                            <strong>${deck.label}</strong>
+                            <span class="deck-kicker">${deck.title}</span>
                         </div>
                         <span class="deck-status-light" aria-hidden="true"></span>
                     </header>
@@ -1568,12 +1686,30 @@
                         ${deck.lanes.map(lane => renderLane(deck, lane)).join("")}
                     </div>
                     <div class="deck-strip">
-                        <div class="strip-block">
-                            <span class="control-label">EQ</span>
-                            <div class="eq-bank" aria-label="${deck.label} EQ controls">
-                                ${["low", "mid", "high"].map(band => `
-                                    <span class="eq-band">
-                                        <span class="eq-band-label">${band[0].toUpperCase()}</span>
+                        <div class="strip-block insert-strip">
+                            <span class="control-label">FX Insert</span>
+                            <div class="insert-fx-bank" aria-label="${deck.label} insert FX controls">
+                                ${INSERT_FX.map(effect => `
+                                    <span class="insert-fx">
+                                        <span class="insert-fx-label">${effect.label}</span>
+                                        ${knobMarkup({
+                                            id: `insert-${deck.id}-${effect.id}`,
+                                            value: deck.insertFx[effect.id],
+                                            label: `${deck.label} insert ${effect.label}`,
+                                            inputAttrs: `data-insert-fx="${deck.id}:${effect.id}"`,
+                                            className: "is-insert-knob",
+                                            showValue: false
+                                        })}
+                                    </span>
+                                `).join("")}
+                            </div>
+                        </div>
+                        <div class="strip-block channel-strip-block">
+                            <div class="channel-mixer-strip">
+                                <div class="eq-filter-bank" aria-label="${deck.label} EQ and filter controls">
+                                    ${["low", "mid", "high"].map(band => `
+                                    <span class="channel-cell">
+                                        <span class="channel-label">EQ ${band[0].toUpperCase()}</span>
                                         ${knobMarkup({
                                             id: `eq-${deck.id}-${band}`,
                                             value: deck.eq[band],
@@ -1586,31 +1722,24 @@
                                             showValue: false
                                         })}
                                     </span>
-                                `).join("")}
+                                    `).join("")}
+                                    <span class="channel-cell">
+                                        <span class="channel-label">Filter</span>
+                                        ${knobMarkup({ id: `filter-${deck.id}`, value: deck.controls.filter, min: -100, max: 100, kind: "bipolar", label: `${deck.label} filter`, inputAttrs: `data-filter="${deck.id}"`, showValue: false })}
+                                    </span>
+                                </div>
+                                <div class="channel-output-bank">
+                                    <span class="channel-cell deck-level">
+                                        <span class="channel-label">Level</span>
+                                        ${knobMarkup({ id: `deck-level-${deck.id}`, value: deck.controls.level, label: `${deck.label} channel level`, inputAttrs: `data-deck-level="${deck.id}"`, showValue: false })}
+                                    </span>
+                                    <span class="meter channel-meter">
+                                        <span class="meter-label">Meter</span>
+                                        <span class="meter-track"><span class="meter-fill" data-deck-meter="${deck.id}"></span></span>
+                                        <span class="meter-hint">Pre-Xfade</span>
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="strip-block">
-                            <span class="control-label">Filter</span>
-                            <span class="control-row">
-                                ${knobMarkup({ id: `filter-${deck.id}`, value: deck.controls.filter, min: -100, max: 100, kind: "bipolar", label: `${deck.label} filter`, inputAttrs: `data-filter="${deck.id}"`, showValue: false })}
-                            </span>
-                        </div>
-                        <div class="strip-block deck-level">
-                            <span class="control-label">CH Level</span>
-                            <span class="control-row">
-                                ${knobMarkup({ id: `deck-level-${deck.id}`, value: deck.controls.level, label: `${deck.label} channel level`, inputAttrs: `data-deck-level="${deck.id}"`, showValue: false })}
-                            </span>
-                        </div>
-                        <div class="strip-block">
-                            <span class="control-label">FX Send</span>
-                            <span class="control-row">
-                                ${knobMarkup({ id: `send-${deck.id}`, value: deck.controls.send, label: `${deck.label} FX send`, inputAttrs: `data-send="${deck.id}"`, showValue: false })}
-                            </span>
-                        </div>
-                        <div class="strip-block meter">
-                            <span class="meter-label">${deck.label} Meter</span>
-                            <div class="meter-track"><span class="meter-fill" data-deck-meter="${deck.id}"></span></div>
-                            <span class="meter-hint">Pre-Xfade</span>
                         </div>
                     </div>
                 </article>
@@ -1655,8 +1784,12 @@
                 input.addEventListener("input", syncLaneLevel);
             });
 
-            document.querySelectorAll("[data-deck-level], [data-filter], [data-send]").forEach(input => {
+            document.querySelectorAll("[data-deck-level], [data-filter]").forEach(input => {
                 input.addEventListener("input", syncDeckControls);
+            });
+
+            document.querySelectorAll("[data-insert-fx]").forEach(input => {
+                input.addEventListener("input", syncInsertFx);
             });
 
             document.querySelectorAll("[data-eq-band]").forEach(input => {
@@ -1690,13 +1823,604 @@
             return buffer;
         }
 
-        function ensureAudio() {
+        function insertFxWorkletCode() {
+            return `
+                class SynthstreamInsertFx extends AudioWorkletProcessor {
+                    constructor() {
+                        super();
+                        this.targets = { dirt: 0, crush: 0, noise: 0, pump: 0, stutter: 0, gate: 0, space: 0, sweep: 0, reverse: 0, reso: 0, shift: 0, spiral: 0, mobius: 0, width: 0 };
+                        this.smooth = { dirt: 0, crush: 0, noise: 0, pump: 0, stutter: 0, gate: 0, space: 0, sweep: 0, reverse: 0, reso: 0, shift: 0, spiral: 0, mobius: 0, width: 0 };
+                        this.kicks = [];
+                        this.phase = 0;
+                        this.tempo = 124;
+                        this.maxBuffer = Math.floor(sampleRate * 2);
+                        this.sweepBufferLength = Math.floor(sampleRate * 0.07);
+                        this.resoBufferLength = Math.floor(sampleRate * 0.08);
+                        this.widthBufferLength = Math.floor(sampleRate * 0.025);
+                        this.writeIndex = 0;
+                        this.repeatIndex = 0;
+                        this.repeatLength = 1;
+                        this.nextLatchFrame = 0;
+                        this.wasStuttering = false;
+                        this.pumpEnv = 0;
+                        this.noiseKickEnv = 0;
+                        this.noiseMaxWet = 0.18;
+                        this.mobiusMaxWet = 0.12;
+                        this.spaceMaxWet = 0.52;
+                        this.gateGain = 1;
+                        this.widthLp = 0;
+                        this.widthMidLp = 0;
+                        this.widthLeftIndex = 0;
+                        this.widthRightIndex = Math.floor(this.widthBufferLength * 0.5);
+                        this.widthLeftDelay = new Float32Array(this.widthBufferLength);
+                        this.widthRightDelay = new Float32Array(this.widthBufferLength);
+                        this.widthModPhaseA = 0;
+                        this.widthModPhaseB = Math.PI * 0.5;
+                        this.resoFrequencies = [73.42, 82.41, 98, 110, 123.47, 146.83, 164.81, 196, 220, 246.94, 293.66, 329.63, 392, 440];
+                        this.channels = Array.from({ length: 2 }, (_, ch) => ({
+                            dirtTone: 0,
+                            crushHeld: 0,
+                            crushCount: 0,
+                            noiseSeed: (0x6d2b79f5 + ch * 0x1b873593) >>> 0,
+                            noiseLow: 0,
+                            noiseBand: 0,
+                            noiseAir: 0,
+                            noiseGate: 1,
+                            noiseRms: 0,
+                            noiseLimitGain: 1,
+                            noiseWetRms: 0,
+                            noiseWetLimitGain: 1,
+                            buffer: new Float32Array(this.maxBuffer),
+                            repeat: new Float32Array(this.maxBuffer),
+                            reverseBuffer: new Float32Array(this.maxBuffer),
+                            spiralBuffer: new Float32Array(this.maxBuffer),
+                            spiralIndex: 0,
+                            spiralLp: 0,
+                            spiralBp: 0,
+                            spiralReturnRms: 0,
+                            spiralReturnLimitGain: 1,
+                            mobiusPhases: [0, 0, 0, 0],
+                            mobiusFb: 0,
+                            mobiusLp: 0,
+                            mobiusBp: 0,
+                            sweepBuffer: new Float32Array(this.sweepBufferLength),
+                            sweepIndex: 0,
+                            resoBuffer: new Float32Array(this.resoBufferLength),
+                            resoIndex: 0,
+                            shiftPhase: 0,
+                            shiftQuad: 0,
+                            shiftLast: 0,
+                            spaceLp: 0,
+                            spaceDamp: [0, 0, 0, 0],
+                            spaceLines: [
+                                new Float32Array(Math.floor(sampleRate * 0.029)),
+                                new Float32Array(Math.floor(sampleRate * 0.037)),
+                                new Float32Array(Math.floor(sampleRate * 0.053)),
+                                new Float32Array(Math.floor(sampleRate * 0.071)),
+                            ],
+                        }));
+                        this.port.onmessage = (event) => {
+                            const data = event.data || {};
+                            if (data.type === "params") {
+                                Object.keys(this.targets).forEach(key => {
+                                    this.targets[key] = Math.max(0, Math.min(1, Number(data.values?.[key] || 0) / 100));
+                                });
+                            }
+                            if (data.type === "kick") {
+                                const frame = Math.max(currentFrame, Math.round(Number(data.time || currentTime) * sampleRate));
+                                this.kicks.push(frame);
+                                if (this.kicks.length > 32) this.kicks.splice(0, this.kicks.length - 32);
+                            }
+                            if (data.type === "tempo") this.tempo = Number(data.bpm);
+                        };
+                    }
+
+                    smoothParam(name) {
+                        const coeff = 1 - Math.exp(-1 / (sampleRate * 0.022));
+                        this.smooth[name] += (this.targets[name] - this.smooth[name]) * coeff;
+                        return this.smooth[name];
+                    }
+
+                    softClip(x, amount, channel) {
+                        if (amount < 0.002) return x;
+                        const pregain = 1 + amount * amount * 13;
+                        const wet = Math.min(0.92, amount * 0.94);
+                        const trim = 1 / (1 + amount * 1.8);
+                        const toneTarget = Math.tanh(x * pregain) * trim;
+                        channel.dirtTone += (toneTarget - channel.dirtTone) * (0.08 + amount * 0.18);
+                        const driven = toneTarget * (1 - amount * 0.34) + channel.dirtTone * amount * 0.34;
+                        return x * (1 - wet) + driven * wet;
+                    }
+
+                    crush(x, amount, channel) {
+                        if (amount < 0.002) return x;
+                        const usable = Math.min(1, amount * 2);
+                        const harsh = Math.max(0, amount * 2 - 1);
+                        const holdSamples = Math.max(1, Math.round(1 + usable * 7 + harsh * harsh * 56));
+                        const bits = Math.max(4, 16 - usable * 4 - harsh * 8);
+                        const levels = Math.pow(2, Math.round(bits));
+                        if (channel.crushCount <= 0) {
+                            channel.crushHeld = Math.round(x * levels) / levels;
+                            channel.crushCount = holdSamples;
+                        }
+                        channel.crushCount -= 1;
+                        const wet = Math.min(0.92, amount * 0.9);
+                        return x * (1 - wet) + channel.crushHeld * wet;
+                    }
+
+                    randomNoise(channel) {
+                        channel.noiseSeed = (channel.noiseSeed * 1664525 + 1013904223) >>> 0;
+                        return channel.noiseSeed / 2147483648 - 1;
+                    }
+
+                    updateNoiseKickDuck(frame, amount) {
+                        while (this.kicks.length && this.kicks[0] <= frame) {
+                            this.noiseKickEnv = 1;
+                            this.kicks.shift();
+                        }
+                        const release = 0.08 + (1 - amount) * 0.16;
+                        this.noiseKickEnv *= Math.exp(-1 / (sampleRate * release));
+                        const depth = Math.min(0.62, Math.max(0, amount - 0.18) * 0.78);
+                        return 1 - this.noiseKickEnv * depth;
+                    }
+
+                    targetNoiseLevel(amount) {
+                        return 0.024 + Math.pow(amount, 1.35) * 0.15;
+                    }
+
+                    clampNoiseRms(sample, amount, channel) {
+                        const rmsCoeff = 1 - Math.exp(-1 / (sampleRate * 0.026));
+                        channel.noiseRms += (sample * sample - channel.noiseRms) * rmsCoeff;
+                        const rms = Math.sqrt(Math.max(0, channel.noiseRms));
+                        const target = this.targetNoiseLevel(amount);
+                        const desiredGain = rms > target ? target / Math.max(0.000001, rms) : 1;
+                        const gainCoeff = desiredGain < channel.noiseLimitGain ? 0.18 : 0.018;
+                        channel.noiseLimitGain += (desiredGain - channel.noiseLimitGain) * gainCoeff;
+                        channel.noiseLimitGain = Math.min(1, Math.max(0.05, channel.noiseLimitGain));
+                        return sample * channel.noiseLimitGain;
+                    }
+
+                    clampDynamicRms(sample, target, channel, rmsKey, gainKey, floor = 0.04) {
+                        const rmsCoeff = 1 - Math.exp(-1 / (sampleRate * 0.03));
+                        channel[rmsKey] += (sample * sample - channel[rmsKey]) * rmsCoeff;
+                        const rms = Math.sqrt(Math.max(0, channel[rmsKey]));
+                        const desiredGain = rms > target ? target / Math.max(0.000001, rms) : 1;
+                        const gainCoeff = desiredGain < channel[gainKey] ? 0.2 : 0.016;
+                        channel[gainKey] += (desiredGain - channel[gainKey]) * gainCoeff;
+                        channel[gainKey] = Math.min(1, Math.max(floor, channel[gainKey]));
+                        return sample * channel[gainKey];
+                    }
+
+                    targetNoiseWetLevel(amount) {
+                        return 0.032 + Math.pow(amount, 1.25) * 0.063;
+                    }
+
+                    targetSpiralReturnLevel(amount) {
+                        return 0.063 + Math.pow(amount, 1.15) * 0.049;
+                    }
+
+                    softLimitMixed(sample) {
+                        return Math.tanh(sample * 1.22) * 0.96;
+                    }
+
+                    noiseLayer(x, amount, channel, ch, frame, kickDuck) {
+                        if (amount < 0.002) {
+                            channel.noiseGate += (1 - channel.noiseGate) * 0.02;
+                            channel.noiseRms += (0 - channel.noiseRms) * 0.02;
+                            channel.noiseLimitGain += (1 - channel.noiseLimitGain) * 0.02;
+                            channel.noiseWetRms += (0 - channel.noiseWetRms) * 0.02;
+                            channel.noiseWetLimitGain += (1 - channel.noiseWetLimitGain) * 0.02;
+                            return x;
+                        }
+
+                        const beat = sampleRate * 60 / this.tempo;
+                        const pulseAmount = Math.max(0, (amount - 0.24) / 0.76);
+                        const dense = amount > 0.68;
+                        const div = dense ? beat / 4 : beat / 2;
+                        const phase = (this.phase % div) / div;
+                        const openWidth = dense ? 0.2 + (1 - amount) * 0.12 : 0.54 - amount * 0.18;
+                        const pulseOpen = phase < openWidth ? 1 : 0;
+                        const pulseCurve = pulseOpen ? 1 - Math.pow(phase / Math.max(0.001, openWidth), 2) * 0.22 : 0;
+                        const constantAir = Math.max(0, 1 - amount * 1.85);
+                        const gateTarget = Math.max(constantAir, pulseCurve);
+                        const gateCoeff = pulseOpen ? 0.038 + amount * 0.12 : 0.006 + amount * 0.035;
+                        channel.noiseGate += (gateTarget - channel.noiseGate) * gateCoeff;
+
+                        const white = this.randomNoise(channel);
+                        const slowRise = dense ? Math.pow((this.phase % (beat * 4)) / (beat * 4), 1.6) : 0;
+                        const wobble = Math.sin(this.phase / sampleRate * Math.PI * 2 * (0.09 + amount * 0.19) + ch * 1.9) * 0.5 + 0.5;
+                        const cutoff = Math.min(11800, 1300 + amount * amount * 7800 + slowRise * 2600 + wobble * amount * 1700);
+                        const f = Math.min(0.82, 2 * Math.sin(Math.PI * cutoff / sampleRate));
+                        const damping = Math.max(0.16, 1.08 - amount * 0.78);
+
+                        channel.noiseLow += f * channel.noiseBand;
+                        const high = white - channel.noiseLow - damping * channel.noiseBand;
+                        channel.noiseBand += f * high;
+                        const airCoeff = 0.008 + amount * 0.018;
+                        channel.noiseAir += (white - channel.noiseAir) * airCoeff;
+                        const highpass = white - channel.noiseAir;
+                        const bandpass = Math.tanh(channel.noiseBand * (1.15 + amount * 2.6));
+                        const pressure = Math.tanh((bandpass * (0.72 + amount * 1.25) + highpass * (0.32 + amount * 0.18)) * (0.9 + amount * 0.7));
+                        const filtered = amount < 0.35
+                            ? highpass * 0.72 + bandpass * amount * 0.45
+                            : pressure;
+
+                        const env = (1 - pulseAmount * 0.45) + channel.noiseGate * pulseAmount * 1.15;
+                        const resComp = 1 / (1 + amount * 1.65);
+                        const cappedNoise = this.clampNoiseRms(filtered * env * kickDuck * resComp, amount, channel);
+                        const wet = Math.min(1, amount * amount * 0.9 + amount * 0.12) * this.noiseMaxWet;
+                        const wetNoise = this.clampDynamicRms(cappedNoise * wet, this.targetNoiseWetLevel(amount), channel, "noiseWetRms", "noiseWetLimitGain", 0.05);
+                        return this.softLimitMixed(x + wetNoise);
+                    }
+
+                    updatePump(frame, amount) {
+                        while (this.kicks.length && this.kicks[0] <= frame) {
+                            this.pumpEnv = 1;
+                            this.kicks.shift();
+                        }
+                        if (amount < 0.002) {
+                            this.pumpEnv *= 0.995;
+                            return 1;
+                        }
+                        const release = 0.11 + (1 - amount) * 0.24;
+                        this.pumpEnv *= Math.exp(-1 / (sampleRate * release));
+                        const depth = Math.min(0.82, Math.pow(amount, 1.08) * 0.82);
+                        return Math.max(0.1, 1 - this.pumpEnv * depth);
+                    }
+
+                    maybeLatchStutter(amount, frame) {
+                        const active = amount > 0.015;
+                        const beat = sampleRate * 60 / this.tempo;
+                        const lengthTarget = beat * (0.5 - Math.min(0.44, amount * 0.44));
+                        const length = Math.max(96, Math.min(this.maxBuffer - 1, Math.round(lengthTarget)));
+                        if (!active) {
+                            this.wasStuttering = false;
+                            this.nextLatchFrame = frame;
+                            return;
+                        }
+                        if (!this.wasStuttering || frame >= this.nextLatchFrame || Math.abs(length - this.repeatLength) > sampleRate * 0.03) {
+                            this.repeatLength = length;
+                            const start = (this.writeIndex - length + this.maxBuffer) % this.maxBuffer;
+                            this.channels.forEach(channel => {
+                                for (let i = 0; i < length; i += 1) {
+                                    channel.repeat[i] = channel.buffer[(start + i) % this.maxBuffer];
+                                }
+                            });
+                            this.repeatIndex = 0;
+                            this.nextLatchFrame = frame + length;
+                            this.wasStuttering = true;
+                        }
+                    }
+
+                    stutter(x, amount, channel) {
+                        if (amount < 0.015 || this.repeatLength <= 1) return x;
+                        const wet = Math.min(0.92, 0.18 + amount * 0.78);
+                        const chopPhase = this.repeatIndex / Math.max(1, this.repeatLength);
+                        const chop = amount < 0.45 ? 1 : (chopPhase < 0.72 - amount * 0.28 ? 1 : 1 - amount * 0.65);
+                        return x * (1 - wet) + channel.repeat[this.repeatIndex] * wet * chop;
+                    }
+
+                    beatReverse(x, amount, channel) {
+                        channel.reverseBuffer[this.writeIndex] = x;
+                        if (amount < 0.015) return x;
+                        const beat = sampleRate * 60 / this.tempo;
+                        const length = Math.max(128, Math.min(this.maxBuffer - 1, Math.round(beat * (1 - amount * 0.875))));
+                        const slicePos = this.phase % length;
+                        const readOffset = length - 1 - slicePos;
+                        const readIndex = (this.writeIndex - readOffset + this.maxBuffer) % this.maxBuffer;
+                        const reversed = channel.reverseBuffer[readIndex] || 0;
+                        const edge = Math.max(32, Math.min(960, length * 0.12));
+                        const fade = Math.min(1, slicePos / edge, (length - 1 - slicePos) / edge);
+                        const wet = Math.min(0.86, 0.12 + amount * 0.78) * Math.max(0, fade);
+                        return x * (1 - wet) + reversed * wet;
+                    }
+
+                    spiral(x, amount, channel) {
+                        if (amount < 0.002) {
+                            channel.spiralBuffer[channel.spiralIndex] = x;
+                            channel.spiralIndex = (channel.spiralIndex + 1) % channel.spiralBuffer.length;
+                            channel.spiralLp += (0 - channel.spiralLp) * 0.01;
+                            channel.spiralBp += (0 - channel.spiralBp) * 0.01;
+                            channel.spiralReturnRms += (0 - channel.spiralReturnRms) * 0.02;
+                            channel.spiralReturnLimitGain += (1 - channel.spiralReturnLimitGain) * 0.02;
+                            return x;
+                        }
+                        const beat = sampleRate * 60 / this.tempo;
+                        const div = amount < 0.33 ? 0.75 : amount < 0.68 ? 0.5 : 0.25;
+                        const wobble = Math.sin(this.phase / sampleRate * Math.PI * 2 * (0.12 + amount * 0.48));
+                        const delay = Math.max(96, Math.min(this.maxBuffer - 2, beat * div * (1 + wobble * amount * 0.08)));
+                        const delayed = this.readDelay(channel.spiralBuffer, channel.spiralIndex, delay);
+                        const toneFreq = 180 + amount * amount * 2400 + (wobble + 1) * amount * 520;
+                        const f = Math.min(0.55, 2 * Math.sin(Math.PI * toneFreq / sampleRate));
+                        const damp = Math.max(0.24, 1.05 - amount * 0.62);
+                        channel.spiralLp += f * channel.spiralBp;
+                        const high = delayed - channel.spiralLp - damp * channel.spiralBp;
+                        channel.spiralBp += f * high;
+                        const tonal = Math.tanh((channel.spiralBp * (1.2 + amount * 2.2) + channel.spiralLp * 0.42) * (0.88 + amount * 0.55));
+                        const feedback = Math.min(0.68, 0.14 + amount * 0.54);
+                        const write = Math.max(-1.15, Math.min(1.15, x + tonal * feedback));
+                        channel.spiralBuffer[channel.spiralIndex] = write;
+                        channel.spiralIndex = (channel.spiralIndex + 1) % channel.spiralBuffer.length;
+                        const wet = Math.min(0.72, amount * 0.76);
+                        const spiralReturn = this.clampDynamicRms(tonal * wet, this.targetSpiralReturnLevel(amount), channel, "spiralReturnRms", "spiralReturnLimitGain", 0.05);
+                        return this.softLimitMixed(x + spiralReturn);
+                    }
+
+                    mobius(x, amount, channel, ch) {
+                        if (amount < 0.002) {
+                            channel.mobiusFb += (0 - channel.mobiusFb) * 0.01;
+                            channel.mobiusLp += (0 - channel.mobiusLp) * 0.01;
+                            channel.mobiusBp += (0 - channel.mobiusBp) * 0.01;
+                            return x;
+                        }
+                        const rate = 0.045 + amount * amount * 0.18;
+                        const direction = amount < 0.5 ? -1 : 1;
+                        const cycleRaw = (this.phase / sampleRate * rate + ch * 0.035) % 1;
+                        const cycle = direction > 0 ? cycleRaw : 1 - cycleRaw;
+                        const base = 82.41;
+                        let shepard = 0;
+                        let ampSum = 0;
+                        for (let i = 0; i < 4; i += 1) {
+                            const layerPos = (i + cycle) / 4;
+                            const amp = Math.sin(layerPos * Math.PI);
+                            const freq = Math.min(5600, base * Math.pow(2, i - 1 + cycle * 2.4));
+                            channel.mobiusPhases[i] += Math.PI * 2 * freq / sampleRate;
+                            if (channel.mobiusPhases[i] > Math.PI * 2) channel.mobiusPhases[i] -= Math.PI * 2;
+                            shepard += Math.sin(channel.mobiusPhases[i]) * amp;
+                            ampSum += amp;
+                        }
+                        shepard /= Math.max(0.001, ampSum);
+                        const toneFreq = 360 + amount * amount * 5200 + cycle * amount * 2200;
+                        const f = Math.min(0.62, 2 * Math.sin(Math.PI * toneFreq / sampleRate));
+                        const damp = Math.max(0.2, 0.92 - amount * 0.54);
+                        const excite = shepard + channel.mobiusFb * (0.28 + amount * 0.34) + x * amount * 0.18;
+                        channel.mobiusLp += f * channel.mobiusBp;
+                        const high = excite - channel.mobiusLp - damp * channel.mobiusBp;
+                        channel.mobiusBp += f * high;
+                        const pressure = Math.tanh((shepard * 0.62 + channel.mobiusBp * (1.1 + amount * 2.5)) * (0.92 + amount * 0.9));
+                        channel.mobiusFb = Math.max(-0.95, Math.min(0.95, pressure));
+                        const wet = Math.min(1, amount * amount * 0.94 + amount * 0.13) * this.mobiusMaxWet;
+                        return this.softLimitMixed(x + pressure * wet);
+                    }
+
+                    gateAmount(amount) {
+                        if (amount < 0.002) return 1;
+                        const beat = sampleRate * 60 / this.tempo;
+                        const dense = amount > 0.66;
+                        const div = amount < 0.34 ? beat / 2 : dense ? beat / 8 : beat / 4;
+                        const phase = (this.phase % div) / div;
+                        const openWidth = amount < 0.34 ? 0.86 : amount < 0.66 ? 0.58 : 0.34;
+                        const open = phase < openWidth ? 1 : 0;
+                        const depth = amount < 0.34 ? amount * 0.45 : Math.min(0.96, 0.2 + amount * 0.78);
+                        const target = 1 - depth * (1 - open);
+                        const edgeMs = 0.001 + (1 - amount) * 0.004;
+                        const coeff = 1 - Math.exp(-1 / (sampleRate * edgeMs));
+                        this.gateGain += (target - this.gateGain) * coeff;
+                        return this.gateGain;
+                    }
+
+                    readDelay(buffer, index, delay) {
+                        const length = buffer.length;
+                        const read = (index - delay + length) % length;
+                        const i0 = Math.floor(read);
+                        const i1 = (i0 + 1) % length;
+                        const frac = read - i0;
+                        return buffer[i0] * (1 - frac) + buffer[i1] * frac;
+                    }
+
+                    sweep(x, amount, channel, ch) {
+                        if (amount < 0.002) {
+                            channel.sweepBuffer[channel.sweepIndex] = x;
+                            channel.sweepIndex = (channel.sweepIndex + 1) % channel.sweepBuffer.length;
+                            return x;
+                        }
+                        const phase = this.phase / sampleRate;
+                        const rate = 0.055 + amount * amount * 0.42;
+                        const lfo = Math.sin(phase * Math.PI * 2 * rate + ch * 1.7);
+                        const subtle = Math.min(1, amount * 2.2);
+                        const harsh = Math.max(0, amount * 1.7 - 0.7);
+                        const delay = 18 + subtle * 170 + harsh * 310 + (1 + lfo) * (18 + amount * 250);
+                        const delayed = this.readDelay(channel.sweepBuffer, channel.sweepIndex, delay);
+                        const feedback = Math.min(0.72, amount * 0.18 + harsh * 0.42);
+                        channel.sweepBuffer[channel.sweepIndex] = Math.max(-1.2, Math.min(1.2, x + delayed * feedback));
+                        channel.sweepIndex = (channel.sweepIndex + 1) % channel.sweepBuffer.length;
+                        const wet = Math.min(0.78, 0.12 + amount * 0.72);
+                        const polarity = amount < 0.42 ? -1 : 1;
+                        return x * (1 - wet) + delayed * wet * polarity;
+                    }
+
+                    resonator(x, amount, channel) {
+                        if (amount < 0.002) {
+                            channel.resoBuffer[channel.resoIndex] = 0;
+                            channel.resoIndex = (channel.resoIndex + 1) % channel.resoBuffer.length;
+                            return x;
+                        }
+                        const bend = Math.pow(amount, 0.82);
+                        const noteIndex = Math.min(this.resoFrequencies.length - 1, Math.floor(bend * this.resoFrequencies.length));
+                        const fine = 1 + (amount - 0.5) * 0.035;
+                        const frequency = this.resoFrequencies[noteIndex] * fine;
+                        const delay = Math.max(8, Math.min(channel.resoBuffer.length - 2, sampleRate / frequency));
+                        const comb = this.readDelay(channel.resoBuffer, channel.resoIndex, delay);
+                        const feedback = Math.min(0.86, 0.34 + amount * 0.48);
+                        channel.resoBuffer[channel.resoIndex] = Math.max(-1.15, Math.min(1.15, x + comb * feedback));
+                        channel.resoIndex = (channel.resoIndex + 1) % channel.resoBuffer.length;
+                        const wet = Math.min(0.74, 0.13 + amount * 0.68);
+                        return x * (1 - wet) + Math.tanh(comb * (1.4 + amount * 2.1)) * wet;
+                    }
+
+                    shift(x, amount, channel, ch) {
+                        if (amount < 0.002) return x;
+                        const low = Math.min(1, amount * 2.4);
+                        const high = Math.max(0, amount * 1.35 - 0.35);
+                        const frequency = 0.35 + low * 6 + high * high * 145;
+                        channel.shiftPhase += Math.PI * 2 * frequency / sampleRate * (ch ? 1.013 : 1);
+                        if (channel.shiftPhase > Math.PI * 2) channel.shiftPhase -= Math.PI * 2;
+                        const diff = x - channel.shiftLast;
+                        channel.shiftLast = x;
+                        channel.shiftQuad += (diff - channel.shiftQuad) * (0.08 + amount * 0.18);
+                        const shifted = x * Math.cos(channel.shiftPhase) - channel.shiftQuad * Math.sin(channel.shiftPhase) * (2.2 + amount * 1.6);
+                        const wet = Math.min(0.82, amount * 0.86);
+                        return x * (1 - wet) + shifted * wet;
+                    }
+
+                    space(x, amount, channel, ch) {
+                        if (amount < 0.002) return x;
+                        const lowCutCoeff = 0.004 + amount * 0.022;
+                        channel.spaceLp += (x - channel.spaceLp) * lowCutCoeff;
+                        const input = (x - channel.spaceLp) * (0.5 + amount * 0.58);
+                        const feedback = Math.min(0.88, 0.42 + amount * 0.42);
+                        const dampCoeff = 0.18 - amount * 0.115;
+                        let wash = 0;
+                        for (let i = 0; i < channel.spaceLines.length; i += 1) {
+                            const line = channel.spaceLines[i];
+                            const write = this.phase % line.length;
+                            const size = 0.38 + amount * 0.56;
+                            const offset = Math.max(1, Math.floor(line.length * size));
+                            const read = (write - offset + line.length) % line.length;
+                            const delayed = line[read];
+                            channel.spaceDamp[i] += (delayed - channel.spaceDamp[i]) * dampCoeff;
+                            line[write] = Math.max(-1.1, Math.min(1.1, input + channel.spaceDamp[i] * feedback * (i % 2 ? -0.82 : 0.82)));
+                            wash += delayed * (i % 2 ? -0.25 : 0.25);
+                        }
+                        const wet = Math.min(1, amount * 1.02) * this.spaceMaxWet;
+                        return x * (1 - wet) + wash * wet * (ch ? -1 : 1);
+                    }
+
+                    applyWidth(left, right, amount) {
+                        if (amount < 0.002) return [left, right];
+                        const mid = (left + right) * 0.5;
+                        const rawSide = (left - right) * 0.5;
+                        const sideHpCoeff = 0.012 + amount * 0.018;
+                        const midLpCoeff = 0.006 + amount * 0.008;
+                        this.widthLp += (rawSide - this.widthLp) * sideHpCoeff;
+                        this.widthMidLp += (mid - this.widthMidLp) * midLpCoeff;
+
+                        const sideHigh = rawSide - this.widthLp;
+                        const midLow = this.widthMidLp;
+                        const midHigh = mid - midLow;
+                        const monoSource = Math.abs(sideHigh) < Math.abs(midHigh) * 0.04;
+                        const generatedSide = midHigh * (monoSource ? 0.38 : 0.22) * amount;
+
+                        this.widthModPhaseA += Math.PI * 2 * (0.07 + amount * 0.18) / sampleRate;
+                        this.widthModPhaseB += Math.PI * 2 * (0.11 + amount * 0.23) / sampleRate;
+                        if (this.widthModPhaseA > Math.PI * 2) this.widthModPhaseA -= Math.PI * 2;
+                        if (this.widthModPhaseB > Math.PI * 2) this.widthModPhaseB -= Math.PI * 2;
+
+                        const haasDepth = Math.min(1, amount * 1.8);
+                        const chorusDepth = Math.max(0, amount * 1.55 - 0.55);
+                        const modA = Math.sin(this.widthModPhaseA);
+                        const modB = Math.sin(this.widthModPhaseB + Math.PI);
+                        const leftDelay = 3 + haasDepth * 18 + chorusDepth * (11 + modA * 7);
+                        const rightDelay = 5 + haasDepth * 24 + chorusDepth * (13 + modB * 8);
+                        const leftMicro = this.readDelay(this.widthLeftDelay, this.widthLeftIndex, leftDelay);
+                        const rightMicro = this.readDelay(this.widthRightDelay, this.widthRightIndex, rightDelay);
+                        this.widthLeftDelay[this.widthLeftIndex] = midHigh + generatedSide;
+                        this.widthRightDelay[this.widthRightIndex] = midHigh - generatedSide;
+                        this.widthLeftIndex = (this.widthLeftIndex + 1) % this.widthLeftDelay.length;
+                        this.widthRightIndex = (this.widthRightIndex + 1) % this.widthRightDelay.length;
+
+                        const microSide = (leftMicro - rightMicro) * (0.18 + amount * 0.24);
+                        const chorusSide = chorusDepth > 0 ? (leftMicro + rightMicro) * chorusDepth * 0.08 : 0;
+                        const sideGain = 0.12 + amount * 1.72;
+                        const side = sideHigh * sideGain + generatedSide + microSide + chorusSide;
+                        const highMidTrim = 1 - Math.max(0, amount - 0.72) * 0.12;
+                        const trim = 1 / (1 + Math.max(0, amount - 0.55) * 0.68);
+                        return [(midLow + midHigh * highMidTrim + side) * trim, (midLow + midHigh * highMidTrim - side) * trim];
+                    }
+
+                    process(inputs, outputs) {
+                        const input = inputs[0];
+                        const output = outputs[0];
+                        const frames = output[0]?.length || 0;
+                        if (!input.length) return true;
+
+                        for (let i = 0; i < frames; i += 1) {
+                            const dirt = this.smoothParam("dirt");
+                            const crush = this.smoothParam("crush");
+                            const noise = this.smoothParam("noise");
+                            const stutter = this.smoothParam("stutter");
+                            const gate = this.smoothParam("gate");
+                            const space = this.smoothParam("space");
+                            const sweep = this.smoothParam("sweep");
+                            const reverse = this.smoothParam("reverse");
+                            const reso = this.smoothParam("reso");
+                            const shift = this.smoothParam("shift");
+                            const spiral = this.smoothParam("spiral");
+                            const mobius = this.smoothParam("mobius");
+                            const width = this.smoothParam("width");
+                            const frame = currentFrame + i;
+                            this.maybeLatchStutter(stutter, frame);
+                            const noiseKickDuck = this.updateNoiseKickDuck(frame, noise);
+                            const gateGain = this.gateAmount(gate);
+                            const samples = [];
+
+                            for (let ch = 0; ch < output.length; ch += 1) {
+                                const channel = this.channels[ch] || this.channels[0];
+                                const source = input[ch] || input[0];
+                                let sample = source ? source[i] : 0;
+                                channel.buffer[this.writeIndex] = sample;
+                                sample = this.softClip(sample, dirt, channel);
+                                sample = this.crush(sample, crush, channel);
+                                sample = this.noiseLayer(sample, noise, channel, ch, frame, noiseKickDuck);
+                                sample = this.resonator(sample, reso, channel);
+                                sample = this.shift(sample, shift, channel, ch);
+                                sample = this.sweep(sample, sweep, channel, ch);
+                                sample = this.beatReverse(sample, reverse, channel);
+                                sample = this.stutter(sample, stutter, channel);
+                                sample = this.spiral(sample, spiral, channel);
+                                sample = this.mobius(sample, mobius, channel, ch);
+                                sample *= gateGain;
+                                sample = this.space(sample, space, channel, ch);
+                                samples[ch] = sample;
+                            }
+
+                            if (output.length > 1) {
+                                const widened = this.applyWidth(samples[0] || 0, samples[1] ?? samples[0] ?? 0, width);
+                                samples[0] = widened[0];
+                                samples[1] = widened[1];
+                            }
+
+                            for (let ch = 0; ch < output.length; ch += 1) {
+                                output[ch][i] = Math.max(-1, Math.min(1, samples[ch] || 0));
+                            }
+
+                            this.writeIndex = (this.writeIndex + 1) % this.maxBuffer;
+                            if (stutter > 0.015) this.repeatIndex = (this.repeatIndex + 1) % Math.max(1, this.repeatLength);
+                            this.phase += 1;
+                        }
+                        return true;
+                    }
+                }
+
+                registerProcessor("synthstream-insert-fx", SynthstreamInsertFx);
+            `;
+        }
+
+        async function initializeInsertWorklet() {
+            if (!audioCtx.audioWorklet || insertWorkletReady) return insertWorkletReady;
+            try {
+                const blob = new Blob([insertFxWorkletCode()], { type: "application/javascript" });
+                const url = URL.createObjectURL(blob);
+                await audioCtx.audioWorklet.addModule(url);
+                URL.revokeObjectURL(url);
+                insertWorkletReady = true;
+            } catch (error) {
+                insertWorkletReady = false;
+            }
+            return insertWorkletReady;
+        }
+
+        async function ensureAudio() {
             if (audioCtx) return;
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
+            insertWorkletReady = false;
+            insertWorkletStatusShown = false;
+            await initializeInsertWorklet();
             mixBus = audioCtx.createGain();
             compressor = audioCtx.createDynamicsCompressor();
+            masterLimiter = audioCtx.createDynamicsCompressor();
             masterGain = audioCtx.createGain();
             masterAnalyser = audioCtx.createAnalyser();
             delay = audioCtx.createDelay(1);
@@ -1711,6 +2435,11 @@
             compressor.ratio.value = 2.8;
             compressor.attack.value = 0.006;
             compressor.release.value = 0.18;
+            masterLimiter.threshold.value = -1;
+            masterLimiter.knee.value = 0;
+            masterLimiter.ratio.value = 20;
+            masterLimiter.attack.value = 0.0015;
+            masterLimiter.release.value = 0.06;
             masterAnalyser.fftSize = 2048;
             masterAnalyser.smoothingTimeConstant = 0.78;
             delayHighpass.type = "highpass";
@@ -1727,7 +2456,8 @@
             delayLowpass.connect(delayReturn);
             delayReturn.connect(mixBus);
             mixBus.connect(compressor);
-            compressor.connect(masterAnalyser);
+            compressor.connect(masterLimiter);
+            masterLimiter.connect(masterAnalyser);
             masterAnalyser.connect(masterGain);
             masterGain.connect(audioCtx.destination);
 
@@ -1735,15 +2465,21 @@
             timeData = new Uint8Array(masterAnalyser.fftSize);
             masterMeterData = new Uint8Array(masterAnalyser.frequencyBinCount);
             syncAllControls();
+            if (!insertWorkletReady && !insertWorkletStatusShown) {
+                insertWorkletStatusShown = true;
+                setStatus("Insert FX bypassed: AudioWorklet unavailable");
+            }
         }
 
         function createDeckNodes(deck) {
             const input = audioCtx.createGain();
+            let insert = null;
             const low = audioCtx.createBiquadFilter();
             const mid = audioCtx.createBiquadFilter();
             const high = audioCtx.createBiquadFilter();
             const filter = audioCtx.createBiquadFilter();
             const level = audioCtx.createGain();
+            const deckLimiter = audioCtx.createDynamicsCompressor();
             const analyser = audioCtx.createAnalyser();
             const crossfade = audioCtx.createGain();
             const send = audioCtx.createGain();
@@ -1755,27 +2491,63 @@
             mid.Q.value = 1.1;
             high.type = "highshelf";
             high.frequency.value = 4200;
+            deckLimiter.threshold.value = -6;
+            deckLimiter.knee.value = 6;
+            deckLimiter.ratio.value = 10;
+            deckLimiter.attack.value = 0.003;
+            deckLimiter.release.value = 0.08;
             analyser.fftSize = 512;
             analyser.smoothingTimeConstant = 0.78;
 
-            input.connect(low);
+            if (insertWorkletReady) {
+                try {
+                    insert = new AudioWorkletNode(audioCtx, "synthstream-insert-fx", {
+                        numberOfInputs: 1,
+                        numberOfOutputs: 1,
+                        outputChannelCount: [2],
+                    });
+                    insert.port.postMessage({ type: "tempo", bpm: BPM });
+                    input.connect(insert);
+                    insert.connect(low);
+                } catch (error) {
+                    insert = null;
+                    input.connect(low);
+                    insertWorkletReady = false;
+                    setStatus("Insert FX bypassed: processor unavailable");
+                }
+            } else {
+                input.connect(low);
+            }
             low.connect(mid);
             mid.connect(high);
             high.connect(filter);
             filter.connect(level);
-            level.connect(analyser);
+            level.connect(deckLimiter);
+            deckLimiter.connect(analyser);
             analyser.connect(crossfade);
             crossfade.connect(mixBus);
             crossfade.connect(send);
             send.connect(delay);
 
-            deckNodes[deck.id] = { input, low, mid, high, filter, level, analyser, data: new Uint8Array(analyser.frequencyBinCount), crossfade, send };
+            deckNodes[deck.id] = { input, insert, low, mid, high, filter, level, deckLimiter, analyser, data: new Uint8Array(analyser.frequencyBinCount), crossfade, send };
 
             deck.lanes.forEach(lane => {
-                const gain = audioCtx.createGain();
-                gain.gain.value = lane.level / 100;
-                gain.connect(input);
-                laneNodes[nodeKey(deck.id, lane.id)] = { gain };
+                const levelGain = audioCtx.createGain();
+                levelGain.gain.value = lane.level / 100;
+
+                if (lane.voice === "bass") {
+                    const pumpGain = audioCtx.createGain();
+                    pumpGain.gain.value = 1;
+                    pumpGain.connect(levelGain);
+                    levelGain.connect(input);
+                    laneNodes[nodeKey(deck.id, lane.id)] = { gain: pumpGain, levelGain, pumpGain, voice: lane.voice };
+                    if (!bassPumpState[deck.id]) bassPumpState[deck.id] = [];
+                    bassPumpState[deck.id].push({ gain: pumpGain, activeUntil: 0 });
+                    return;
+                }
+
+                levelGain.connect(input);
+                laneNodes[nodeKey(deck.id, lane.id)] = { gain: levelGain, levelGain, voice: lane.voice };
             });
         }
 
@@ -1820,6 +2592,7 @@
         function syncAllControls() {
             syncLaneLevel();
             syncDeckControls();
+            syncInsertFx();
             syncEq();
             syncCrossfader();
             syncFxControls();
@@ -1841,7 +2614,7 @@
                 if (isLaneActive(lane)) lane.lastNonZeroLevel = value;
                 refreshKnob(document.querySelector(`[data-knob][data-lane-knob="${deckId}:${laneId}"]`));
                 const node = laneNodes[nodeKey(deckId, laneId)];
-                if (node && audioCtx) rampParam(node.gain.gain, value / 100, audioCtx.currentTime, 0.035);
+                if (node && audioCtx) rampParam((node.levelGain || node.gain).gain, value / 100, audioCtx.currentTime, 0.035);
             });
             renderState();
         }
@@ -1865,7 +2638,7 @@
                 if (sendValue) sendValue.textContent = String(deck.controls.send);
                 refreshKnob(document.querySelector(`[data-knob][data-input="deck-level-${deckId}"]`));
                 refreshKnob(document.querySelector(`[data-knob][data-input="filter-${deckId}"]`));
-                refreshKnob(document.querySelector(`[data-knob][data-input="send-${deckId}"]`));
+                refreshKnob(document.querySelector(`[data-knob][data-input="send-${deckId}"]`) || document.querySelector(`[data-knob][data-input="send-${deckId.toLowerCase()}"]`));
 
                 const nodes = deckNodes[deckId];
                 if (nodes && audioCtx) {
@@ -1873,6 +2646,27 @@
                     rampParam(nodes.send.gain, deck.controls.send / 100 * 1.15, audioCtx.currentTime, 0.04);
                     configureDeckFilter(nodes.filter, deck.controls.filter);
                 }
+            });
+        }
+
+        function syncInsertFx(event) {
+            const deckIds = event ? [event.currentTarget.dataset.insertFx.split(":")[0]] : decks.map(deck => deck.id);
+            deckIds.forEach(deckId => {
+                const deck = deckById(deckId);
+                if (!deck) return;
+                INSERT_FX.forEach(effect => {
+                    const input = document.querySelector(`[data-insert-fx="${deck.id}:${effect.id}"]`);
+                    if (input) deck.insertFx[effect.id] = Number(input.value);
+                    refreshKnob(document.querySelector(`[data-knob][data-input="insert-${deck.id}-${effect.id}"]`));
+                });
+                const insert = deckNodes[deck.id]?.insert;
+                if (insert?.port) {
+                    insert.port.postMessage({
+                        type: "params",
+                        values: { ...deck.insertFx },
+                    });
+                }
+                if ((deck.insertFx.pump || 0) <= 0) resetBassPump(deck.id);
             });
         }
 
@@ -2107,13 +2901,69 @@
             lane.lastPulse = performance.now();
             scheduleUiPulse(deck.id, lane.id, time);
 
-            if (lane.voice === "kick") playKick(deck, lane, time, velocity);
+            if (lane.voice === "kick") {
+                triggerPump(deck.id, time);
+                playKick(deck, lane, time, velocity);
+            }
             if (lane.voice === "bass") playBass(deck, lane, time, step, velocity);
             if (lane.voice === "hat") playHat(deck, lane, time, velocity);
             if (lane.voice === "perc") playPerc(deck, lane, time, step, velocity);
             if (lane.voice === "lead") playLead(deck, lane, time, step, velocity);
             if (lane.voice === "drone") playDrone(deck, lane, time, step, symbol);
             if (lane.voice === "texture") playTexture(deck, lane, time, velocity);
+        }
+
+        function triggerPump(deckId, time) {
+            const insert = deckNodes[deckId]?.insert;
+            if (insert?.port) insert.port.postMessage({ type: "kick", time });
+
+            const deck = deckById(deckId);
+            const amount = Math.max(0, Math.min(1, Number(deck?.insertFx?.pump || 0) / 100));
+            const states = bassPumpState[deckId] || [];
+            if (!audioCtx || !states.length) return;
+
+            if (amount < 0.002) {
+                resetBassPump(deckId);
+                return;
+            }
+
+            const start = Math.max(audioCtx.currentTime, time);
+            const attack = 0.006 + (1 - amount) * 0.008;
+            const hold = 0.012 + amount * 0.026;
+            const release = 0.12 + (1 - amount) * 0.22;
+            const depth = Math.min(0.88, Math.pow(amount, 1.08) * 0.88);
+            const duckGain = Math.max(0.08, 1 - depth);
+            const releaseStart = start + attack + hold;
+
+            states.forEach(state => {
+                const param = state.gain?.gain;
+                if (!param) return;
+                if (typeof param.cancelAndHoldAtTime === "function") {
+                    param.cancelAndHoldAtTime(start);
+                } else {
+                    param.cancelScheduledValues(start);
+                    param.setValueAtTime(Math.min(1, Math.max(duckGain, param.value || 1)), start);
+                }
+                param.linearRampToValueAtTime(duckGain, start + attack);
+                param.setTargetAtTime(1, releaseStart, release);
+                state.activeUntil = releaseStart + release * 5;
+            });
+        }
+
+        function resetBassPump(deckId) {
+            if (!audioCtx) return;
+            (bassPumpState[deckId] || []).forEach(state => {
+                const param = state.gain?.gain;
+                if (!param) return;
+                const now = audioCtx.currentTime;
+                if (state.activeUntil > now) {
+                    param.cancelScheduledValues(now);
+                    param.setTargetAtTime(1, now, 0.018);
+                } else {
+                    param.setValueAtTime(1, now);
+                }
+                state.activeUntil = 0;
+            });
         }
 
         function scheduleUiPulse(deckId, laneId, time) {
@@ -2149,7 +2999,7 @@
         }
 
         async function play() {
-            ensureAudio();
+            await ensureAudio();
             if (audioCtx.state === "suspended") await audioCtx.resume();
             const now = audioCtx.currentTime;
             isPlaying = true;
@@ -2158,8 +3008,9 @@
             window.clearInterval(schedulerId);
             schedulerId = window.setInterval(scheduler, LOOKAHEAD_MS);
             els.play.textContent = "Pause";
-            els.readout.textContent = "124 BPM / 4/4 / 16 Steps / Playing";
+            els.readout.textContent = `${BPM} BPM / 4/4 / 16 Steps / Playing`;
             setStatus("Playing");
+            if (!insertWorkletReady) setStatus("Playing; insert FX bypassed");
         }
 
         function pause() {
@@ -2169,7 +3020,7 @@
             isPlaying = false;
             audioCtx.suspend();
             els.play.textContent = "Play";
-            els.readout.textContent = "124 BPM / 4/4 / 16 Steps / Paused";
+            els.readout.textContent = `${BPM} BPM / 4/4 / 16 Steps / Paused`;
             setStatus("Playback paused");
         }
 
@@ -2182,7 +3033,7 @@
             visibleStep = 0;
             clearUiTimers();
             els.play.textContent = "Play";
-            els.readout.textContent = "124 BPM / 4/4 / 16 Steps / Stopped";
+            els.readout.textContent = `${BPM} BPM / 4/4 / 16 Steps / Stopped`;
             setStatus("Playback stopped");
             renderStep();
         }
@@ -2194,15 +3045,23 @@
             selectedDivision = "1/4";
             deckNodes = {};
             laneNodes = {};
+            bassPumpState = {};
+            insertWorkletReady = false;
+            insertWorkletStatusShown = false;
             if (audioCtx && audioCtx.state !== "closed") {
                 audioCtx.close();
             }
             audioCtx = null;
             renderStaticUi();
+            decks.forEach(deck => {
+                const sendInput = document.querySelector(`[data-send="${deck.id}"]`);
+                if (sendInput) sendInput.value = deck.controls.send;
+            });
             els.feedback.value = 48;
             els.fxReturn.value = 42;
             els.master.value = 58;
             els.crossfader.value = 50;
+            syncDeckControls();
             syncFxControls();
             syncMaster();
             setStatus("Station reset");
@@ -2226,7 +3085,7 @@
             }
             renderStaticUi();
             setStatus(`Mutation seed ${String(seed).padStart(2, "0")}`);
-            els.readout.textContent = `124 BPM / 4/4 / 16 Steps / Seed ${String(seed).padStart(2, "0")}`;
+            els.readout.textContent = `${BPM} BPM / 4/4 / 16 Steps / Seed ${String(seed).padStart(2, "0")}`;
         }
 
         function clearUiTimers() {
@@ -2358,6 +3217,9 @@
         els.stop.addEventListener("click", stop);
         els.reset.addEventListener("click", resetAll);
         els.mutate.addEventListener("click", mutate);
+        document.querySelectorAll("[data-send]").forEach(input => {
+            input.addEventListener("input", syncDeckControls);
+        });
         els.feedback.addEventListener("input", syncFxControls);
         els.fxReturn.addEventListener("input", syncFxControls);
         els.master.addEventListener("input", syncMaster);
