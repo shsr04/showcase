@@ -225,8 +225,8 @@
         }
 
         .deck-header {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
             align-items: center;
             gap: 12px;
             padding-bottom: 10px;
@@ -237,6 +237,7 @@
             display: grid;
             gap: 3px;
             min-width: 0;
+            flex: 1;
         }
 
         .deck-title strong {
@@ -247,6 +248,35 @@
         .deck-kicker {
             color: var(--muted);
             font-size: 0.66rem;
+        }
+
+        .library-switcher {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: end;
+        }
+
+        .library-button {
+            display: grid;
+            place-items: center;
+            width: 32px;
+            aspect-ratio: 1;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.055);
+            color: var(--text);
+            cursor: pointer;
+            font-family: var(--mono);
+            font-size: 0.74rem;
+            line-height: 1;
+        }
+
+        .library-button:hover,
+        .library-button.is-virtual-hover {
+            border-color: rgba(117, 255, 214, 0.55);
+            color: var(--green);
         }
 
         .deck-status-light {
@@ -1109,6 +1139,7 @@
         const STEPS = 16;
         const LOOKAHEAD_MS = 25;
         const SCHEDULE_AHEAD = 0.14;
+        const VIRTUAL_CURSOR_SENSITIVITY = 1.8;
         const KNOB_SENSITIVITY = 0.75;
         const KNOB_DRAG_WIDTH = 220;
         const LANE_OFF_LEVEL = 1;
@@ -1135,14 +1166,36 @@
             { id: "pump", label: "Pump" },
             { id: "width", label: "Width" },
         ];
+        const PUMP_LANE_VOICES = new Set(["bass", "lead", "drone", "texture"]);
 
-        const BASE_DECKS = [
-            {
-                id: "a",
-                label: "Deck A",
+        const LANE_LIBRARY_ORDER = [
+            "hypnotic-techno",
+            "acid-techno",
+            "minimal-techno",
+            "industrial-techno",
+            "hard-techno",
+            "dub-techno",
+            "psy-tech",
+        ];
+
+        const LANE_LIBRARIES = {
+            "hypnotic-techno": {
+                id: "hypnotic-techno",
                 title: "Hypnotic Techno",
-                color: "var(--green)",
-                defaults: { level: 82, filter: 0, send: 18 },
+                preferredSendFxAmount: 18,
+                percussionDensity: 0.58,
+                droneImportance: 0.9,
+                probabilityAmount: 0.42,
+                mutationSpeed: 0.38,
+                swing: 0.06,
+                groove: [0, 0.015, 0, 0.035],
+                kick: { start: 112, end: 42, decay: 0.34, click: 0.15, gain: 0.95 },
+                bass: { oscillator: "square", noteOffset: 0, filterStart: 220, filterSpread: 120, filterPeak: 820, filterEnd: 180, resonance: 8, decay: 0.24, gain: 0.23 },
+                hat: { frequency: 6600, spread: 1700, gain: 0.13, decay: 0.09 },
+                perc: { frequency: 360, spread: 260, panSeed: 40, gain: 0.16, decay: 0.11 },
+                lead: { oscillator: "sawtooth", octave: 1.5, filterStart: 1200, filterPeak: 2200, gain: 0.1, decay: 0.32 },
+                drone: { octave: 1, gain: 0.12, filterBase: 160, filterStep: 24 },
+                texture: { frequency: 3800, spread: 1200, gain: 0.09, decay: 0.42 },
                 lanes: [
                     { id: "kick", label: "Kick", voice: "kick", pattern: "K---K---K---K---", level: 86, enabled: false },
                     { id: "bass", label: "Bass", voice: "bass", pattern: "--B---B---B---B-", level: 76, enabled: false, notes: [2, 2, 4, 2, 5, 2, 7, 4] },
@@ -1153,12 +1206,23 @@
                     { id: "texture", label: "Texture", voice: "texture", pattern: "T--t--T--t--T--t", level: 38, enabled: false },
                 ],
             },
-            {
-                id: "b",
-                label: "Deck B",
+            "acid-techno": {
+                id: "acid-techno",
                 title: "Acid Techno",
-                color: "var(--pink)",
-                defaults: { level: 78, filter: 0, send: 24 },
+                preferredSendFxAmount: 24,
+                percussionDensity: 0.72,
+                droneImportance: 0.35,
+                probabilityAmount: 0.54,
+                mutationSpeed: 0.62,
+                swing: 0.04,
+                groove: [0, 0.01, 0, 0.02],
+                kick: { start: 126, end: 48, decay: 0.33, click: 0.18, gain: 0.98 },
+                bass: { oscillator: "sawtooth", noteOffset: 2, filterStart: 360, filterSpread: 260, filterPeak: 1400, filterEnd: 180, resonance: 13, decay: 0.24, gain: 0.23 },
+                hat: { frequency: 7600, spread: 1700, gain: 0.14, decay: 0.08 },
+                perc: { frequency: 520, spread: 360, panSeed: 80, gain: 0.17, decay: 0.11 },
+                lead: { oscillator: "square", octave: 2, filterStart: 1800, filterPeak: 3600, gain: 0.11, decay: 0.32 },
+                drone: { octave: 1.5, gain: 0.08, filterBase: 180, filterStep: 26 },
+                texture: { frequency: 5200, spread: 1400, gain: 0.1, decay: 0.38 },
                 lanes: [
                     { id: "kick", label: "Kick", voice: "kick", pattern: "K---K---K---K---", level: 82, enabled: false },
                     { id: "bass", label: "Bass", voice: "bass", pattern: "B-bB-B-bB--B-bB-", level: 84, enabled: false, notes: [4, 2, 7, 5, 9, 7, 5, 2] },
@@ -1168,6 +1232,158 @@
                     { id: "drone", label: "Drone", voice: "drone", pattern: "D~~~D~~~D~~~D~~~", level: 44, enabled: false, notes: [2, 9] },
                     { id: "texture", label: "Texture", voice: "texture", pattern: "-t--T--t--T--t--", level: 56, enabled: false },
                 ],
+            },
+            "minimal-techno": {
+                id: "minimal-techno",
+                title: "Minimal Techno",
+                preferredSendFxAmount: 14,
+                percussionDensity: 0.36,
+                droneImportance: 0.28,
+                probabilityAmount: 0.28,
+                mutationSpeed: 0.24,
+                swing: 0.1,
+                groove: [0, 0.025, 0.005, 0.045],
+                kick: { start: 104, end: 44, decay: 0.26, click: 0.1, gain: 0.88 },
+                bass: { oscillator: "triangle", noteOffset: 0, filterStart: 170, filterSpread: 80, filterPeak: 620, filterEnd: 150, resonance: 6, decay: 0.18, gain: 0.18 },
+                hat: { frequency: 7000, spread: 1100, gain: 0.1, decay: 0.055 },
+                perc: { frequency: 440, spread: 160, panSeed: 28, gain: 0.12, decay: 0.08 },
+                lead: { oscillator: "triangle", octave: 1.25, filterStart: 950, filterPeak: 1700, gain: 0.08, decay: 0.22 },
+                drone: { octave: 1, gain: 0.06, filterBase: 145, filterStep: 16 },
+                texture: { frequency: 3600, spread: 800, gain: 0.06, decay: 0.28 },
+                lanes: [
+                    { id: "kick", label: "Kick", voice: "kick", pattern: "K---K---K---K---", level: 78, enabled: false },
+                    { id: "bass", label: "Bass", voice: "bass", pattern: "----B-------b---", level: 60, enabled: false, notes: [2, 2, 5, 2, 4, 2] },
+                    { id: "hat", label: "Hat", voice: "hat", pattern: "----h---H---h---", level: 52, enabled: false },
+                    { id: "perc", label: "Perc", voice: "perc", pattern: "---p-------P----", level: 44, enabled: false },
+                    { id: "lead", label: "Lead", voice: "lead", pattern: "-------L--------", level: 34, enabled: false, notes: [7, 9, 12, 9, 7] },
+                    { id: "drone", label: "Drone", voice: "drone", pattern: "D~~~~~~~D~~~~~~~", level: 32, enabled: false, notes: [0, 5] },
+                    { id: "texture", label: "Texture", voice: "texture", pattern: "t-------T-------", level: 34, enabled: false },
+                ],
+            },
+            "industrial-techno": {
+                id: "industrial-techno",
+                title: "Industrial Techno",
+                preferredSendFxAmount: 16,
+                percussionDensity: 0.82,
+                droneImportance: 0.52,
+                probabilityAmount: 0.48,
+                mutationSpeed: 0.68,
+                swing: 0.02,
+                groove: [0, 0, 0.012, 0],
+                kick: { start: 138, end: 46, decay: 0.38, click: 0.28, gain: 1.05 },
+                bass: { oscillator: "sawtooth", noteOffset: 1, filterStart: 190, filterSpread: 190, filterPeak: 980, filterEnd: 120, resonance: 10, decay: 0.28, gain: 0.25 },
+                hat: { frequency: 8200, spread: 2100, gain: 0.15, decay: 0.07 },
+                perc: { frequency: 760, spread: 520, panSeed: 120, gain: 0.21, decay: 0.13 },
+                lead: { oscillator: "square", octave: 1.2, filterStart: 900, filterPeak: 2500, gain: 0.09, decay: 0.26 },
+                drone: { octave: 0.75, gain: 0.13, filterBase: 120, filterStep: 34 },
+                texture: { frequency: 2600, spread: 1800, gain: 0.13, decay: 0.5 },
+                lanes: [
+                    { id: "kick", label: "Kick", voice: "kick", pattern: "K---K---K---K---", level: 88, enabled: false },
+                    { id: "bass", label: "Bass", voice: "bass", pattern: "B---b-B---B-b---", level: 78, enabled: false, notes: [0, 0, 1, 0, 3, 1] },
+                    { id: "hat", label: "Hat", voice: "hat", pattern: "-HH--HH--HH--HH-", level: 72, enabled: false },
+                    { id: "perc", label: "Perc", voice: "perc", pattern: "P-p-P--pP-p-P--p", level: 68, enabled: false },
+                    { id: "lead", label: "Lead", voice: "lead", pattern: "----L-----l-L---", level: 40, enabled: false, notes: [5, 7, 8, 7, 5] },
+                    { id: "drone", label: "Drone", voice: "drone", pattern: "D~~~D~~~D~~~D~~~", level: 58, enabled: false, notes: [0, 6] },
+                    { id: "texture", label: "Texture", voice: "texture", pattern: "T-t-T-t-T-t-T-t-", level: 62, enabled: false },
+                ],
+            },
+            "hard-techno": {
+                id: "hard-techno",
+                title: "Hard Techno",
+                preferredSendFxAmount: 12,
+                percussionDensity: 0.88,
+                droneImportance: 0.22,
+                probabilityAmount: 0.62,
+                mutationSpeed: 0.76,
+                swing: 0.01,
+                groove: [0, 0, 0, 0.008],
+                kick: { start: 150, end: 50, decay: 0.42, click: 0.24, gain: 1.08 },
+                bass: { oscillator: "sawtooth", noteOffset: 0, filterStart: 240, filterSpread: 180, filterPeak: 1050, filterEnd: 160, resonance: 9, decay: 0.2, gain: 0.28 },
+                hat: { frequency: 8800, spread: 1900, gain: 0.16, decay: 0.06 },
+                perc: { frequency: 680, spread: 480, panSeed: 96, gain: 0.2, decay: 0.1 },
+                lead: { oscillator: "sawtooth", octave: 1.5, filterStart: 1300, filterPeak: 3100, gain: 0.1, decay: 0.24 },
+                drone: { octave: 0.85, gain: 0.07, filterBase: 135, filterStep: 20 },
+                texture: { frequency: 4600, spread: 1700, gain: 0.1, decay: 0.26 },
+                lanes: [
+                    { id: "kick", label: "Kick", voice: "kick", pattern: "K---K---K---K---", level: 92, enabled: false },
+                    { id: "bass", label: "Bass", voice: "bass", pattern: "B-B-B-B-B-B-B-B-", level: 82, enabled: false, notes: [0, 0, 3, 0, 5, 3, 0, 7] },
+                    { id: "hat", label: "Hat", voice: "hat", pattern: "HHHH-HHHHHHH-HHH", level: 76, enabled: false },
+                    { id: "perc", label: "Perc", voice: "perc", pattern: "--P-P-P---P-P-P-", level: 66, enabled: false },
+                    { id: "lead", label: "Lead", voice: "lead", pattern: "L---l---L---l---", level: 46, enabled: false, notes: [7, 10, 12, 10, 7, 5] },
+                    { id: "drone", label: "Drone", voice: "drone", pattern: "D~~~~~~~D~~~~~~~", level: 34, enabled: false, notes: [0, 7] },
+                    { id: "texture", label: "Texture", voice: "texture", pattern: "T-t-T-t-T-t-T-t-", level: 52, enabled: false },
+                ],
+            },
+            "dub-techno": {
+                id: "dub-techno",
+                title: "Dub Techno",
+                preferredSendFxAmount: 44,
+                percussionDensity: 0.42,
+                droneImportance: 0.96,
+                probabilityAmount: 0.36,
+                mutationSpeed: 0.28,
+                swing: 0.14,
+                groove: [0, 0.035, 0, 0.06],
+                kick: { start: 108, end: 40, decay: 0.36, click: 0.11, gain: 0.92 },
+                bass: { oscillator: "sine", noteOffset: 0, filterStart: 150, filterSpread: 70, filterPeak: 560, filterEnd: 120, resonance: 5, decay: 0.32, gain: 0.22 },
+                hat: { frequency: 6200, spread: 1200, gain: 0.1, decay: 0.1 },
+                perc: { frequency: 380, spread: 220, panSeed: 66, gain: 0.12, decay: 0.16 },
+                lead: { oscillator: "triangle", octave: 1.1, filterStart: 700, filterPeak: 1500, gain: 0.07, decay: 0.5 },
+                drone: { octave: 1, gain: 0.15, filterBase: 110, filterStep: 18 },
+                texture: { frequency: 3100, spread: 900, gain: 0.12, decay: 0.68 },
+                lanes: [
+                    { id: "kick", label: "Kick", voice: "kick", pattern: "K---K---K---K---", level: 80, enabled: false },
+                    { id: "bass", label: "Bass", voice: "bass", pattern: "B-------b---B---", level: 70, enabled: false, notes: [0, 0, 5, 0, 7, 5] },
+                    { id: "hat", label: "Hat", voice: "hat", pattern: "--h---H-----h---", level: 50, enabled: false },
+                    { id: "perc", label: "Perc", voice: "perc", pattern: "---p-----P------", level: 46, enabled: false },
+                    { id: "lead", label: "Lead", voice: "lead", pattern: "----L-------l---", level: 36, enabled: false, notes: [7, 10, 12, 15, 12] },
+                    { id: "drone", label: "Drone", voice: "drone", pattern: "D~~~D~~~D~~~D~~~", level: 72, enabled: true, notes: [0, 7] },
+                    { id: "texture", label: "Texture", voice: "texture", pattern: "T~~~t~~~T~~~t~~~", level: 58, enabled: false },
+                ],
+            },
+            "psy-tech": {
+                id: "psy-tech",
+                title: "Psy-Tech / Psytrance",
+                preferredSendFxAmount: 26,
+                percussionDensity: 0.86,
+                droneImportance: 0.5,
+                probabilityAmount: 0.7,
+                mutationSpeed: 0.82,
+                swing: 0.025,
+                groove: [0, 0.005, 0.018, 0.004],
+                kick: { start: 132, end: 45, decay: 0.3, click: 0.2, gain: 1 },
+                bass: { oscillator: "sawtooth", noteOffset: 1, filterStart: 260, filterSpread: 220, filterPeak: 1180, filterEnd: 150, resonance: 11, decay: 0.16, gain: 0.22 },
+                hat: { frequency: 8400, spread: 1800, gain: 0.14, decay: 0.06 },
+                perc: { frequency: 620, spread: 440, panSeed: 150, gain: 0.18, decay: 0.09 },
+                lead: { oscillator: "square", octave: 2, filterStart: 1600, filterPeak: 4200, gain: 0.12, decay: 0.22 },
+                drone: { octave: 1.25, gain: 0.1, filterBase: 170, filterStep: 36 },
+                texture: { frequency: 5600, spread: 1600, gain: 0.11, decay: 0.36 },
+                lanes: [
+                    { id: "kick", label: "Kick", voice: "kick", pattern: "K---K---K---K---", level: 86, enabled: false },
+                    { id: "bass", label: "Bass", voice: "bass", pattern: "-BBB-BBB-BBB-BBB", level: 84, enabled: false, notes: [0, 0, 3, 0, 5, 0, 7, 5] },
+                    { id: "hat", label: "Hat", voice: "hat", pattern: "h-Hh-h-Hh-h-Hh-h", level: 70, enabled: false },
+                    { id: "perc", label: "Perc", voice: "perc", pattern: "--Pp-Pp---Pp-Pp-", level: 62, enabled: false },
+                    { id: "lead", label: "Lead", voice: "lead", pattern: "L--l--L---l-L---", level: 54, enabled: false, notes: [12, 14, 15, 17, 15, 14, 12] },
+                    { id: "drone", label: "Drone", voice: "drone", pattern: "D~~~D~~~D~~~D~~~", level: 48, enabled: false, notes: [0, 12] },
+                    { id: "texture", label: "Texture", voice: "texture", pattern: "T-tT-tT-tT-tT-t", level: 54, enabled: false },
+                ],
+            },
+        };
+
+        const BASE_DECKS = [
+            {
+                id: "a",
+                label: "Deck A",
+                defaultLibraryId: "hypnotic-techno",
+                color: "var(--green)",
+                defaults: { level: 82, filter: 0 },
+            },
+            {
+                id: "b",
+                label: "Deck B",
+                defaultLibraryId: "acid-techno",
+                color: "var(--pink)",
+                defaults: { level: 78, filter: 0 },
             },
         ];
 
@@ -1216,7 +1432,7 @@
         let insertWorkletStatusShown = false;
         let deckNodes = {};
         let laneNodes = {};
-        let bassPumpState = {};
+        let lanePumpState = {};
         let schedulerId = 0;
         let nextStepTime = 0;
         let currentStep = 0;
@@ -1238,21 +1454,46 @@
         let virtualCursorX = 0;
         let virtualCursorY = 0;
 
-        function cloneDecks() {
-            return BASE_DECKS.map(deck => ({
-                ...deck,
-                eq: { low: 0, mid: 0, high: 0 },
-                insertFx: Object.fromEntries(INSERT_FX.map(effect => [effect.id, 0])),
-                controls: { ...deck.defaults },
-                lanes: deck.lanes.map(lane => ({
+        function libraryById(libraryId) {
+            return LANE_LIBRARIES[libraryId] || LANE_LIBRARIES[LANE_LIBRARY_ORDER[0]];
+        }
+
+        function cloneLibraryLanes(library, previousLanes = null, preserveLevels = false) {
+            return library.lanes.map(lane => {
+                const previous = previousLanes?.find(item => item.id === lane.id);
+                const level = preserveLevels && previous ? previous.level : lane.enabled ? lane.level : 0;
+                const lastNonZeroLevel = preserveLevels && previous
+                    ? previous.lastNonZeroLevel || previous.defaultLevel || lane.level
+                    : lane.level;
+
+                return {
                     ...lane,
-                    level: lane.enabled ? lane.level : 0,
+                    notes: lane.notes ? [...lane.notes] : undefined,
+                    level,
+                    enabled: level > LANE_OFF_LEVEL,
                     defaultLevel: lane.level,
-                    lastNonZeroLevel: lane.level,
+                    lastNonZeroLevel,
                     pattern: normalizePattern(lane.pattern),
                     lastPulse: 0,
-                })),
-            }));
+                };
+            });
+        }
+
+        function composeDeck(baseDeck) {
+            const library = libraryById(baseDeck.defaultLibraryId);
+            return {
+                ...baseDeck,
+                libraryId: library.id,
+                title: library.title,
+                eq: { low: 0, mid: 0, high: 0 },
+                insertFx: Object.fromEntries(INSERT_FX.map(effect => [effect.id, 0])),
+                controls: { ...baseDeck.defaults, send: library.preferredSendFxAmount },
+                lanes: cloneLibraryLanes(library),
+            };
+        }
+
+        function cloneDecks() {
+            return BASE_DECKS.map(composeDeck);
         }
 
         function normalizePattern(pattern) {
@@ -1276,6 +1517,10 @@
             return decks.find(deck => deck.id === deckId);
         }
 
+        function activeLibrary(deck) {
+            return libraryById(deck.libraryId);
+        }
+
         function laneById(deckId, laneId) {
             return deckById(deckId).lanes.find(lane => lane.id === laneId);
         }
@@ -1286,6 +1531,25 @@
 
         function isLaneActive(lane) {
             return lane.level > LANE_OFF_LEVEL;
+        }
+
+        function switchDeckLibrary(deckId, direction) {
+            const deck = deckById(deckId);
+            if (!deck) return;
+
+            const currentIndex = LANE_LIBRARY_ORDER.indexOf(deck.libraryId);
+            const startIndex = currentIndex >= 0 ? currentIndex : 0;
+            const nextIndex = (startIndex + direction + LANE_LIBRARY_ORDER.length) % LANE_LIBRARY_ORDER.length;
+            const library = libraryById(LANE_LIBRARY_ORDER[nextIndex]);
+            deck.libraryId = library.id;
+            deck.title = library.title;
+            deck.lanes = cloneLibraryLanes(library, deck.lanes, true);
+
+            renderStaticUi();
+            syncLaneLevel();
+            syncDeckControls();
+            syncInsertFx();
+            setStatus(`${deck.label} library: ${library.title}`);
         }
 
         function knobRingMarkup() {
@@ -1508,8 +1772,8 @@
         }
 
         function moveVirtualCursor(event) {
-            virtualCursorX += event.movementX || 0;
-            virtualCursorY += event.movementY || 0;
+            virtualCursorX += (event.movementX || 0) * VIRTUAL_CURSOR_SENSITIVITY;
+            virtualCursorY += (event.movementY || 0) * VIRTUAL_CURSOR_SENSITIVITY;
             clampVirtualCursor();
             renderVirtualCursor();
         }
@@ -1622,6 +1886,7 @@
 
         function handleStationPointerDown(event) {
             if (!els.station.contains(event.target)) return;
+            if (event.target.closest?.("[data-control]")) return;
             if (!isStationLocked() && typeof els.station.requestPointerLock === "function") {
                 setVirtualCursorFromEvent(event);
                 els.station.requestPointerLock();
@@ -1680,6 +1945,10 @@
                             <strong>${deck.label}</strong>
                             <span class="deck-kicker">${deck.title}</span>
                         </div>
+                        <span class="library-switcher" aria-label="${deck.label} library selector">
+                            <button class="library-button" type="button" data-control="button" data-library-prev="${deck.id}" aria-label="Previous ${deck.label} library">&lt;</button>
+                            <button class="library-button" type="button" data-control="button" data-library-next="${deck.id}" aria-label="Next ${deck.label} library">&gt;</button>
+                        </span>
                         <span class="deck-status-light" aria-hidden="true"></span>
                     </header>
                     <div class="lane-grid">
@@ -1805,6 +2074,13 @@
                 });
             });
 
+            document.querySelectorAll("[data-library-prev], [data-library-next]").forEach(button => {
+                button.addEventListener("click", () => {
+                    const deckId = button.dataset.libraryPrev || button.dataset.libraryNext;
+                    switchDeckLibrary(deckId, button.dataset.libraryPrev ? -1 : 1);
+                });
+            });
+
             initKnobs(els.decks);
         }
 
@@ -1830,7 +2106,8 @@
                         super();
                         this.targets = { dirt: 0, crush: 0, noise: 0, pump: 0, stutter: 0, gate: 0, space: 0, sweep: 0, reverse: 0, reso: 0, shift: 0, spiral: 0, mobius: 0, width: 0 };
                         this.smooth = { dirt: 0, crush: 0, noise: 0, pump: 0, stutter: 0, gate: 0, space: 0, sweep: 0, reverse: 0, reso: 0, shift: 0, spiral: 0, mobius: 0, width: 0 };
-                        this.kicks = [];
+                        this.noiseKicks = [];
+                        this.pumpKicks = [];
                         this.phase = 0;
                         this.tempo = 124;
                         this.maxBuffer = Math.floor(sampleRate * 2);
@@ -1908,8 +2185,10 @@
                             }
                             if (data.type === "kick") {
                                 const frame = Math.max(currentFrame, Math.round(Number(data.time || currentTime) * sampleRate));
-                                this.kicks.push(frame);
-                                if (this.kicks.length > 32) this.kicks.splice(0, this.kicks.length - 32);
+                                this.noiseKicks.push(frame);
+                                this.pumpKicks.push(frame);
+                                if (this.noiseKicks.length > 32) this.noiseKicks.splice(0, this.noiseKicks.length - 32);
+                                if (this.pumpKicks.length > 32) this.pumpKicks.splice(0, this.pumpKicks.length - 32);
                             }
                             if (data.type === "tempo") this.tempo = Number(data.bpm);
                         };
@@ -1954,9 +2233,9 @@
                     }
 
                     updateNoiseKickDuck(frame, amount) {
-                        while (this.kicks.length && this.kicks[0] <= frame) {
+                        while (this.noiseKicks.length && this.noiseKicks[0] <= frame) {
                             this.noiseKickEnv = 1;
-                            this.kicks.shift();
+                            this.noiseKicks.shift();
                         }
                         const release = 0.08 + (1 - amount) * 0.16;
                         this.noiseKickEnv *= Math.exp(-1 / (sampleRate * release));
@@ -2003,7 +2282,7 @@
                         return Math.tanh(sample * 1.22) * 0.96;
                     }
 
-                    noiseLayer(x, amount, channel, ch, frame, kickDuck) {
+                    noiseLayer(x, amount, channel, ch, frame, kickDuck, pumpGain) {
                         if (amount < 0.002) {
                             channel.noiseGate += (1 - channel.noiseGate) * 0.02;
                             channel.noiseRms += (0 - channel.noiseRms) * 0.02;
@@ -2047,16 +2326,16 @@
 
                         const env = (1 - pulseAmount * 0.45) + channel.noiseGate * pulseAmount * 1.15;
                         const resComp = 1 / (1 + amount * 1.65);
-                        const cappedNoise = this.clampNoiseRms(filtered * env * kickDuck * resComp, amount, channel);
+                        const cappedNoise = this.clampNoiseRms(filtered * env * kickDuck * pumpGain * resComp, amount, channel);
                         const wet = Math.min(1, amount * amount * 0.9 + amount * 0.12) * this.noiseMaxWet;
                         const wetNoise = this.clampDynamicRms(cappedNoise * wet, this.targetNoiseWetLevel(amount), channel, "noiseWetRms", "noiseWetLimitGain", 0.05);
                         return this.softLimitMixed(x + wetNoise);
                     }
 
                     updatePump(frame, amount) {
-                        while (this.kicks.length && this.kicks[0] <= frame) {
+                        while (this.pumpKicks.length && this.pumpKicks[0] <= frame) {
                             this.pumpEnv = 1;
-                            this.kicks.shift();
+                            this.pumpKicks.shift();
                         }
                         if (amount < 0.002) {
                             this.pumpEnv *= 0.995;
@@ -2347,10 +2626,12 @@
                             const shift = this.smoothParam("shift");
                             const spiral = this.smoothParam("spiral");
                             const mobius = this.smoothParam("mobius");
+                            const pump = this.smoothParam("pump");
                             const width = this.smoothParam("width");
                             const frame = currentFrame + i;
                             this.maybeLatchStutter(stutter, frame);
                             const noiseKickDuck = this.updateNoiseKickDuck(frame, noise);
+                            const pumpGain = this.updatePump(frame, pump);
                             const gateGain = this.gateAmount(gate);
                             const samples = [];
 
@@ -2361,7 +2642,7 @@
                                 channel.buffer[this.writeIndex] = sample;
                                 sample = this.softClip(sample, dirt, channel);
                                 sample = this.crush(sample, crush, channel);
-                                sample = this.noiseLayer(sample, noise, channel, ch, frame, noiseKickDuck);
+                                sample = this.noiseLayer(sample, noise, channel, ch, frame, noiseKickDuck, pumpGain);
                                 sample = this.resonator(sample, reso, channel);
                                 sample = this.shift(sample, shift, channel, ch);
                                 sample = this.sweep(sample, sweep, channel, ch);
@@ -2535,14 +2816,14 @@
                 const levelGain = audioCtx.createGain();
                 levelGain.gain.value = lane.level / 100;
 
-                if (lane.voice === "bass") {
+                if (PUMP_LANE_VOICES.has(lane.voice)) {
                     const pumpGain = audioCtx.createGain();
                     pumpGain.gain.value = 1;
                     pumpGain.connect(levelGain);
                     levelGain.connect(input);
                     laneNodes[nodeKey(deck.id, lane.id)] = { gain: pumpGain, levelGain, pumpGain, voice: lane.voice };
-                    if (!bassPumpState[deck.id]) bassPumpState[deck.id] = [];
-                    bassPumpState[deck.id].push({ gain: pumpGain, activeUntil: 0 });
+                    if (!lanePumpState[deck.id]) lanePumpState[deck.id] = [];
+                    lanePumpState[deck.id].push({ gain: pumpGain, activeUntil: 0 });
                     return;
                 }
 
@@ -2666,7 +2947,7 @@
                         values: { ...deck.insertFx },
                     });
                 }
-                if ((deck.insertFx.pump || 0) <= 0) resetBassPump(deck.id);
+                if ((deck.insertFx.pump || 0) <= 0) resetLanePump(deck.id);
             });
         }
 
@@ -2728,6 +3009,8 @@
         }
 
         function playKick(deck, lane, time, velocity) {
+            const library = activeLibrary(deck);
+            const kick = library.kick;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             const click = audioCtx.createBufferSource();
@@ -2735,13 +3018,13 @@
             const out = laneNodes[nodeKey(deck.id, lane.id)].gain;
 
             osc.type = "sine";
-            osc.frequency.setValueAtTime(deck.id === "a" ? 112 : 126, time);
-            osc.frequency.exponentialRampToValueAtTime(deck.id === "a" ? 42 : 48, time + 0.12);
+            osc.frequency.setValueAtTime(kick.start, time);
+            osc.frequency.exponentialRampToValueAtTime(kick.end, time + 0.12);
             gain.gain.setValueAtTime(0.0001, time);
-            gain.gain.exponentialRampToValueAtTime(0.95 * velocity, time + 0.012);
-            gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.34);
+            gain.gain.exponentialRampToValueAtTime(kick.gain * velocity, time + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.0001, time + kick.decay);
             click.buffer = noiseBuffer;
-            clickGain.gain.setValueAtTime(0.15 * velocity, time);
+            clickGain.gain.setValueAtTime(kick.click * velocity, time);
             clickGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.018);
             osc.connect(gain);
             click.connect(clickGain);
@@ -2749,36 +3032,39 @@
             clickGain.connect(out);
             osc.start(time);
             click.start(time);
-            osc.stop(time + 0.38);
+            osc.stop(time + kick.decay + 0.04);
             click.stop(time + 0.03);
         }
 
         function playBass(deck, lane, time, step, velocity) {
-            const noteIndex = lane.notes[(step + seed) % lane.notes.length] + (deck.id === "b" ? 2 : 0);
+            const library = activeLibrary(deck);
+            const bass = library.bass;
+            const noteIndex = lane.notes[(step + seed) % lane.notes.length] + bass.noteOffset;
             const osc = audioCtx.createOscillator();
             const filter = audioCtx.createBiquadFilter();
             const gain = audioCtx.createGain();
             const out = laneNodes[nodeKey(deck.id, lane.id)].gain;
             const freq = SCALE[noteIndex + 2] || 73.42;
 
-            osc.type = deck.id === "b" ? "sawtooth" : "square";
+            osc.type = bass.oscillator;
             osc.frequency.setValueAtTime(freq, time);
             filter.type = "lowpass";
-            filter.frequency.setValueAtTime(deck.id === "b" ? 360 + seeded(step) * 260 : 220 + seeded(step) * 120, time);
-            filter.frequency.exponentialRampToValueAtTime((deck.id === "b" ? 1400 : 820) + seeded(step + 10) * 700, time + 0.05);
-            filter.frequency.exponentialRampToValueAtTime(180, time + 0.22);
-            filter.Q.value = deck.id === "b" ? 13 : 8;
+            filter.frequency.setValueAtTime(bass.filterStart + seeded(step) * bass.filterSpread, time);
+            filter.frequency.exponentialRampToValueAtTime(bass.filterPeak + seeded(step + 10) * 700, time + 0.05);
+            filter.frequency.exponentialRampToValueAtTime(bass.filterEnd, time + Math.max(0.08, bass.decay - 0.02));
+            filter.Q.value = bass.resonance;
             gain.gain.setValueAtTime(0.0001, time);
-            gain.gain.exponentialRampToValueAtTime(0.23 * velocity, time + 0.012);
-            gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.24);
+            gain.gain.exponentialRampToValueAtTime(bass.gain * velocity, time + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.0001, time + bass.decay);
             osc.connect(filter);
             filter.connect(gain);
             gain.connect(out);
             osc.start(time);
-            osc.stop(time + 0.28);
+            osc.stop(time + bass.decay + 0.04);
         }
 
         function playHat(deck, lane, time, velocity) {
+            const hat = activeLibrary(deck).hat;
             const noise = audioCtx.createBufferSource();
             const filter = audioCtx.createBiquadFilter();
             const gain = audioCtx.createGain();
@@ -2787,65 +3073,68 @@
 
             noise.buffer = noiseBuffer;
             filter.type = "highpass";
-            filter.frequency.value = (deck.id === "b" ? 7600 : 6600) + velocity * 1700;
+            filter.frequency.value = hat.frequency + velocity * hat.spread;
             gain.gain.setValueAtTime(0.0001, time);
-            gain.gain.exponentialRampToValueAtTime(0.13 * velocity, time + 0.006);
-            gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05 + velocity * 0.04);
+            gain.gain.exponentialRampToValueAtTime(hat.gain * velocity, time + 0.006);
+            gain.gain.exponentialRampToValueAtTime(0.0001, time + hat.decay);
             pan.pan.value = seeded(time * 10) * 0.8 - 0.4;
             noise.connect(filter);
             filter.connect(gain);
             gain.connect(pan);
             pan.connect(out);
             noise.start(time);
-            noise.stop(time + 0.12);
+            noise.stop(time + hat.decay + 0.04);
         }
 
         function playPerc(deck, lane, time, step, velocity) {
+            const perc = activeLibrary(deck).perc;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             const pan = audioCtx.createStereoPanner();
             const out = laneNodes[nodeKey(deck.id, lane.id)].gain;
             osc.type = "triangle";
-            osc.frequency.value = deck.id === "b" ? 520 + seeded(step) * 360 : 360 + seeded(step) * 260;
+            osc.frequency.value = perc.frequency + seeded(step) * perc.spread;
             gain.gain.setValueAtTime(0.0001, time);
-            gain.gain.exponentialRampToValueAtTime(0.16 * velocity, time + 0.008);
-            gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.11);
-            pan.pan.value = seeded(step + (deck.id === "b" ? 80 : 40)) * 1.3 - 0.65;
+            gain.gain.exponentialRampToValueAtTime(perc.gain * velocity, time + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.0001, time + perc.decay);
+            pan.pan.value = seeded(step + perc.panSeed) * 1.3 - 0.65;
             osc.connect(gain);
             gain.connect(pan);
             pan.connect(out);
             osc.start(time);
-            osc.stop(time + 0.14);
+            osc.stop(time + perc.decay + 0.04);
         }
 
         function playLead(deck, lane, time, step, velocity) {
+            const lead = activeLibrary(deck).lead;
             const noteIndex = lane.notes[(step + seed) % lane.notes.length];
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             const filter = audioCtx.createBiquadFilter();
             const pan = audioCtx.createStereoPanner();
             const out = laneNodes[nodeKey(deck.id, lane.id)].gain;
-            osc.type = deck.id === "b" ? "square" : "sawtooth";
-            osc.frequency.value = (SCALE[noteIndex] || 146.83) * (deck.id === "b" ? 2 : 1.5);
+            osc.type = lead.oscillator;
+            osc.frequency.value = (SCALE[noteIndex] || 146.83) * lead.octave;
             filter.type = "lowpass";
-            filter.frequency.setValueAtTime(deck.id === "b" ? 1800 : 1200, time);
-            filter.frequency.exponentialRampToValueAtTime(deck.id === "b" ? 3600 : 2200, time + 0.08);
+            filter.frequency.setValueAtTime(lead.filterStart, time);
+            filter.frequency.exponentialRampToValueAtTime(lead.filterPeak, time + 0.08);
             filter.Q.value = 2.2;
             gain.gain.setValueAtTime(0.0001, time);
-            gain.gain.exponentialRampToValueAtTime(0.1 * velocity, time + 0.012);
-            gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.32);
+            gain.gain.exponentialRampToValueAtTime(lead.gain * velocity, time + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.0001, time + lead.decay);
             pan.pan.value = Math.sin((step + seed) * 0.7) * 0.45;
             osc.connect(filter);
             filter.connect(gain);
             gain.connect(pan);
             pan.connect(out);
             osc.start(time);
-            osc.stop(time + 0.38);
+            osc.stop(time + lead.decay + 0.06);
         }
 
         function playDrone(deck, lane, time, step, symbol) {
             if (symbol === "~") return;
 
+            const drone = activeLibrary(deck).drone;
             const out = laneNodes[nodeKey(deck.id, lane.id)].gain;
             const root = SCALE[lane.notes[0]] || 36.71;
             [root, SCALE[lane.notes[1]] || root * 2].forEach((freq, voice) => {
@@ -2853,13 +3142,13 @@
                 const filter = audioCtx.createBiquadFilter();
                 const gain = audioCtx.createGain();
                 osc.type = voice === 0 ? "sawtooth" : "triangle";
-                osc.frequency.value = freq * (deck.id === "b" ? 1.5 : 1);
+                osc.frequency.value = freq * drone.octave;
                 osc.detune.value = voice === 0 ? -5 : 7;
                 filter.type = "lowpass";
-                filter.frequency.setValueAtTime(160 + (seed % 6) * 24 + voice * 80, time);
+                filter.frequency.setValueAtTime(drone.filterBase + (seed % 6) * drone.filterStep + voice * 80, time);
                 filter.Q.value = 4.5;
                 gain.gain.setValueAtTime(0.0001, time);
-                gain.gain.exponentialRampToValueAtTime((deck.id === "a" ? 0.12 : 0.08) / (voice + 1), time + 0.05);
+                gain.gain.exponentialRampToValueAtTime(drone.gain / (voice + 1), time + 0.05);
                 gain.gain.exponentialRampToValueAtTime(0.0001, time + stepTime * 4.05);
                 osc.connect(filter);
                 filter.connect(gain);
@@ -2870,6 +3159,7 @@
         }
 
         function playTexture(deck, lane, time, velocity) {
+            const texture = activeLibrary(deck).texture;
             const noise = audioCtx.createBufferSource();
             const filter = audioCtx.createBiquadFilter();
             const gain = audioCtx.createGain();
@@ -2877,18 +3167,36 @@
             const out = laneNodes[nodeKey(deck.id, lane.id)].gain;
             noise.buffer = noiseBuffer;
             filter.type = "bandpass";
-            filter.frequency.value = deck.id === "b" ? 5200 + seeded(time) * 1400 : 3800 + seeded(time) * 1200;
+            filter.frequency.value = texture.frequency + seeded(time) * texture.spread;
             filter.Q.value = 0.7;
             gain.gain.setValueAtTime(0.0001, time);
-            gain.gain.exponentialRampToValueAtTime(0.09 * velocity, time + 0.03);
-            gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.42);
+            gain.gain.exponentialRampToValueAtTime(texture.gain * velocity, time + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, time + texture.decay);
             pan.pan.value = seeded(time * 5) * 1.2 - 0.6;
             noise.connect(filter);
             filter.connect(gain);
             gain.connect(pan);
             pan.connect(out);
             noise.start(time);
-            noise.stop(time + 0.5);
+            noise.stop(time + texture.decay + 0.08);
+        }
+
+        function shouldPlaySymbol(deck, lane, step, symbol) {
+            if (symbol === symbol.toUpperCase() || symbol === "~") return true;
+
+            const library = activeLibrary(deck);
+            const densityVoices = ["hat", "perc", "texture"];
+            const density = densityVoices.includes(lane.voice) ? library.percussionDensity : 1;
+            const chance = clamp(library.probabilityAmount * density, 0.05, 0.98);
+            const laneSeed = lane.id.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+            return seeded(step * 19 + laneSeed + seed * 7) <= chance;
+        }
+
+        function grooveOffset(deck, step) {
+            const library = activeLibrary(deck);
+            const swingOffset = step % 2 === 1 ? library.swing * stepTime : 0;
+            const groove = library.groove || [];
+            return Math.max(0, swingOffset + (groove[step % groove.length] || 0) * stepTime);
         }
 
         function playLane(deck, lane, step, time) {
@@ -2896,6 +3204,7 @@
 
             const symbol = lane.pattern[step];
             if (!symbol || symbol === "-") return;
+            if (!shouldPlaySymbol(deck, lane, step, symbol)) return;
 
             const velocity = symbol === symbol.toUpperCase() && symbol !== "~" ? 1 : 0.55;
             lane.lastPulse = performance.now();
@@ -2919,11 +3228,11 @@
 
             const deck = deckById(deckId);
             const amount = Math.max(0, Math.min(1, Number(deck?.insertFx?.pump || 0) / 100));
-            const states = bassPumpState[deckId] || [];
+            const states = lanePumpState[deckId] || [];
             if (!audioCtx || !states.length) return;
 
             if (amount < 0.002) {
-                resetBassPump(deckId);
+                resetLanePump(deckId);
                 return;
             }
 
@@ -2950,9 +3259,9 @@
             });
         }
 
-        function resetBassPump(deckId) {
+        function resetLanePump(deckId) {
             if (!audioCtx) return;
-            (bassPumpState[deckId] || []).forEach(state => {
+            (lanePumpState[deckId] || []).forEach(state => {
                 const param = state.gain?.gain;
                 if (!param) return;
                 const now = audioCtx.currentTime;
@@ -2986,7 +3295,8 @@
             }, delayMs));
 
             decks.forEach(deck => {
-                deck.lanes.forEach(lane => playLane(deck, lane, step, time));
+                const deckTime = time + grooveOffset(deck, step);
+                deck.lanes.forEach(lane => playLane(deck, lane, step, deckTime));
             });
         }
 
@@ -3045,7 +3355,7 @@
             selectedDivision = "1/4";
             deckNodes = {};
             laneNodes = {};
-            bassPumpState = {};
+            lanePumpState = {};
             insertWorkletReady = false;
             insertWorkletStatusShown = false;
             if (audioCtx && audioCtx.state !== "closed") {
@@ -3070,14 +3380,24 @@
         function mutate() {
             seed = (seed + 1 + Math.floor(Math.random() * 7)) % 97;
             decks.forEach(deck => {
-                deck.lanes.forEach((lane, laneIndex) => {
-                    if (lane.voice !== "drone" && seeded(laneIndex + seed) > 0.72) {
+                const library = activeLibrary(deck);
+                const edits = Math.max(1, Math.round(1 + library.mutationSpeed * 4));
+                for (let edit = 0; edit < edits; edit += 1) {
+                    const laneIndex = Math.floor(seeded(seed + edit * 17 + deck.id.charCodeAt(0)) * deck.lanes.length) % deck.lanes.length;
+                    const lane = deck.lanes[laneIndex];
+                    const droneProtection = lane.voice === "drone" ? library.droneImportance : 0;
+                    const chance = clamp(library.mutationSpeed * (1 - droneProtection * 0.82), 0.04, 0.92);
+                    if (seeded(laneIndex + seed + edit * 11) <= chance) {
                         const chars = Array.from(lane.pattern);
                         const pos = Math.floor(seeded(laneIndex * 13 + seed) * STEPS) % STEPS;
-                        if (chars[pos] === "-") chars[pos] = lane.label[0].toLowerCase();
+                        if (chars[pos] === "-") {
+                            chars[pos] = lane.label[0].toLowerCase();
+                        } else if (chars[pos] !== "~" && seeded(pos + seed + edit) > 0.55) {
+                            chars[pos] = "-";
+                        }
                         lane.pattern = chars.join("");
                     }
-                });
+                }
             });
             if (audioCtx) {
                 const now = audioCtx.currentTime;
