@@ -1,8 +1,8 @@
 class SynthstreamInsertFx extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.targets = { dirt: 0, crush: 0, ring: 0, rumble: 0, noise: 0, reso: 0, shift: 0, sweep: 0, reverse: 0, slicer: 0, stutter: 0, brake: 0, freeze: 0, spiral: 0, mobius: 0, gate: 0, space: 0, pump: 0, width: 0 };
-        this.smooth = { dirt: 0, crush: 0, ring: 0, rumble: 0, noise: 0, reso: 0, shift: 0, sweep: 0, reverse: 0, slicer: 0, stutter: 0, brake: 0, freeze: 0, spiral: 0, mobius: 0, gate: 0, space: 0, pump: 0, width: 0 };
+        this.targets = { dirt: 0, crush: 0, ring: 0, rumble: 0, noise: 0, iso: 0, reso: 0, formant: 0, shift: 0, sweep: 0, jet: 0, chorus: 0, reverse: 0, slicer: 0, stutter: 0, brake: 0, freeze: 0, dub: 0, spiral: 0, mobius: 0, gate: 0, space: 0, pump: 0, width: 0 };
+        this.smooth = { dirt: 0, crush: 0, ring: 0, rumble: 0, noise: 0, iso: 0, reso: 0, formant: 0, shift: 0, sweep: 0, jet: 0, chorus: 0, reverse: 0, slicer: 0, stutter: 0, brake: 0, freeze: 0, dub: 0, spiral: 0, mobius: 0, gate: 0, space: 0, pump: 0, width: 0 };
         this.noiseKicks = [];
         this.pumpKicks = [];
         this.rumbleKicks = [];
@@ -11,6 +11,8 @@ class SynthstreamInsertFx extends AudioWorkletProcessor {
         this.maxBuffer = Math.floor(sampleRate * 2);
         this.sweepBufferLength = Math.floor(sampleRate * 0.07);
         this.resoBufferLength = Math.floor(sampleRate * 0.08);
+        this.jetBufferLength = Math.floor(sampleRate * 0.06);
+        this.chorusBufferLength = Math.floor(sampleRate * 0.08);
         this.widthBufferLength = Math.floor(sampleRate * 0.025);
         this.writeFrame = typeof currentFrame === "number" ? currentFrame : 0;
         this.writeIndex = 0;
@@ -48,8 +50,16 @@ class SynthstreamInsertFx extends AudioWorkletProcessor {
             noiseLimitGain: 1,
             noiseWetRms: 0,
             noiseWetLimitGain: 1,
+            isoLow: 0,
+            isoHighLp: 0,
+            formantStates: Array.from({ length: 5 }, () => ({ lp: 0, bp: 0 })),
             buffer: new Float32Array(this.maxBuffer),
             bufferPrimedSamples: 0,
+            dubBuffer: new Float32Array(this.maxBuffer),
+            dubIndex: 0,
+            dubLp: 0,
+            dubRms: 0,
+            dubLimitGain: 1,
             brakeActive: false,
             brakeReadFrame: 0,
             brakeElapsed: 0,
@@ -68,6 +78,12 @@ class SynthstreamInsertFx extends AudioWorkletProcessor {
             mobiusBp: 0,
             sweepBuffer: new Float32Array(this.sweepBufferLength),
             sweepIndex: 0,
+            jetBuffer: new Float32Array(this.jetBufferLength),
+            jetIndex: 0,
+            jetFb: 0,
+            chorusBuffer: new Float32Array(this.chorusBufferLength),
+            chorusIndex: 0,
+            chorusPhases: [ch * 1.7, 2.1 + ch * 1.3, 4.2 + ch * 0.9],
             resoBuffer: new Float32Array(this.resoBufferLength),
             resoIndex: 0,
             shiftPhase: 0,
@@ -196,6 +212,163 @@ class SynthstreamInsertFx extends AudioWorkletProcessor {
 
     softLimitMixed(sample) {
         return Math.tanh(sample * 1.22) * 0.96;
+    }
+
+    mix(a, b, w) {
+        return a * (1 - w) + b * w;
+    }
+
+    onePoleCoeff(frequency) {
+        return 1 - Math.exp(-Math.PI * 2 * Math.max(10, Math.min(sampleRate * 0.45, frequency)) / sampleRate);
+    }
+
+    stateVariableBandpass(x, frequency, q, state) {
+        const freq = Math.max(40, Math.min(sampleRate * 0.42, frequency));
+        const f = Math.min(0.84, 2 * Math.sin(Math.PI * freq / sampleRate));
+        const damp = Math.max(0.08, Math.min(1.6, 1 / Math.max(0.2, q)));
+        state.lp += f * state.bp;
+        const high = x - state.lp - damp * state.bp;
+        state.bp += f * high;
+        return state.bp;
+    }
+
+    iso(x, amount, channel) {
+        if (amount < 0.002) return x;
+
+        channel.isoLow += (x - channel.isoLow) * this.onePoleCoeff(230);
+        channel.isoHighLp += (x - channel.isoHighLp) * this.onePoleCoeff(3200);
+
+        const low = channel.isoLow;
+        const high = x - channel.isoHighLp;
+        const mid = x - low - high;
+        const firstHalf = Math.min(1, amount * 2);
+        const secondHalf = Math.max(0, amount * 2 - 1);
+        const lowGain = amount < 0.5 ? 0.08 + firstHalf * 0.92 : 1 + secondHalf * 0.7;
+        const midGain = amount < 0.5 ? 1 + firstHalf * 0.55 : 1.55 - secondHalf * 1.15;
+        const highGain = amount < 0.5 ? 1.7 - firstHalf * 0.7 : 1 - secondHalf * 0.92;
+        const shaped = low * lowGain + mid * midGain + high * highGain;
+        const trim = 1 / (1 + amount * 0.28);
+        return this.softLimitMixed(this.mix(x, shaped * trim, 0.92));
+    }
+
+    formant(x, amount, channel) {
+        if (amount < 0.002) {
+            channel.formantStates.forEach(state => {
+                state.lp += (0 - state.lp) * 0.01;
+                state.bp += (0 - state.bp) * 0.01;
+            });
+            return x;
+        }
+
+        const vowels = [
+            [730, 1090, 2440, 3400, 4100],
+            [530, 1840, 2480, 3100, 3860],
+            [270, 2290, 3010, 3650, 4300],
+            [570, 840, 2410, 3300, 3950],
+            [300, 870, 2240, 2860, 3600],
+        ];
+        const scaled = amount * (vowels.length - 1);
+        const baseIndex = Math.min(vowels.length - 2, Math.floor(scaled));
+        const frac = scaled - baseIndex;
+        const gains = [1, 0.76, 0.46, 0.28, 0.2];
+        const qs = [7.5, 10, 13, 15, 16];
+        let sum = 0;
+        let weight = 0;
+
+        for (let i = 0; i < channel.formantStates.length; i += 1) {
+            const f0 = vowels[baseIndex][i];
+            const f1 = vowels[baseIndex + 1][i];
+            const frequency = f0 + (f1 - f0) * frac;
+            const band = this.stateVariableBandpass(x, frequency, qs[i], channel.formantStates[i]);
+            sum += band * gains[i];
+            weight += gains[i];
+        }
+
+        const resonant = Math.tanh(sum / Math.max(0.001, weight) * (2.2 + amount * 1.4));
+        const wet = Math.min(0.74, 0.14 + amount * 0.68);
+        return this.softLimitMixed(this.mix(x, resonant, wet));
+    }
+
+    jet(x, amount, channel, ch) {
+        if (amount < 0.002) {
+            channel.jetBuffer[channel.jetIndex] = x;
+            channel.jetIndex = (channel.jetIndex + 1) % channel.jetBuffer.length;
+            channel.jetFb += (0 - channel.jetFb) * 0.02;
+            return x;
+        }
+
+        const rate = 0.08 + amount * amount * 0.48;
+        const lfo = Math.sin(this.phase / sampleRate * Math.PI * 2 * rate + ch * 1.31);
+        const base = sampleRate * (0.0012 + amount * 0.0018);
+        const depth = sampleRate * (0.0018 + amount * 0.0085);
+        const delay = Math.max(2, Math.min(channel.jetBuffer.length - 2, base + (lfo * 0.5 + 0.5) * depth));
+        const delayed = this.readDelay(channel.jetBuffer, channel.jetIndex, delay);
+        const feedback = Math.min(0.72, 0.1 + amount * 0.58);
+        channel.jetFb = Math.max(-0.95, Math.min(0.95, delayed));
+        channel.jetBuffer[channel.jetIndex] = Math.max(-1.15, Math.min(1.15, x + delayed * feedback));
+        channel.jetIndex = (channel.jetIndex + 1) % channel.jetBuffer.length;
+
+        const wet = Math.min(0.76, 0.12 + amount * 0.7);
+        const polarity = amount < 0.52 ? -1 : 1;
+        return this.softLimitMixed(this.mix(x, x + delayed * polarity * (0.55 + amount * 0.42), wet));
+    }
+
+    chorus(x, amount, channel, ch) {
+        if (amount < 0.002) {
+            channel.chorusBuffer[channel.chorusIndex] = x;
+            channel.chorusIndex = (channel.chorusIndex + 1) % channel.chorusBuffer.length;
+            return x;
+        }
+
+        channel.chorusBuffer[channel.chorusIndex] = x;
+        const baseDelays = [0.013, 0.021, 0.032];
+        const rates = [0.17, 0.23, 0.31];
+        const gains = [0.46, 0.34, 0.26];
+        let cloud = 0;
+        let weight = 0;
+
+        for (let i = 0; i < baseDelays.length; i += 1) {
+            channel.chorusPhases[i] += Math.PI * 2 * rates[i] * (0.8 + amount * 0.85) / sampleRate;
+            if (channel.chorusPhases[i] > Math.PI * 2) channel.chorusPhases[i] -= Math.PI * 2;
+            const lfo = Math.sin(channel.chorusPhases[i] + ch * 0.73 + i * 0.41);
+            const base = sampleRate * (baseDelays[i] + ch * 0.0017);
+            const depth = sampleRate * (0.0018 + amount * (0.0032 + i * 0.0011));
+            const delay = Math.max(2, Math.min(channel.chorusBuffer.length - 2, base + lfo * depth));
+            const tap = this.readDelay(channel.chorusBuffer, channel.chorusIndex, delay);
+            cloud += tap * gains[i];
+            weight += gains[i];
+        }
+
+        channel.chorusIndex = (channel.chorusIndex + 1) % channel.chorusBuffer.length;
+        const wet = Math.min(0.62, 0.1 + amount * 0.58);
+        const thick = cloud / Math.max(0.001, weight);
+        const trim = 1 / (1 + wet * 0.22);
+        return this.softLimitMixed(this.mix(x, thick, wet) * trim);
+    }
+
+    dub(x, amount, channel) {
+        if (amount < 0.002) {
+            channel.dubBuffer[channel.dubIndex] = x;
+            channel.dubIndex = (channel.dubIndex + 1) % channel.dubBuffer.length;
+            channel.dubLp += (0 - channel.dubLp) * 0.01;
+            channel.dubRms += (0 - channel.dubRms) * 0.02;
+            channel.dubLimitGain += (1 - channel.dubLimitGain) * 0.02;
+            return x;
+        }
+
+        const beat = sampleRate * 60 / this.tempo;
+        const delay = Math.max(64, Math.min(channel.dubBuffer.length - 2, beat * (0.18 + amount * 0.58)));
+        const delayed = this.readDelay(channel.dubBuffer, channel.dubIndex, delay);
+        const feedback = Math.min(0.78, 0.18 + amount * 0.58);
+        const cutoff = 5200 - amount * 3300;
+        channel.dubLp += (x + delayed * feedback - channel.dubLp) * this.onePoleCoeff(cutoff);
+        const d = Math.tanh(channel.dubLp * (1.04 + amount * 0.24));
+        channel.dubBuffer[channel.dubIndex] = d;
+        channel.dubIndex = (channel.dubIndex + 1) % channel.dubBuffer.length;
+
+        const wet = Math.min(0.72, 0.12 + amount * 0.68);
+        const limited = this.clampDynamicRms(d, 0.12 + amount * 0.08, channel, "dubRms", "dubLimitGain", 0.08);
+        return this.softLimitMixed(this.mix(x, limited, wet));
     }
 
     noiseLayer(x, amount, channel, ch, frame, kickDuck, pumpGain) {
@@ -702,13 +875,18 @@ class SynthstreamInsertFx extends AudioWorkletProcessor {
             const ring = this.smoothParam("ring");
             const rumble = this.smoothParam("rumble");
             const noise = this.smoothParam("noise");
+            const iso = this.smoothParam("iso");
             const reso = this.smoothParam("reso");
+            const formant = this.smoothParam("formant");
             const shift = this.smoothParam("shift");
             const sweep = this.smoothParam("sweep");
+            const jet = this.smoothParam("jet");
+            const chorus = this.smoothParam("chorus");
             const reverse = this.smoothParam("reverse");
             const slicer = this.smoothParam("slicer");
             const stutter = this.smoothParam("stutter");
             const freeze = this.smoothParam("freeze");
+            const dub = this.smoothParam("dub");
             const spiral = this.smoothParam("spiral");
             const mobius = this.smoothParam("mobius");
             const gate = this.smoothParam("gate");
@@ -734,9 +912,13 @@ class SynthstreamInsertFx extends AudioWorkletProcessor {
                 sample = this.ring(sample, ring, channel, ch);
                 sample = this.rumble(sample, rumble, channel, ch, rumbleEnv);
                 sample = this.noiseLayer(sample, noise, channel, ch, frame, noiseKickDuck, 1);
+                sample = this.iso(sample, iso, channel);
                 sample = this.resonator(sample, reso, channel);
+                sample = this.formant(sample, formant, channel);
                 sample = this.shift(sample, shift, channel, ch);
                 sample = this.sweep(sample, sweep, channel, ch);
+                sample = this.jet(sample, jet, channel, ch);
+                sample = this.chorus(sample, chorus, channel, ch);
                 channel.buffer[this.writeIndex] = sample;
                 channel.bufferPrimedSamples = Math.min(this.maxBuffer, channel.bufferPrimedSamples + 1);
                 sample = this.beatReverse(sample, reverse, channel);
@@ -744,6 +926,7 @@ class SynthstreamInsertFx extends AudioWorkletProcessor {
                 sample = this.stutter(sample, stutter, channel);
                 sample = this.brake(sample, channel, this.targets.brake);
                 sample = this.freeze(sample, freeze, channel, ch);
+                sample = this.dub(sample, dub, channel);
                 sample = this.spiral(sample, spiral, channel);
                 sample = this.mobius(sample, mobius, channel, ch);
                 sample *= gateGain;

@@ -384,7 +384,6 @@ function syncFxControls() {
 }
 
 function syncMaster() {
-    els.masterValue.textContent = els.master.value;
     refreshKnob(document.querySelector('[data-knob][data-input="masterControl"]'));
     if (masterGain && audioCtx) rampParam(masterGain.gain, Number(els.master.value) / 100, audioCtx.currentTime, 0.03);
 }

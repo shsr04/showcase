@@ -320,7 +320,7 @@
 
         .insert-fx-bank {
             display: grid;
-            grid-template-columns: repeat(10, min-content);
+            grid-template-columns: repeat(12, min-content);
             grid-auto-rows: min-content;
             gap: 5px 7px;
             align-items: start;
@@ -583,6 +583,36 @@
             background: rgba(0, 0, 0, 0.24);
         }
 
+        .master-panel {
+            grid-template-columns: max-content minmax(0, 1fr);
+            align-items: center;
+            gap: 8px 12px;
+        }
+
+        .master-panel .meter {
+            min-width: 0;
+        }
+
+        .master-panel .master-row {
+            grid-template:
+                "label" auto
+                "control" auto / max-content;
+            justify-items: center;
+            gap: 4px 8px;
+        }
+
+        .master-panel .master-row .control-label {
+            grid-area: label;
+        }
+
+        .master-panel .master-row .control-row {
+            grid-area: control;
+        }
+
+        .master-panel .master-row .value {
+            grid-area: value;
+        }
+
         .transport {
             grid-template:
                 "buttons buttons" auto
@@ -766,11 +796,12 @@
         }
 
         .xfade {
+            --xfade-side-color: rgba(117, 255, 214, 0.82);
             display: grid;
             grid-column: 1 / -1;
-            grid-template-columns: 22px 1fr 22px;
+            grid-template-columns: 20px minmax(0, 1fr) 20px;
             align-items: center;
-            gap: 8px;
+            gap: 7px;
             color: var(--muted);
             font-family: var(--mono);
             font-size: 0.7rem;
@@ -778,11 +809,17 @@
 
         .xfade-block {
             display: grid;
-            gap: 8px;
-            padding: 10px;
+            grid-column: 1 / -1;
+            gap: 7px;
+            padding: 8px 10px 9px;
             border: 1px solid rgba(117, 255, 214, 0.22);
             border-radius: 7px;
-            background: rgba(117, 255, 214, 0.045);
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 42%),
+                rgba(117, 255, 214, 0.045);
+            box-shadow:
+                inset 0 0 18px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .xfade-title {
@@ -792,8 +829,131 @@
             text-transform: uppercase;
         }
 
+        .xfade-label {
+            display: grid;
+            place-items: center;
+            min-height: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            color: var(--xfade-side-color);
+            background: rgba(0, 0, 0, 0.28);
+            font-size: 0.62rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .xfade-stage {
+            position: relative;
+            display: grid;
+            align-items: center;
+            min-width: 0;
+            height: 24px;
+            padding: 0 9px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            background:
+                linear-gradient(90deg, rgba(255, 92, 157, 0.24), transparent 30% 70%, rgba(101, 183, 255, 0.24)),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 44%),
+                rgba(0, 0, 0, 0.3);
+            box-shadow:
+                inset 0 0 0 1px rgba(0, 0, 0, 0.42),
+                inset 0 8px 14px rgba(0, 0, 0, 0.34);
+        }
+
+        .xfade-stage::before {
+            content: "";
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            top: 50%;
+            height: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 999px;
+            background:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.74), rgba(20, 29, 28, 0.72)),
+                repeating-linear-gradient(90deg, transparent 0 18px, rgba(255, 255, 255, 0.11) 18px 19px);
+            box-shadow:
+                inset 0 2px 5px rgba(0, 0, 0, 0.8),
+                0 1px 0 rgba(255, 255, 255, 0.06);
+            transform: translateY(-50%);
+        }
+
+        .xfade-stage::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 4px;
+            bottom: 4px;
+            width: 1px;
+            background: rgba(255, 209, 102, 0.76);
+            box-shadow: 0 0 10px rgba(255, 209, 102, 0.34);
+            transform: translateX(-50%);
+        }
+
         .xfade input {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 24px;
+            margin: 0;
             accent-color: var(--amber);
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            cursor: grab;
+        }
+
+        .xfade input:active {
+            cursor: grabbing;
+        }
+
+        .xfade input:focus-visible {
+            outline: 2px solid rgba(255, 209, 102, 0.86);
+            outline-offset: 3px;
+        }
+
+        .xfade input::-webkit-slider-runnable-track {
+            height: 24px;
+            background: transparent;
+        }
+
+        .xfade input::-moz-range-track {
+            height: 24px;
+            background: transparent;
+            border: 0;
+        }
+
+        .xfade input::-webkit-slider-thumb {
+            width: 26px;
+            height: 18px;
+            margin-top: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            border-radius: 4px;
+            background:
+                linear-gradient(90deg, transparent 0 42%, rgba(0, 0, 0, 0.32) 42% 58%, transparent 58%),
+                linear-gradient(180deg, #e5fff8 0%, #7f9f99 48%, #263331 100%);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.85),
+                inset 0 -9px 14px rgba(0, 0, 0, 0.36),
+                0 3px 10px rgba(0, 0, 0, 0.56),
+                0 0 14px rgba(255, 209, 102, 0.22);
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .xfade input::-moz-range-thumb {
+            width: 26px;
+            height: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            border-radius: 4px;
+            background:
+                linear-gradient(90deg, transparent 0 42%, rgba(0, 0, 0, 0.32) 42% 58%, transparent 58%),
+                linear-gradient(180deg, #e5fff8 0%, #7f9f99 48%, #263331 100%);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.85),
+                inset 0 -9px 14px rgba(0, 0, 0, 0.36),
+                0 3px 10px rgba(0, 0, 0, 0.56),
+                0 0 14px rgba(255, 209, 102, 0.22);
         }
 
         .scope {
@@ -1058,11 +1218,6 @@
             </div>
 
             <div class="master-panel">
-                <div class="meter">
-                    <span class="meter-label">Master Meter</span>
-                    <div class="meter-track"><span class="meter-fill" data-master-meter></span></div>
-                    <span class="meter-hint">Output</span>
-                </div>
                 <div class="master-row">
                     <span class="control-label">Output</span>
                     <span class="control-row">
@@ -1070,14 +1225,21 @@
                         </button>
                         <input class="knob-input" id="masterControl" type="range" min="0" max="100" value="58" tabindex="-1">
                     </span>
-                    <span class="value" id="masterValue">58</span>
                 </div>
+                <div class="meter">
+                    <span class="meter-label">Master Meter</span>
+                    <div class="meter-track"><span class="meter-fill" data-master-meter></span></div>
+                    <span class="meter-hint">Output</span>
+                </div>
+                
                 <div class="xfade-block">
                     <span class="xfade-title">Crossfader</span>
                     <label class="xfade">
-                        <span>A</span>
-                        <input id="crossfaderControl" type="range" min="0" max="100" value="50" aria-label="Crossfader" data-control="slider">
-                        <span>B</span>
+                        <span class="xfade-label">A</span>
+                        <span class="xfade-stage">
+                            <input id="crossfaderControl" type="range" min="0" max="100" value="50" aria-label="Crossfader" data-control="slider">
+                        </span>
+                        <span class="xfade-label">B</span>
                     </label>
                 </div>
             </div>
@@ -1092,11 +1254,5 @@
     <script defer src="play.js"></script>
     <script defer src="vcursor.js"></script>
     <script defer src="init.js"></script>
-    
-    <script>
-        
-
-        
-    </script>
 </body>
 </html>
