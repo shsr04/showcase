@@ -428,6 +428,7 @@ h1::after {
 .diskette:nth-child(7) { --x: 72%; --y: 22%; --tilt: 7deg; z-index: 2; }
 .diskette:nth-child(8) { --x: 81%; --y: 24%; --tilt: -7deg; z-index: 4; }
 .diskette:nth-child(9) { --x: 88%; --y: 6%; --tilt: 6deg; --disk-hue: var(--warning); z-index: 6; }
+.diskette:nth-child(10) { --x: 94%; --y: 15%; --tilt: -4deg; z-index: 5; }
 
 .diskette:hover,
 .diskette:focus-visible,

@@ -1,0 +1,128 @@
+{
+  "generatedAt": "2026-06-17T09:31:07.276Z",
+  "requestedWorks": 10000,
+  "candidateWorks": 432,
+  "harvestedWorks": 421,
+  "totalBytes": 187215445,
+  "totalSize": "178.5 MiB",
+  "softByteBudget": 536870912,
+  "overSoftByteBudget": false,
+  "maxFileBytes": 1572864,
+  "skipped": [
+    {
+      "id": "27942",
+      "title": "A System of Logic, Ratiocinative and Inductive",
+      "primaryShelf": "Philosophy",
+      "matchedShelves": [
+        "Philosophy"
+      ],
+      "reason": "max-file-bytes",
+      "bytes": 2513913
+    },
+    {
+      "id": "5740",
+      "title": "Tractatus Logico-Philosophicus",
+      "primaryShelf": "Philosophy",
+      "matchedShelves": [
+        "Philosophy"
+      ],
+      "reason": "no-txt",
+      "bytes": 0
+    },
+    {
+      "id": "6478",
+      "title": "Himalayan Journals — Complete Or, Notes of a Naturalist in Bengal, the Sikkim and Nepal Himalayas, the Khasia Mountains, etc.",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "max-file-bytes",
+      "bytes": 1751823
+    },
+    {
+      "id": "8419",
+      "title": "The Journals of Lewis and Clark, 1804-1806",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "max-file-bytes",
+      "bytes": 3640322
+    },
+    {
+      "id": "17592",
+      "title": "A Narrative of the Expedition to Dongola and Sennaar Under the Command of His Excellence Ismael Pasha, undertaken by Order of His Highness Mehemmed Ali Pasha, Viceroy of Egypt, By An American In The Service Of The Viceroy",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "no-txt",
+      "bytes": 0
+    },
+    {
+      "id": "28323",
+      "title": "Travels in North America, From Modern Writers With Remarks and Observations; Exhibiting a Connected View of the Geography and Present State of that Quarter of the Globe",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "no-txt",
+      "bytes": 0
+    },
+    {
+      "id": "35268",
+      "title": "Adventures in the Canyons of the Colorado, by Two of Its Earliest Explorers",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "no-txt",
+      "bytes": 0
+    },
+    {
+      "id": "36249",
+      "title": "Among the Canadian Alps",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "no-txt",
+      "bytes": 0
+    },
+    {
+      "id": "36375",
+      "title": "Fifty Years In The Northwest With An Introduction And Appendix Containing Reminiscences, Incidents And Notes",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "max-file-bytes",
+      "bytes": 1886454
+    },
+    {
+      "id": "39308",
+      "title": "Walks in Rome",
+      "primaryShelf": "Travel",
+      "matchedShelves": [
+        "Travel"
+      ],
+      "reason": "max-file-bytes",
+      "bytes": 2001050
+    },
+    {
+      "id": "3623",
+      "title": "The Golden Bough: A Study of Magic and Religion",
+      "primaryShelf": "Mythology",
+      "matchedShelves": [
+        "Mythology"
+      ],
+      "reason": "max-file-bytes",
+      "bytes": 2331343
+    }
+  ],
+  "skippedCount": 11,
+  "skippedByReason": {
+    "max-file-bytes": 6,
+    "no-txt": 5
+  }
+}

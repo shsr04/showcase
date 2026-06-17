@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f5ee" />
+  <title>Text Miner</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app" aria-labelledby="appTitle">
+    <header class="topbar">
+      <button class="icon-button back-button" id="backButton" type="button" aria-label="Back to catalog">←</button>
+      <div class="brand">
+        <h1 id="appTitle">Text Miner</h1>
+        <p id="statusLine">Loading corpus catalog.</p>
+      </div>
+      <button class="text-button" id="offlineButton" type="button">Cache</button>
+    </header>
+
+    <section class="tabs" id="tabStrip" aria-label="Open texts"></section>
+
+    <section class="view view-catalog is-active" id="catalogView" aria-labelledby="catalogTitle">
+      <div class="search-row">
+        <label class="search-field">
+          <span>Find titles</span>
+          <input id="titleSearch" type="search" autocomplete="off" placeholder="Search titles or authors" />
+        </label>
+      </div>
+      <div class="corpus-stats" id="corpusStats"></div>
+      <h2 id="catalogTitle">Public domain texts</h2>
+      <div class="text-list" id="textList"></div>
+    </section>
+
+    <section class="view view-reader" id="readerView" aria-labelledby="readerTitle">
+      <article class="reader-shell">
+        <header class="reader-head">
+          <p id="readerAuthor"></p>
+          <h2 id="readerTitle">Select a text</h2>
+        </header>
+        <pre id="readerContent" tabindex="0" aria-label="Text content"></pre>
+      </article>
+    </section>
+
+    <aside class="results-panel" id="resultsPanel" aria-labelledby="resultsTitle" aria-live="polite">
+      <div class="results-head">
+        <div>
+          <p class="eyebrow">Passage search</p>
+          <h2 id="resultsTitle">Matches</h2>
+        </div>
+        <button class="icon-button" id="closeResults" type="button" aria-label="Close results">×</button>
+      </div>
+      <p class="query-preview" id="queryPreview"></p>
+      <div class="results-list" id="resultsList"></div>
+    </aside>
+
+    <nav class="actionbar" aria-label="Reader tools">
+      <button class="text-button" id="catalogButton" type="button">Catalog</button>
+      <button class="primary-button" id="passageSearchButton" type="button" disabled>Search selection</button>
+    </nav>
+  </main>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
