@@ -17,13 +17,17 @@ const closeResults = document.getElementById("closeResults");
 const resultsList = document.getElementById("resultsList");
 const queryPreview = document.getElementById("queryPreview");
 
+const STORAGE_KEY = "text-miner-state-v1";
 const SESSION_KEY = "text-miner-open-tabs";
 const TEXT_CACHE = "text-miner-texts-v1";
+const MAX_SAVED_POSITIONS = 50;
+let positionSaveTimer = 0;
 const state = {
   catalog: null,
   works: [],
   openTabs: [],
   activeId: null,
+  positions: {},
   textCache: new Map(),
   selectedText: "",
   worker: null,
@@ -54,6 +58,8 @@ function bindEvents() {
   closeResults.addEventListener("click", () => resultsPanel.classList.remove("is-open"));
   offlineButton.addEventListener("click", cacheCorpus);
   passageSearchButton.addEventListener("click", searchSelection);
+  readerContent.addEventListener("scroll", queueActivePositionSave);
+  window.addEventListener("pagehide", saveActivePosition);
   document.addEventListener("selectionchange", updateSelection);
 }
 
@@ -129,6 +135,9 @@ function renderCatalog() {
 async function openText(id, options = {}) {
   const work = state.works.find((entry) => entry.id === id);
   if (!work) return;
+  if (state.activeId) {
+    saveActivePosition();
+  }
   addTab(work);
   renderTabs();
   state.activeId = id;
@@ -143,9 +152,10 @@ async function openText(id, options = {}) {
     const text = await fetchText(work);
     readerContent.textContent = text;
     if (Number.isFinite(options.targetStart) && Number.isFinite(options.targetEnd)) {
-      revealPassage(options.targetStart, options.targetEnd);
+      const offset = revealPassage(options.targetStart, options.targetEnd);
+      savePosition(id, offset);
     } else {
-      readerContent.scrollTop = 0;
+      restoreReaderPosition(id);
     }
   } catch (error) {
     readerContent.textContent = "This text could not be loaded.";
@@ -176,7 +186,7 @@ function renderTabs() {
     item.className = `tab${tab.id === state.activeId ? " is-active" : ""}`;
     const open = document.createElement("button");
     open.type = "button";
-    open.innerHTML = `<span>${escapeHtml(tab.title)}</span>`;
+    open.innerHTML = `<div>${escapeHtml(tab.title)}</div>`;
     open.addEventListener("click", () => openText(tab.id));
     const close = document.createElement("button");
     close.type = "button";
@@ -192,6 +202,9 @@ function renderTabs() {
 }
 
 function closeTab(id) {
+  if (state.activeId === id) {
+    saveActivePosition();
+  }
   state.openTabs = state.openTabs.filter((tab) => tab.id !== id);
   if (state.activeId === id) {
     state.activeId = state.openTabs[0]?.id || null;
@@ -201,28 +214,78 @@ function closeTab(id) {
       readerTitle.textContent = "Select a text";
       readerAuthor.textContent = "";
       readerContent.textContent = "";
+      readerContent.scrollTop = 0;
       showCatalog();
     }
   }
-  persistTabs();
+  persistState();
   renderTabs();
 }
 
-function persistTabs() {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+function persistState() {
+  trimSavedPositions();
+  const payload = {
+    version: 1,
     activeId: state.activeId,
     openTabs: state.openTabs,
-  }));
+    positions: state.positions,
+  };
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("Text Miner state could not be saved", error);
+  }
+}
+
+function persistTabs() {
+  persistState();
 }
 
 function restoreTabs() {
   try {
-    const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "{}");
-    state.openTabs = Array.isArray(saved.openTabs) ? saved.openTabs : [];
+    const saved = restoreLocalState() || restoreSessionState();
+    state.openTabs = sanitizeTabs(saved.openTabs);
     state.activeId = saved.activeId || state.openTabs[0]?.id || null;
+    state.positions = sanitizePositions(saved.positions);
   } catch {
     state.openTabs = [];
+    state.positions = {};
   }
+}
+
+function restoreLocalState() {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+  if (!saved || typeof saved !== "object") return null;
+  return saved;
+}
+
+function restoreSessionState() {
+  const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+  if (!saved || typeof saved !== "object") return {};
+  return saved;
+}
+
+function sanitizeTabs(tabs) {
+  if (!Array.isArray(tabs)) return [];
+  return tabs
+    .filter((tab) => tab && typeof tab.id === "string" && typeof tab.title === "string")
+    .slice(0, 12)
+    .map((tab) => ({ id: tab.id, title: tab.title }));
+}
+
+function sanitizePositions(positions) {
+  if (!positions || typeof positions !== "object") return {};
+  return Object.fromEntries(Object.entries(positions)
+    .filter(([, position]) => (
+      position
+      && Number.isFinite(position.offset)
+      && Number.isFinite(position.updatedAt)
+    ))
+    .map(([id, position]) => [id, {
+      offset: Math.max(0, Math.floor(position.offset)),
+      updatedAt: position.updatedAt,
+    }]));
 }
 
 function showCatalog() {
@@ -286,7 +349,7 @@ function revealPassage(start, end) {
   const node = readerContent.firstChild;
   if (!node || node.nodeType !== Node.TEXT_NODE) {
     readerContent.scrollTop = 0;
-    return;
+    return 0;
   }
 
   const safeStart = Math.max(0, Math.min(start, node.textContent.length));
@@ -303,6 +366,107 @@ function revealPassage(start, end) {
   const contentRect = readerContent.getBoundingClientRect();
   readerContent.scrollTop += rect.top - contentRect.top - 80;
   updateSelection();
+  return safeStart;
+}
+
+function queueActivePositionSave() {
+  window.clearTimeout(positionSaveTimer);
+  positionSaveTimer = window.setTimeout(saveActivePosition, 250);
+}
+
+function saveActivePosition() {
+  if (!state.activeId) return;
+  const offset = getVisibleTextOffset();
+  if (!Number.isFinite(offset)) return;
+  savePosition(state.activeId, offset);
+}
+
+function savePosition(id, offset) {
+  if (!id || !Number.isFinite(offset)) return;
+  const node = readerContent.firstChild;
+  const length = node?.nodeType === Node.TEXT_NODE ? node.textContent.length : 0;
+  state.positions[id] = {
+    offset: Math.max(0, Math.min(Math.floor(offset), length)),
+    updatedAt: Date.now(),
+  };
+  persistState();
+}
+
+function restoreReaderPosition(id) {
+  const node = readerContent.firstChild;
+  const saved = state.positions[id];
+  if (!node || node.nodeType !== Node.TEXT_NODE || !saved) {
+    readerContent.scrollTop = 0;
+    return;
+  }
+
+  const offset = Math.max(0, Math.min(Math.floor(saved.offset), node.textContent.length));
+  if (offset === 0) {
+    readerContent.scrollTop = 0;
+    return;
+  }
+
+  const range = document.createRange();
+  range.setStart(node, offset);
+  range.setEnd(node, Math.min(offset + 1, node.textContent.length));
+  readerContent.scrollTop = 0;
+  const rect = range.getBoundingClientRect();
+  const contentRect = readerContent.getBoundingClientRect();
+  readerContent.scrollTop = Math.max(0, rect.top - contentRect.top - 24);
+}
+
+function getVisibleTextOffset() {
+  const node = readerContent.firstChild;
+  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+  const rect = readerContent.getBoundingClientRect();
+  const x = rect.left + 16;
+  const y = rect.top + 16;
+  const caret = caretFromPoint(x, y);
+  if (!caret) return fallbackVisibleTextOffset(node);
+  return offsetFromCaret(node, caret.node, caret.offset);
+}
+
+function caretFromPoint(x, y) {
+  if (document.caretPositionFromPoint) {
+    const position = document.caretPositionFromPoint(x, y);
+    if (position) return { node: position.offsetNode, offset: position.offset };
+  }
+  if (document.caretRangeFromPoint) {
+    const range = document.caretRangeFromPoint(x, y);
+    if (range) return { node: range.startContainer, offset: range.startOffset };
+  }
+  return null;
+}
+
+function offsetFromCaret(textNode, caretNode, caretOffset) {
+  if (caretNode === textNode) {
+    return Math.max(0, Math.min(caretOffset, textNode.textContent.length));
+  }
+  if (readerContent.contains(caretNode)) {
+    return Math.max(0, Math.min(caretOffset, textNode.textContent.length));
+  }
+  return fallbackVisibleTextOffset(textNode);
+}
+
+function fallbackVisibleTextOffset(textNode) {
+  const ratio = readerContent.scrollTop / Math.max(1, readerContent.scrollHeight - readerContent.clientHeight);
+  return Math.round(textNode.textContent.length * Math.max(0, Math.min(ratio, 1)));
+}
+
+function trimSavedPositions() {
+  const openIds = new Set(state.openTabs.map((tab) => tab.id));
+  const entries = Object.entries(state.positions)
+    .filter(([, position]) => position && Number.isFinite(position.updatedAt))
+    .sort((a, b) => b[1].updatedAt - a[1].updatedAt);
+  const kept = [];
+
+  for (const entry of entries) {
+    if (openIds.has(entry[0]) || kept.length < MAX_SAVED_POSITIONS) {
+      kept.push(entry);
+    }
+  }
+
+  state.positions = Object.fromEntries(kept);
 }
 
 async function cacheCorpus() {

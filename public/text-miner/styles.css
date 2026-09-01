@@ -94,6 +94,16 @@ h2 {
   line-height: 1.35;
 }
 
+.line-clamp {
+    overflow: hidden;
+    min-height: 2lh;
+    max-height: 2lh;
+    @media(width > 800px) {
+        min-height: 1lh;
+        max-height: 1lh;
+    }
+}
+
 .icon-button,
 .text-button,
 .primary-button {
@@ -142,7 +152,7 @@ h2 {
 
 .tab {
   display: inline-grid;
-  grid-template-columns: 1fr 26px;
+  grid-template-columns: minmax(30ch, 80%) 26px;
   align-items: center;
   gap: 0.25rem;
   min-height: 38px;
@@ -157,7 +167,7 @@ h2 {
   background: var(--accent-soft);
 }
 
-.tab span {
+.tab div {
   overflow: hidden;
   padding-left: 0.6rem;
   text-overflow: ellipsis;
