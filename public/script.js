@@ -756,7 +756,7 @@ function playInsertWarp(disk) {
 
 function updateReaderForDisk(disk, verb = "SCANNING") {
     readerTitle.textContent = disk.dataset.title || "UNKNOWN DISK";
-    readerMessage.textContent = disk.dataset.copy || "The machine cannot explain this cartridge.";
+    readerMessage.textContent = disk.dataset.copy ?? "The machine cannot explain this cartridge.";
     readerStatus.textContent = `${verb} // ${disk.dataset.code || "NO-CODE"}`;
 }
 

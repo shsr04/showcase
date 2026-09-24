@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b1017">
+    <link rel="icon" href="data:,">
+    <title>Ambience</title>
+    <style>
+        :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0b1017; color: #e4e4e1; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: radial-gradient(ellipse at 50% 48%, #17202b 0%, #101720 34%, #0b1017 72%); }
+        main { min-height: 320px; height: 100svh; display: grid; grid-template-rows: 1fr minmax(190px, 37vh) 1fr; justify-items: center; overflow: hidden; }
+        h1 { align-self: end; margin: 0 0 12px; font: 400 clamp(40px, 5vw, 58px)/1.2 "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif; letter-spacing: -.045em; color: #dddeda; }
+        canvas { display: block; width: min(100%, 1120px); height: 100%; pointer-events: none; }
+        button { align-self: start; display: inline-flex; align-items: center; justify-content: center; gap: 11px; min-width: 116px; min-height: 48px; margin: 10px 0 0; padding: 13px 24px; border: 1px solid #a3b4c52b; border-radius: 100px; background: #c8d7e308; color: #bdc7ce; font: 400 13px/1.4 system-ui, sans-serif; letter-spacing: .04em; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background .3s, border-color .3s, color .3s; }
+        button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #9bb8bd; box-shadow: 0 0 10px #a1c6d12b; transition: border-radius .3s, background .3s; }
+        button[aria-pressed="true"]::before { border-radius: 1px; background: #c7bda7; }
+        button:hover { background: #c8d7e30f; border-color: #a3b4c554; color: #e4e4e1; }
+        button:focus-visible { outline: 2px solid #b9d5db; outline-offset: 5px; }
+        button:active { background: #c8d7e31a; }
+        .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+        @media (max-width: 600px) { main { grid-template-rows: 1fr minmax(190px, 32vh) 1.1fr; } h1 { margin-bottom: 0; } }
+        @media (prefers-reduced-motion: reduce) { button, button::before { transition: none; } }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Ambience</h1>
+        <canvas id="analyzer" aria-hidden="true"></canvas>
+        <button id="toggle" type="button" aria-pressed="false">Start</button>
+    </main>
+    <div id="status" class="sr-only" role="status" aria-live="polite"></div>
+
+    <script id="ambience-core">
+    'use strict';
+
+    const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
+    const mean = values => values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+    const percentile = (values, fraction) => {
+        const sorted = [...values].sort((a, b) => a - b);
+        return sorted[Math.floor((sorted.length - 1) * fraction)] ?? -90;
+    };
+
+    // Digital levels describe this microphone, not calibrated room sound pressure.
+    function acousticFrame(wave, spectrum, sampleRate) {
+        let squares = 0;
+        for (const value of wave) squares += value * value;
+        const rms = Math.sqrt(squares / Math.max(1, wave.length));
+        let low = 0, high = 0, total = 0, peak = 0;
+        const binWidth = sampleRate / (spectrum.length * 2);
+        for (let i = 1; i < spectrum.length; i++) {
+            const frequency = i * binWidth;
+            if (frequency < 60 || frequency > 10000) continue;
+            const power = Number.isFinite(spectrum[i]) ? Math.pow(10, spectrum[i] / 10) : 0;
+            total += power;
+            peak = Math.max(peak, power);
+            if (frequency < 300) low += power;
+            if (frequency > 2000) high += power;
+        }
+        return {
+            db: clamp(20 * Math.log10(Math.max(rms, 0.000001)), -90, 0),
+            low: total > 1e-9 ? low / total : 0,
+            high: total > 1e-9 ? high / total : 0,
+            tonal: total > 1e-9 ? clamp(peak / total * 3) : 0
+        };
+    }
+
+    // A hum: a narrow peak standing well above its surroundings, between 40 Hz and 1 kHz, on a fine FFT.
+    function humCandidate(spectrum, sampleRate) {
+        const binWidth = sampleRate / (spectrum.length * 2);
+        const first = Math.max(4, Math.ceil(40 / binWidth)), last = Math.min(spectrum.length - 32, Math.floor(1000 / binWidth));
+        let best = null;
+        for (let i = first; i <= last; i++) {
+            const value = spectrum[i];
+            if (!Number.isFinite(value) || value < -85 || value <= spectrum[i - 1] || value < spectrum[i + 1]) continue;
+            if (spectrum[i - 3] > value - 6 || spectrum[i + 3] > value - 6) continue;
+            const around = [];
+            for (let k = 6; k <= 30; k++) around.push(spectrum[i - k], spectrum[i + k]);
+            const prominence = value - percentile(around.filter(Number.isFinite), 0.5);
+            if (prominence < 12 || (best && prominence <= best.prominence)) continue;
+            const a = spectrum[i - 1], c = spectrum[i + 1];
+            const offset = (a - c) / (2 * (a - 2 * value + c)) || 0;
+            best = { hz: (i + offset) * binWidth, prominence, bin: i };
+        }
+        if (!best) return null;
+        // A hum is often strongest at its second or third harmonic; report the fundamental if it is there.
+        for (const divisor of [3, 2]) {
+            const near = Math.round(best.bin / divisor);
+            if (near - 1 < first) continue;
+            const bin = [near - 1, near, near + 1].reduce((top, i) => spectrum[i] > spectrum[top] ? i : top, near);
+            const value = spectrum[bin];
+            const floor = percentile([spectrum[bin - 8], spectrum[bin - 6], spectrum[bin + 6], spectrum[bin + 8]].filter(Number.isFinite), 0.5);
+            if (Number.isFinite(value) && value >= spectrum[bin - 1] && value >= spectrum[bin + 1] && value - floor >= 8) {
+                return { hz: bin * binWidth, prominence: best.prominence };
+            }
+        }
+        return { hz: best.hz, prominence: best.prominence };
+    }
+
+    // Choose a root in the middle register so the hum becomes the root (or the fifth), with cents to match it exactly.
+    function tuneRoot(hz, prefer = 'root') {
+        const midi = 69 + 12 * Math.log2(hz / 440);
+        const nearest = Math.round(midi);
+        let pitchClass = ((nearest % 12) + 12) % 12;
+        if (prefer === 'fifth') pitchClass = (pitchClass + 5) % 12;
+        return { root: 57 + ((pitchClass - 57) % 12 + 12) % 12, cents: (midi - nearest) * 100 };
+    }
+
+    // Room events: a sudden rise in microphone level that our own output cannot explain.
+    class RoomEvents {
+        constructor() {
+            this.baseline = null;
+            this.times = [];
+            this.last = -Infinity;
+            this.output = [];
+        }
+
+        // micDb is the microphone, outDb our own playback, masked means one of our attacks is sounding.
+        update(now, micDb, outDb, masked) {
+            this.output.push([now, outDb]);
+            while (this.output.length > 1 && this.output[0][0] < now - 0.6) this.output.shift();
+            if (this.baseline === null) { this.baseline = micDb; return null; }
+            const excess = micDb - this.baseline;
+            const ours = outDb - this.output[0][1] > 3 || outDb > micDb - 6;
+            let event = null;
+            if (excess > 8 && !masked && !ours && now - this.last > 1.5) {
+                event = clamp((excess - 8) / 17);
+                this.last = now;
+                this.times.push(now);
+                while (this.times[0] < now - 60) this.times.shift();
+            }
+            this.baseline += (micDb - this.baseline) * (excess > 8 ? 0.02 : 0.25);
+            return event;
+        }
+
+        // Median spacing of the events of the last minute, in seconds.
+        pace() {
+            if (this.times.length < 2) return null;
+            return percentile(this.times.slice(1).map((time, i) => time - this.times[i]), 0.5);
+        }
+    }
+
+    // Speech: the 300-3000 Hz band flickers at syllable rate. The median step between 100 ms frames is
+    // large for talk and small for our own plucks, whose one big step per note the median ignores.
+    function speechIndex(levels) {
+        if (levels.length < 10 || mean(levels) < -75) return 0;
+        const steps = levels.slice(1).map((level, i) => Math.abs(level - levels[i]));
+        return clamp((percentile(steps, 0.5) - 1.5) / 3);
+    }
+
+    function summarizeRoom(frames) {
+        const levels = frames.map(frame => frame.db);
+        const hums = frames.filter(frame => frame.hum && frame.hum.prominence >= 12).map(frame => frame.hum.hz);
+        return {
+            hum: hums.length >= frames.length * 0.6 ? percentile(hums, 0.5) : null,
+            speech: clamp(mean(frames.map(frame => frame.speech ?? 0))),
+            energy: clamp((percentile(levels, 0.5) + 70) / 45),
+            activity: clamp((percentile(levels, 0.85) - percentile(levels, 0.15) - 3) / 25),
+            low: clamp(mean(frames.map(frame => frame.low))),
+            high: clamp(mean(frames.map(frame => frame.high))),
+            tonal: clamp(mean(frames.map(frame => frame.tonal ?? 0)))
+        };
+    }
+
+    // Ensemble voices decorate; 'breath' is the continuous bed underneath them.
+    const KINDS = ['guitar', 'felt', 'harp', 'air', 'marimba', 'pizz'];
+
+    function compose(room) {
+        const busy = clamp(room.activity * 0.8 + room.energy * 0.2);
+        const tonal = room.tonal ?? 0;
+        const speech = room.speech ?? 0;
+        // Complementary: fill what the room lacks (spectrum, events), mirror what it has (level, pitch, pace).
+        // Talk is never contested: melodic voices step back while people speak.
+        const talk = 1 - 0.7 * speech;
+        // Participation weights: decorate the space the room leaves open, never compete with it.
+        return {
+            master: 0.7,
+            guitar: (0.6 + room.low * 0.2) * (1 - busy * 0.5) * talk,
+            felt: (0.4 + room.low * 0.4) * (1 - busy * 0.6) * talk,
+            harp: (0.3 + room.low * 0.6) * (1 - room.high * 0.8) * (1 - busy * 0.6) * talk,
+            breath: 0.4 + busy * 0.4,
+            air: (0.2 + tonal * 0.6) * (1 - room.high * 0.7) * (1 - 0.5 * speech),
+            marimba: (0.1 + 0.4 * (1 - room.high) * (1 - room.activity)) * (1 - speech),
+            pizz: 0.2 + 0.45 * (1 - room.low),
+            cutoff: 3000 - room.high * 1800 - busy * 400,
+            noteInterval: 12 + busy * 14,
+            // Melodic attacks allowed per two minutes: about one every seven seconds in a calm room.
+            budget: Math.round(18 - busy * 10),
+            motion: 1 - busy * 0.75
+        };
+    }
+
+    function chooseEnsemble(settings, random, previous = []) {
+        const available = [...KINDS];
+        const chosen = [];
+        const count = settings.motion < 0.5 ? 2 : 3;
+        while (chosen.length < count) {
+            const weights = available.map(kind => settings[kind] * (previous.includes(kind) ? 0.6 : 1));
+            let draw = random() * weights.reduce((sum, weight) => sum + weight, 0);
+            let index = 0;
+            while (index < weights.length - 1 && (draw -= weights[index]) > 0) index++;
+            chosen.push(available.splice(index, 1)[0]);
+        }
+        if (chosen.every(kind => previous.includes(kind))) {
+            const fresh = available.filter(kind => !previous.includes(kind)).sort((a, b) => settings[b] - settings[a]);
+            if (fresh.length) chosen[chosen.length - 1] = fresh[0];
+        }
+        return chosen;
+    }
+
+    // Neighbouring modes differ by one degree, so harmony drifts instead of jumping.
+    // Note: ionian, mixolydian, dorian. Lydian and aeolian were dropped as too strange for a comfortable room.
+    const MODES = [[0, 2, 4, 7, 9, 11], [0, 2, 4, 7, 9, 10], [0, 2, 3, 7, 9, 10]];
+
+    class Harmony {
+        constructor(random) {
+            this.random = random;
+            this.root = 60 + Math.floor(random() * 6);
+            this.cents = 0;
+            this.anchor = null;
+            this.mode = Math.floor(random() * 2);
+        }
+
+        get degrees() { return MODES[this.mode]; }
+
+        drift() {
+            const step = this.random() < 0.5 ? -1 : 1;
+            let next = this.mode + step;
+            if (next < 0 || next >= MODES.length) next = this.mode - step;
+            if (this.mode === 1 && this.random() < 0.3) next = 1;
+            this.mode = next;
+            return this.degrees;
+        }
+
+        // A key change by a fifth, kept in the middle register; a room hum stays on the root or the fifth.
+        modulate() {
+            const inRegister = root => 57 + ((root - 57) % 12 + 12) % 12;
+            let candidates = [inRegister(this.root + 7), inRegister(this.root - 7)];
+            if (this.anchor !== null) candidates = candidates.filter(root => [0, 7].includes(((this.anchor - root) % 12 + 12) % 12));
+            if (!candidates.length) return this.root;
+            this.root = candidates[Math.floor(this.random() * candidates.length)];
+            return this.root;
+        }
+
+        // Roughness: semitone clashes anywhere; anything closer than a fifth below 200 Hz; sevenths and ninths above 500 Hz.
+        static rough(midi, other) {
+            const gap = Math.abs(midi - other);
+            if (gap === 0) return false;
+            if ([1, 13].includes(gap)) return true;
+            if (Math.max(midi, other) <= 59 && gap < 7) return true;
+            if (Math.min(midi, other) >= 71 && [11, 14].includes(gap)) return true;
+            return false;
+        }
+
+        // The leading tone pulls hard toward the root; it may pass, never rest.
+        leading(midi) {
+            return this.degrees[5] === 11 && ((midi - this.root) % 12 + 12) % 12 === 11;
+        }
+
+        // A step counts scale degrees across octaves, so stepwise motion is one integer away.
+        midi(step) {
+            const degrees = this.degrees;
+            const octave = Math.floor(step / degrees.length);
+            return this.root + octave * 12 + degrees[step - octave * degrees.length];
+        }
+
+        // A bias forces the direction and size of the step, for runs and arpeggios.
+        next(voice, ringing = [], bias = null) {
+            for (let attempt = 0; attempt < 6; attempt++) {
+                const roll = this.random();
+                const sign = this.random() < 0.5 ? -1 : 1;
+                const move = bias !== null && attempt < 3 ? bias * (attempt + 1) : roll < 0.12 ? 0 : roll < 0.78 ? sign : sign * (2 + Math.floor(this.random() * 2));
+                let step = voice.step + move;
+                if (step > voice.high) step = voice.high - (step - voice.high);
+                if (step < voice.low) step = voice.low + (voice.low - step);
+                step = clamp(step, voice.low, voice.high);
+                const midi = this.midi(step);
+                if (ringing.some(other => Harmony.rough(midi, other))) continue;
+                voice.step = step;
+                return midi;
+            }
+            return null;
+        }
+    }
+
+    // Audio-clock deadlines are advanced from now, never replayed after a timer gap.
+    class ListeningCycle {
+        constructor(now, random = Math.random) {
+            this.random = random;
+            this.phase = 'listening';
+            this.duration = 6;
+            this.until = now + this.duration;
+            this.last = now;
+            this.frames = [];
+        }
+
+        update(now, frame) {
+            // Background tabs commonly tick once a second. Only discard a truly stale window.
+            if (this.phase === 'listening' && now - this.last > 2.5) {
+                this.frames = [];
+                this.until = now + this.duration;
+            }
+            this.last = now;
+            if (this.phase === 'listening') {
+                this.frames.push(frame);
+                if (now >= this.until && this.frames.length >= 4) {
+                    const room = summarizeRoom(this.frames);
+                    this.frames = [];
+                    // A varying play length keeps the listening gap from becoming a recognisable period.
+                    this.phase = 'playing';
+                    this.until = now + 120 + this.random() * 120;
+                    return { kind: 'play', room, fade: 10 };
+                }
+            } else if (now >= this.until) {
+                if (this.phase === 'playing') {
+                    // Notes stop first and ring out; the gate only closes on what is left.
+                    this.phase = 'releasing';
+                    this.until = now + 12;
+                    return { kind: 'release' };
+                }
+                if (this.phase === 'releasing') {
+                    this.phase = 'fading';
+                    this.until = now + 3;
+                    return { kind: 'quiet', fade: 3 };
+                }
+                if (this.phase === 'fading') {
+                    this.phase = 'settling';
+                    this.until = now + 1;
+                } else if (this.phase === 'settling') {
+                    this.phase = 'listening';
+                    this.duration = 4;
+                    this.until = now + this.duration;
+                    this.frames = [];
+                }
+            }
+            return null;
+        }
+    }
+
+    function seededRandom(seed) {
+        return () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+    }
+
+    const noteFrequency = midi => 440 * Math.pow(2, (midi - 69) / 12);
+    // Equal-loudness at quiet playback: dB relative to 300 Hz along ISO 226 at 40 phon.
+    // Note: the bass boost is capped at +6 dB; small speakers cannot reproduce the rest and it only eats headroom.
+    const LOUDNESS = [[80, 6], [140, 6], [165, 5.5], [230, 3.5], [300, 0], [440, -4], [1000, -8], [3000, -12], [6000, -12]];
+    function loudnessWeight(frequency) {
+        const hz = Math.max(80, Math.min(6000, frequency));
+        let i = 1;
+        while (i < LOUDNESS.length - 1 && LOUDNESS[i][0] < hz) i++;
+        const [f0, d0] = LOUDNESS[i - 1], [f1, d1] = LOUDNESS[i];
+        const db = d0 + (d1 - d0) * (Math.log(hz / f0) / Math.log(f1 / f0));
+        return Math.pow(10, db / 20);
+    }
+
+    // Bed intervals above the bass note: fifth, octave and tenth only; the tenth is spent when the mood is high.
+    function bedColours(midi, degrees, mood) {
+        return mood > 0.9 || midi > 55 ? [7, 12, 12 + degrees[2]] : [7, 12];
+    }
+
+    // Move a pitch by octaves until it sits inside a range, keeping its pitch class.
+    function fitRange(midi, low, high) {
+        while (midi < low) midi += 12;
+        while (midi > high) midi -= 12;
+        return midi < low ? low : midi;
+    }
+    function easeAudio(param, value, now, duration) {
+        const held = param.value;
+        if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(now);
+        else param.cancelScheduledValues(now);
+        // A completed ramp needs a new anchor too, or the next ramp starts in the past.
+        param.setValueAtTime(held, now);
+        param.linearRampToValueAtTime(value, now + duration);
+    }
+
+    // Steps are scale degrees relative to the root; six degrees span an octave.
+    // The stage. register: scale steps from the root (6 per octave). pan: centre and spread. trim: level against the felt piano.
+    // density: spacing multiplier on the melodic interval, larger is rarer. depth: near is dry, far is mostly room.
+    const ARRANGEMENT = {
+        guitar:  { role: 'lead',     register: [-4, 6],   pan: [0.15, 0.15],  depth: 'near', trim: 1.1,  density: 0.9, cutoff: 2400 },
+        felt:    { role: 'second',   register: [-6, 5],   pan: [-0.25, 0.2],  depth: 'near', trim: 1,    density: 1.3, cutoff: 2200 },
+        harp:    { role: 'answer',   register: [-3, 8],   pan: [0.45, 0.2],   depth: 'mid',  trim: 1.24, density: 1.3, cutoff: 2400 },
+        marimba: { role: 'flourish', register: [-6, 8],   pan: [0, 0.15],     depth: 'mid',  trim: 1,    density: 2.8, cutoff: 2600 },
+        pizz:    { role: 'bass',     register: [-12, -7], pan: [0, 0],        depth: 'near', trim: 0.9,  density: 1.5, cutoff: 900 },
+        breath:  { role: 'bed',      register: [-3, 6],   pan: [0, 0],        depth: 'far',  trim: 0.75, density: 1,   cutoff: 1100 },
+        air:     { role: 'weather',  register: [0, 0],    pan: [0, 0.7],      depth: 'far',  trim: 0.75, density: 2.6, cutoff: 1400 }
+    };
+    const RANGES = Object.fromEntries(Object.entries(ARRANGEMENT).map(([kind, part]) => [kind, part.register]));
+    const MIN_ONSET_GAP = 0.9;
+    const BED_PERIOD = 7;
+
+    class SoundEngine {
+        constructor(context, seed = 1) {
+            this.context = context;
+            this.random = seededRandom(seed);
+            this.harmony = new Harmony(this.random);
+            this.nodes = [];
+            this.notes = new Set();
+            this.settings = compose({ energy: 0, activity: 0, low: 0, high: 0 });
+            this.nextPhrase = 0;
+            this.phrases = 0;
+            this.lastOnset = -Infinity;
+            this.bedNext = 0;
+            // Mood wanders slowly and shapes velocity and density, like a player leaning in and back.
+            this.mood = 0.85;
+            // Motif memory: the last melodic pitches, quoted by other voices.
+            this.motif = [];
+            this.quoted = '';
+            this.rest = { at: 0, until: 0 };
+            this.resting = false;
+            this.attacks = [];
+            this.lastResponse = -Infinity;
+            this.responses = [];
+            this.melodic = [];
+            this.pace = 1;
+            this.speech = 0;
+            this.room = null;
+            this.humMisses = 0;
+            this.started = context.currentTime;
+            this.brighten = false;
+            this.layers = [];
+            this.disposed = false;
+            const node = kind => this.keep(context[kind]());
+            this.mix = node('createGain');
+            this.filter = node('createBiquadFilter');
+            // Depth staging: near is dry and present, far is dark and mostly room.
+            this.near = node('createGain');
+            this.far = node('createGain');
+            this.far.gain.value = 0.75;
+            const farFilter = node('createBiquadFilter');
+            farFilter.type = 'lowpass';
+            farFilter.frequency.value = 1600;
+            farFilter.Q.value = 0.3;
+            const sends = { near: 0.25, mid: 0.45, far: 0.9 };
+            this.filter.type = 'lowpass';
+            this.filter.frequency.value = this.settings.cutoff;
+            this.filter.Q.value = 0.3;
+            const highpass = node('createBiquadFilter');
+            highpass.type = 'highpass';
+            highpass.frequency.value = 55;
+            // A 2.2 s room for near and mid, a 6.5 s hall for far: different tails encode distance.
+            const room = node('createConvolver');
+            room.buffer = this.impulse(2.2);
+            const hall = node('createConvolver');
+            hall.buffer = this.impulse(6.5);
+            const wet = node('createGain');
+            wet.gain.value = 1;
+            const delay = node('createDelay');
+            delay.delayTime.value = 0.61;
+            const delayFilter = node('createBiquadFilter');
+            delayFilter.type = 'lowpass';
+            delayFilter.frequency.value = 1300;
+            const feedback = node('createGain');
+            feedback.gain.value = 0.22;
+            const delayReturn = node('createGain');
+            delayReturn.gain.value = 0.08;
+            const sum = node('createGain');
+            // Wide knee and low ratio: level glue without audible pumping.
+            // Attention: the compressor sits on the dry path only, so reverb tails never pump.
+            const compressor = node('createDynamicsCompressor');
+            compressor.threshold.value = -18;
+            compressor.knee.value = 24;
+            compressor.ratio.value = 2.5;
+            compressor.attack.value = 0.04;
+            compressor.release.value = 1;
+            const master = node('createGain');
+            master.gain.value = this.settings.master;
+            // Safety limiter: only bass peaks reach it, and it acts in milliseconds.
+            const limiter = node('createDynamicsCompressor');
+            limiter.threshold.value = -6;
+            limiter.knee.value = 2;
+            limiter.ratio.value = 20;
+            limiter.attack.value = 0.002;
+            limiter.release.value = 0.25;
+            this.gate = node('createGain');
+            this.gate.gain.value = 0;
+
+            this.mix.connect(this.filter).connect(highpass);
+            this.near.connect(this.filter);
+            this.far.connect(farFilter).connect(this.filter);
+            highpass.connect(compressor).connect(sum);
+            for (const [bus, level, reverb] of [[this.near, sends.near, room], [this.mix, sends.mid, room], [this.far, sends.far, hall]]) {
+                const send = node('createGain');
+                send.gain.value = level;
+                bus.connect(send).connect(reverb);
+            }
+            room.connect(wet);
+            hall.connect(wet);
+            wet.connect(sum);
+            highpass.connect(delay).connect(delayFilter);
+            delayFilter.connect(feedback).connect(delay);
+            delayFilter.connect(delayReturn).connect(sum);
+            // The final gate silences dry sound AND every effect return for listening.
+            sum.connect(master).connect(limiter).connect(this.gate).connect(context.destination);
+            // Wind ducks for a moment under every melodic attack, so noise never buries a note.
+            this.airDuck = node('createGain');
+            this.airDuck.connect(this.far);
+
+            this.noiseBuffer = this.noise(0.96, 3);
+            this.hissBuffer = this.noise(0.7, 1);
+        }
+
+        keep(node) { this.nodes.push(node); return node; }
+
+        // A room: brightness decays faster than the tail, with a few early reflections.
+        impulse(seconds) {
+            const rate = this.context.sampleRate;
+            const buffer = this.context.createBuffer(2, Math.ceil(rate * seconds), rate);
+            const predelay = Math.round(rate * 0.018);
+            for (let channel = 0; channel < 2; channel++) {
+                const data = buffer.getChannelData(channel);
+                let state = 0, energy = 0;
+                for (let i = predelay; i < data.length; i++) {
+                    const t = (i - predelay) / rate;
+                    const cutoff = 5500 * Math.exp(-t / (seconds * 0.28)) + 300;
+                    const alpha = 1 - Math.exp(-2 * Math.PI * cutoff / rate);
+                    state += alpha * ((this.random() * 2 - 1) - state);
+                    const build = Math.min(1, t / 0.04);
+                    data[i] = state * build * Math.exp(-6.9 * t / seconds);
+                }
+                for (const [ms, level] of [[9, 0.5], [17, 0.35], [29, 0.28], [43, 0.2], [61, 0.12]]) {
+                    const at = predelay + Math.round(rate * (ms + this.random() * 4) / 1000);
+                    data[at] += level * (this.random() < 0.5 ? -1 : 1);
+                }
+                for (let i = 0; i < data.length; i++) energy += data[i] * data[i];
+                const scale = 1 / Math.sqrt(energy);
+                for (let i = 0; i < data.length; i++) data[i] *= scale;
+            }
+            return buffer;
+        }
+
+        noise(smoothing, gain) {
+            const size = Math.ceil(this.context.sampleRate * 11);
+            const overlap = Math.ceil(this.context.sampleRate * 0.15);
+            const raw = new Float32Array(size + overlap);
+            let smooth = 0;
+            for (let i = 0; i < raw.length; i++) {
+                smooth = smooth * smoothing + (this.random() * 2 - 1) * (1 - smoothing);
+                raw[i] = smooth * gain;
+            }
+            const buffer = this.context.createBuffer(1, size, this.context.sampleRate);
+            const data = buffer.getChannelData(0);
+            data.set(raw.subarray(0, size));
+            for (let i = 0; i < overlap; i++) {
+                const blend = i / overlap;
+                data[i] = raw[size + i] * (1 - blend) + raw[i] * blend;
+            }
+            return buffer;
+        }
+
+        adapt(room) {
+            this.settings = compose(room);
+            this.room = room;
+            if (room.hum) {
+                // Hysteresis: a new hum moves an already tuned root only to a fifth-related key; fridges cycle.
+                const tuned = tuneRoot(room.hum, this.random() < 0.7 ? 'root' : 'fifth');
+                const related = [0, 5, 7].includes(((tuned.root - this.harmony.root) % 12 + 12) % 12);
+                if (this.harmony.anchor === null || related) {
+                    if (tuned.root !== this.harmony.root) this.motif = [];
+                    this.harmony.root = tuned.root;
+                    this.harmony.cents = tuned.cents;
+                    this.harmony.anchor = ((Math.round(69 + 12 * Math.log2(room.hum / 440)) % 12) + 12) % 12;
+                }
+                this.humMisses = 0;
+            } else if (++this.humMisses >= 2) {
+                this.harmony.anchor = null;
+            }
+            easeAudio(this.filter.frequency, this.settings.cutoff, this.context.currentTime, 12);
+            this.nextPhrase = this.context.currentTime;
+        }
+
+        fade(value, seconds) {
+            easeAudio(this.gate.gain, value, this.context.currentTime, seconds);
+        }
+
+        // Pitches still in the ear: sounding voices, plus anything struck in the last five seconds of reverb.
+        ringing(now) {
+            const sounding = [...this.notes].filter(voice => voice.midi !== null && voice.end > now).map(voice => voice.midi);
+            const tail = this.motif.filter(note => note.when > now - 5 && note.when <= now).map(note => note.midi);
+            return [...new Set([...sounding, ...tail])];
+        }
+
+        // Each gesture is finite (at most 14 s). Nothing runs between gestures.
+        playVoice(kind, midi, when, force = null, place = null, stretch = 1) {
+            if (this.notes.size >= 24 || this.disposed) return 0;
+            if (midi !== null && kind !== 'breath') {
+                this.motif = [...this.motif.slice(-5), { midi, when }];
+                this.attacks = [...this.attacks.filter(time => time > when - 3), when];
+                this.melodic = [...this.melodic.filter(time => time > when - 130), when];
+                if (kind !== 'air') {
+                    this.airDuck.gain.setTargetAtTime(0.5, when, 0.2);
+                    this.airDuck.gain.setTargetAtTime(1, when + 0.5, 1.5);
+                }
+            }
+            const ctx = this.context;
+            const random = this.random;
+            const nodes = [], sources = [];
+            const local = type => { const node = ctx[type](); nodes.push(node); return node; };
+            const part = ARRANGEMENT[kind];
+            const pan = local('createStereoPanner');
+            pan.pan.value = place ?? part.pan[0] + (random() - 0.5) * 2 * part.pan[1];
+            const filter = local('createBiquadFilter');
+            filter.type = 'lowpass';
+            filter.frequency.value = part.cutoff;
+            filter.Q.value = 0.3;
+            const trim = local('createGain');
+            trim.gain.value = part.trim;
+            const bus = { near: this.near, mid: this.mix, far: this.far }[part.depth];
+            filter.connect(pan).connect(trim).connect(bus);
+            let end = when;
+            let lastSource;
+            const velocity = force ?? (0.65 + random() * 0.3) * this.mood / 0.85;
+            const finish = (source, at) => {
+                source.stop(at + 0.02);
+                sources.push(source);
+                if (at >= end) { end = at; lastSource = source; }
+            };
+            // Modulator: a slow sine into a depth gain, added to any AudioParam.
+            const lfo = (rate, depth, target, at, grow = 0) => {
+                const oscillator = local('createOscillator');
+                oscillator.frequency.value = rate;
+                const gain = local('createGain');
+                gain.gain.value = grow ? 0 : depth;
+                if (grow) gain.gain.linearRampToValueAtTime(depth, at + grow);
+                oscillator.connect(gain).connect(target);
+                oscillator.start(at);
+                return oscillator;
+            };
+            const envelope = (gain, start, level, attack, hold, release) => {
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(level, start + attack);
+                gain.gain.setValueAtTime(level, start + attack + hold);
+                gain.gain.exponentialRampToValueAtTime(0.00001, start + attack + hold + release - 0.1);
+                gain.gain.linearRampToValueAtTime(0, start + attack + hold + release);
+                return start + attack + hold + release;
+            };
+            const weight = loudnessWeight;
+            const tone = (frequency, level, attack, hold, release, offset = 0, into = filter, cents = 0) => {
+                const oscillator = local('createOscillator');
+                oscillator.frequency.value = frequency;
+                oscillator.detune.value = cents + this.harmony.cents;
+                const gain = local('createGain');
+                const start = when + offset;
+                const stop = envelope(gain, start, level * velocity * weight(frequency), attack, hold, release);
+                oscillator.connect(gain).connect(into);
+                oscillator.start(start);
+                finish(oscillator, stop);
+                return oscillator;
+            };
+            const puff = (level, attack, hold, release, into, offset = 0, buffer = this.noiseBuffer) => {
+                const source = local('createBufferSource');
+                source.buffer = buffer;
+                source.loop = true;
+                source.loopStart = random() * 8;
+                source.loopEnd = source.loopStart + 2.5;
+                source.playbackRate.value = 0.7 + random() * 0.6;
+                const gain = local('createGain');
+                const start = when + offset;
+                const stop = envelope(gain, start, level * velocity, attack, hold, release);
+                source.connect(gain).connect(into);
+                source.start(start, source.loopStart);
+                finish(source, stop);
+                return source;
+            };
+            const base = midi === null ? 0 : noteFrequency(midi);
+            const drift = (random() - 0.5) * 6;
+            if (kind === 'felt') {
+                // Felt piano: stretched partials that brighten with velocity, a hammer knock, and the felt body.
+                const decay = 4.2 + random() * 1.2;
+                const bright = Math.pow(velocity, 1.6);
+                for (let n = 1; n <= 6; n++) {
+                    const ratio = n * Math.sqrt(1 + 0.0006 * n * n);
+                    const level = [0.15, 0.05, 0.02, 0.008, 0.004, 0.002][n - 1] * (n === 1 ? 1 : bright);
+                    tone(base * ratio, level, 0.012 + n * 0.002, 0, decay * Math.pow(0.55, n - 1), (n - 1) * 0.002 * random(), filter, drift);
+                }
+                const knock = local('createBiquadFilter');
+                knock.type = 'lowpass';
+                knock.frequency.value = 500 + velocity * 900;
+                knock.connect(pan);
+                puff(0.1 * bright, 0.003, 0, 0.05, knock, 0, this.hissBuffer);
+                const body = local('createBiquadFilter');
+                body.type = 'bandpass';
+                body.frequency.value = 180;
+                body.Q.value = 1.2;
+                body.connect(pan);
+                puff(0.12, 0.006, 0, 0.16, body);
+            } else if (kind === 'harp') {
+                // Harp: a full harmonic series that thins quickly, a fingertip pluck, warm and short.
+                const decay = 2.6 + random() * 1;
+                const bright = 0.6 + velocity * 0.6;
+                for (let n = 1; n <= 8; n++) {
+                    const level = 0.075 / Math.pow(n, 1.35) * (n === 1 ? 1 : bright);
+                    tone(base * n * (1 + 0.0002 * n * n), level, 0.004 + n * 0.001, 0, decay * Math.pow(0.62, n - 1), 0, filter, drift);
+                }
+                const pluck = local('createBiquadFilter');
+                pluck.type = 'bandpass';
+                pluck.frequency.value = Math.min(1800, base * 3);
+                pluck.Q.value = 0.8;
+                pluck.connect(pan);
+                puff(0.035 * bright, 0.002, 0, 0.03, pluck, 0, this.hissBuffer);
+            } else if (kind === 'breath') {
+                // The bed: overlapping swells of detuned voices on a dyad, never silent while playing.
+                const colours = bedColours(midi, this.harmony.degrees, this.mood);
+                const partner = colours[Math.floor(random() * colours.length)];
+                // The upper voice drifts across the field; the bass note stays centred.
+                const upperFilter = local('createBiquadFilter');
+                upperFilter.type = 'lowpass';
+                upperFilter.frequency.value = part.cutoff + (this.brighten ? 600 : 0);
+                if (this.brighten) filter.frequency.value = part.cutoff + 600;
+                this.brighten = false;
+                upperFilter.Q.value = 0.3;
+                const upper = local('createStereoPanner');
+                upperFilter.connect(upper).connect(trim);
+                const attack = 5.5 + random() * 1.5;
+                const hold = 2 + random();
+                const bed = 0.16 * this.settings.breath * (this.resting ? 0.5 : 1);
+                for (const [interval, level] of [[0, bed], [partner, bed * 0.6]]) {
+                    const frequency = noteFrequency(midi + interval);
+                    const into = local('createGain');
+                    into.gain.value = 0.85;
+                    // Two slow tremolos at unrelated rates never repeat; a single one reads as a machine.
+                    lfo(0.11 + random() * 0.09, 0.07, into.gain, when);
+                    lfo(0.043 + random() * 0.03, 0.06, into.gain, when);
+                    into.connect(interval ? upperFilter : filter);
+                    for (const cents of [-5, 0, 6]) {
+                        const oscillator = tone(frequency, level / 3, attack, hold, 14 - attack - hold, 0, into, cents + drift);
+                        // One reedy voice per note gives the pad a body the sines lack.
+                        if (cents === 0) oscillator.type = 'triangle';
+                        lfo(0.04 + random() * 0.07, 3, oscillator.detune, when);
+                    }
+                    const breath = local('createBiquadFilter');
+                    breath.type = 'bandpass';
+                    breath.frequency.value = frequency * 2;
+                    breath.Q.value = 1.2;
+                    breath.connect(into);
+                    puff(level * 0.5, attack, hold, 14 - attack - hold, breath, 0, this.hissBuffer);
+                }
+                lfo(0.05 + random() * 0.05, 220, filter.frequency, when);
+                lfo(0.03 + random() * 0.03, 0.4, upper.pan, when);
+            } else if (kind === 'air') {
+                // Wind: noise through two resonances that wander independently.
+                const rise = 5 + random() * 2;
+                for (const [centre, level] of [[215, 0.26], [1500, 0.05]]) {
+                    const band = local('createBiquadFilter');
+                    band.type = 'bandpass';
+                    band.frequency.value = centre * (0.85 + random() * 0.3);
+                    band.Q.value = 1.4;
+                    band.connect(filter);
+                    lfo(0.05 + random() * 0.08, centre * 0.35, band.frequency, when);
+                    puff(level, rise, 1, 13 - rise - 1, band, random() * 0.6);
+                }
+                const gust = local('createGain');
+                gust.gain.value = 0.75;
+                lfo(0.06 + random() * 0.06, 0.12, gust.gain, when);
+                filter.disconnect();
+                filter.connect(gust).connect(pan);
+                pan.disconnect();
+                pan.connect(trim);
+                trim.disconnect();
+                trim.connect(this.airDuck);
+                lfo(0.02 + random() * 0.03, 0.5, pan.pan, when);
+            } else if (kind === 'guitar') {
+                // Nylon guitar: harmonics shaped by the plucking point, higher ones dying first, a fingertip
+                // pluck, a soft body knock, and the string going a few cents sharp on the pluck before settling.
+                const decay = (2.6 + random() * 0.9) * stretch;
+                const pluckPoint = 0.22 + random() * 0.08;
+                for (let n = 1; n <= 9; n++) {
+                    const level = 0.16 * Math.abs(Math.sin(Math.PI * n * pluckPoint)) / Math.pow(n, 0.9) * (n === 1 ? 1 : 0.6 + velocity * 0.5);
+                    const string = tone(base * n * (1 + 0.0002 * n * n), level, 0.003 + n * 0.0005, 0, decay / Math.pow(n, 0.7), 0, filter, drift);
+                    string.detune.setValueAtTime(drift + this.harmony.cents + 9, when);
+                    string.detune.linearRampToValueAtTime(drift + this.harmony.cents, when + 0.12);
+                }
+                const nail = local('createBiquadFilter');
+                nail.type = 'bandpass';
+                nail.frequency.value = 1600;
+                nail.Q.value = 1;
+                nail.connect(pan);
+                puff(0.022 * velocity, 0.002, 0, 0.012, nail, 0, this.hissBuffer);
+                const knock = local('createBiquadFilter');
+                knock.type = 'lowpass';
+                knock.frequency.value = 420;
+                knock.connect(pan);
+                puff(0.05, 0.004, 0, 0.03, knock);
+            } else if (kind === 'pizz') {
+                // Pizzicato bass: a soft fingertip pluck on a thick string, few harmonics, quick to settle.
+                const decay = 1.4 + random() * 0.5;
+                // Note: partials 2 and 3 carry the pitch on a small speaker that cannot reproduce the fundamental.
+                for (let n = 1; n <= 4; n++) tone(base * n * (1 + 0.0004 * n * n), [0.075, 0.053, 0.037, 0.012][n - 1], 0.006 + n * 0.002, 0, decay * Math.pow(0.55, n - 1), 0, filter, drift);
+                const thumb = local('createBiquadFilter');
+                thumb.type = 'lowpass';
+                thumb.frequency.value = 600;
+                thumb.connect(pan);
+                puff(0.08 * velocity, 0.003, 0, 0.04, thumb, 0, this.hissBuffer);
+            } else {
+                // Marimba, soft mallet: wooden bar partials at 1, 3.93 and 9.2, quick and warm.
+                const decay = 0.9 + random() * 0.5 + Math.max(0, 300 - base) / 600;
+                tone(base, 0.085, 0.004, 0, decay, 0, filter, drift);
+                tone(base * 3.93, 0.02 * velocity, 0.003, 0, decay * 0.28, 0, filter, drift);
+                tone(base * 9.2, 0.002 * velocity, 0.002, 0, decay * 0.1, 0, filter, drift);
+                const mallet = local('createBiquadFilter');
+                mallet.type = 'lowpass';
+                mallet.frequency.value = 900 + velocity * 600;
+                mallet.connect(pan);
+                puff(0.039 * velocity, 0.002, 0, 0.018, mallet, 0, this.hissBuffer);
+            }
+            const voice = {
+                kind, midi, end,
+                release: () => {
+                    for (const source of sources) { source.onended = null; source.stop(); }
+                    for (const node of nodes) { if (node.stop) try { node.stop(); } catch {} node.disconnect(); }
+                    this.notes.delete(voice);
+                }
+            };
+            this.notes.add(voice);
+            lastSource.onended = voice.release;
+            return end - when;
+        }
+
+        // Melodic pitches of the last five seconds, moved into a voice range; inverted only once already quoted straight.
+        quote(layer, count, when) {
+            const notes = this.motif.filter(note => note.when > when - 5).slice(-count).map(note => note.midi);
+            if (notes.length < 2) return null;
+            const key = notes.join(',');
+            const invert = this.quoted === key && this.random() < 0.5;
+            this.quoted = key;
+            const low = this.harmony.midi(layer.low), high = this.harmony.midi(layer.high);
+            const inverted = invert ? notes.map(note => 2 * notes[0] - note) : notes;
+            const degrees = this.harmony.degrees;
+            const inMode = midi => degrees.includes(((midi - this.harmony.root) % 12 + 12) % 12);
+            const fitted = inverted.map(note => fitRange(note, low, high)).filter(inMode);
+            return fitted.length >= 2 ? fitted : null;
+        }
+
+        // A virtuoso flourish: a run or arch of quick notes with a dynamic arc, a push or drag in tempo,
+        // a walk across the stereo field, and sometimes an ornament on the last note.
+        playRun(layer, when, size = null, lift = 1) {
+            const length = size ?? 3 + Math.floor(this.random() * 3);
+            const shape = this.random();
+            const direction = this.random() < 0.5 ? -1 : 1;
+            let gap = (0.22 + this.random() * 0.16) * this.pace;
+            const tempo = this.random() < 0.5 ? 0.94 : 1.07;
+            let at = when;
+            const ringing = this.ringing(when);
+            const quoted = this.random() < 0.4 ? this.quote(layer, 4, when) : null;
+            const side = (this.random() < 0.5 ? -1 : 1) * ARRANGEMENT.marimba.pan[1];
+            const velocity = arc => Math.min(1, (0.4 + 0.45 * arc) * this.mood / 0.85 * lift);
+            let last = null;
+            for (let i = 0; i < length; i++) {
+                const bias = shape < 0.6 ? direction : (i < length / 2 ? direction : -direction);
+                const midi = quoted && i < quoted.length ? quoted[i] : this.harmony.next(layer, ringing, shape < 0.95 ? bias : direction * 2);
+                if (midi === null) break;
+                if (quoted && i < quoted.length) layer.step = this.nearestStep(midi, layer);
+                const arc = Math.sin(Math.PI * (i + 0.5) / length);
+                this.playVoice('marimba', midi, at, velocity(arc), side * (1 - 2 * i / Math.max(1, length - 1)));
+                last = midi;
+                at += gap;
+                gap *= tempo;
+            }
+            if (last === null) return at;
+            const ornament = this.random();
+            const above = this.harmony.midi(Math.min(layer.high, layer.step + 1));
+            if (ornament < 0.15) {
+                // Mordent: up and back.
+                this.playVoice('marimba', above, at, velocity(0.5), side * -1);
+                this.playVoice('marimba', last, at + 0.08, velocity(0.7), side * -1);
+                at += 0.16;
+            } else if (ornament < 0.22) {
+                // Trill, fading.
+                const count = 4 + Math.floor(this.random() * 3);
+                for (let i = 0; i < count; i++) {
+                    this.playVoice('marimba', i % 2 ? last : above, at, velocity(0.6) * (1 - i / count), side * -1);
+                    at += 0.075 + this.random() * 0.02;
+                }
+            }
+            return at;
+        }
+
+        // Something happened in the room. The room is the foreground: a small event gets one soft note a few
+        // seconds later, a big one only a gust of wind or a brighter bed swell. Never a flourish.
+        respond(strength, now) {
+            if (this.disposed || now - this.lastResponse < 20) return;
+            this.lastResponse = now;
+            const when = Math.max(now + 2 + this.random() * 3, this.lastOnset + MIN_ONSET_GAP);
+            if (strength >= 0.5) {
+                if (this.settings.air > 0.15 && this.random() < 0.6) this.playVoice('air', null, when);
+                else { this.brighten = true; this.playVoice('breath', this.harmony.midi(-3), when); }
+                this.responses.push({ kind: strength >= 0.5 ? 'weather' : 'note', when });
+                return;
+            }
+            const kind = this.random() < 0.5 ? 'guitar' : 'felt';
+            const [low, high] = RANGES[kind];
+            const layer = { kind, low, high, step: low + Math.floor(this.random() * (high - low + 1)) };
+            if (this.motif.length) layer.step = this.nearestStep(fitRange(this.motif.at(-1).midi, this.harmony.midi(low), this.harmony.midi(high)), layer);
+            // If every neighbour clashes with what is ringing, the current step itself is always safe to repeat.
+            const midi = this.harmony.next(layer, this.ringing(when)) ?? this.harmony.midi(layer.step);
+            this.playVoice(kind, midi, when, 0.6);
+            this.lastOnset = when;
+            this.responses.push({ kind: 'note', when });
+        }
+
+        // Median spacing of room events sets how hurried the flourishes and the melodic gaps are.
+        setPace(interval) {
+            // Mirror a room slowing down, never a room speeding up.
+            this.pace = interval === null ? 1 : clamp(interval / 6, 1, 1.4);
+        }
+
+        setSpeech(value) {
+            this.speech = value;
+        }
+
+        // Melodic attacks in the last two minutes, against the room's budget, thinned after twenty minutes.
+        overBudget(now) {
+            const recent = this.melodic.filter(time => time > now - 120).length;
+            const longevity = now - this.started > 1200 ? 0.7 : 1;
+            // A gesture adds several attacks at once, so stop a little before the line.
+            return recent + 2 >= this.settings.budget * longevity;
+        }
+
+        // True while one of our own attacks is sounding, so the microphone rise is ours.
+        attacking(now) {
+            return this.attacks.some(time => now >= time - 0.15 && now < time + 0.35);
+        }
+
+        // The lead speaks in short phrases: two to five notes, a dynamic peak, a breath before the last note, which rings.
+        playPhrase(layer, when, size = null) {
+            const count = size ?? 2 + Math.floor(this.random() * 3);
+            const peak = Math.floor(this.random() * count);
+            const direction = this.random() < 0.5 ? -1 : 1;
+            const ringing = this.ringing(when);
+            let at = when;
+            for (let i = 0; i < count; i++) {
+                const last = i === count - 1;
+                let midi = this.harmony.next(layer, ringing, this.random() < 0.6 ? direction : null);
+                if (midi !== null && last && this.harmony.leading(midi)) midi = this.harmony.next(layer, ringing, -1);
+                if (midi === null) break;
+                const shape = 1 - Math.abs(i - peak) / Math.max(1, count);
+                this.playVoice('guitar', midi, at, Math.min(1, (0.6 + 0.12 * shape) * this.mood / 0.85), null, last ? 1.5 : 1);
+                if (!last) at += (0.7 + this.random() * 0.9) * this.pace * (i === count - 2 ? 1.15 : 1);
+            }
+            return at;
+        }
+
+        nearestStep(midi, layer) {
+            let best = layer.step, distance = Infinity;
+            for (let step = layer.low; step <= layer.high; step++) {
+                const gap = Math.abs(this.harmony.midi(step) - midi);
+                if (gap < distance) { distance = gap; best = step; }
+            }
+            return best;
+        }
+
+        // Harp figures: an answer quoting the motif, an arpeggio, or rarely a glissando across the mode.
+        playHarp(layer, when, ringing) {
+            const roll = this.random();
+            const quoted = roll < 0.4 ? this.quote(layer, 4, when) : null;
+            if (quoted) {
+                let at = when;
+                for (const midi of quoted) { this.playVoice('harp', midi, at, (0.5 + this.random() * 0.3) * this.mood / 0.85); at += 0.28 + this.random() * 0.14; }
+                layer.step = this.nearestStep(quoted.at(-1), layer);
+                return at;
+            }
+            if (roll < 0.62) {
+                const midi = this.harmony.next(layer, ringing);
+                if (midi === null) return null;
+                this.playVoice('harp', midi, when);
+                return when;
+            }
+            const count = roll < 0.96 ? 3 : 6 + Math.floor(this.random() * 4);
+            const gap = roll < 0.96 ? 0.2 + this.random() * 0.12 : 0.07 + this.random() * 0.02;
+            const direction = this.random() < 0.5 ? -1 : 1;
+            let at = when;
+            for (let i = 0; i < count; i++) {
+                const midi = this.harmony.next(layer, ringing, i === 0 ? null : direction * (roll < 0.96 ? 2 : 1));
+                if (midi === null) break;
+                this.playVoice('harp', midi, at, (roll < 0.96 ? 0.55 + 0.15 * i : 0.35 + 0.25 * Math.sin(Math.PI * (i + 0.5) / count)) * this.mood / 0.85);
+                at += gap;
+            }
+            return at;
+        }
+
+        tick(now, playing) {
+            if (!playing || this.disposed) return;
+            if (now >= this.nextPhrase) {
+                if (this.phrases++ % 2 === 1) this.harmony.drift();
+                if (this.phrases % 5 === 0 && this.random() < 0.5) { this.harmony.modulate(); this.motif = []; }
+                const kinds = chooseEnsemble(this.settings, this.random, this.layers.map(layer => layer.kind));
+                this.layers = kinds.map((kind, index) => {
+                    let [low, high] = RANGES[kind];
+                    if (kind === 'pizz' && this.harmony.root <= 59) low = -11;
+                    return { kind, low, high, step: low + Math.floor(this.random() * (high - low + 1)), next: now + 0.3 + index * 2.5 + this.random() * 3 };
+                });
+                this.nextPhrase = now + 40 + this.random() * 30;
+                // Silence as material: in any room, half the phrases hold a long rest with only wind and a soft bed.
+                if (this.random() < 0.5) {
+                    const at = now + 8 + this.random() * 15;
+                    this.rest = { at, until: at + 20 + this.random() * 20 };
+                }
+            }
+            const resting = now >= this.rest.at && now < this.rest.until;
+            this.resting = resting;
+            this.mood = clamp(this.mood + (this.random() - 0.5) * 0.03 + (0.8 - this.mood) * 0.01, 0.6, 0.9);
+            if (now >= this.bedNext) {
+                // A low-heavy room already has a bass; the bed then sits on the fifth or the octave.
+                const roll = this.random();
+                const lowHeavy = (this.room?.low ?? 0) > 0.7;
+                const step = lowHeavy ? (roll < 0.15 ? -6 : roll < 0.6 ? -3 : 0) : (roll < 0.4 ? -6 : roll < 0.75 ? -3 : 0);
+                this.playVoice('breath', this.harmony.midi(step), now + 0.08);
+                this.bedNext = now + BED_PERIOD + this.random() * 1.5;
+            }
+            for (const layer of this.layers) {
+                if (now < layer.next) continue;
+                if (now < this.lastOnset + MIN_ONSET_GAP) {
+                    layer.next = this.lastOnset + MIN_ONSET_GAP + this.random() * 0.8;
+                    continue;
+                }
+                const when = now + 0.08;
+                if (layer.kind !== 'air' && resting) {
+                    layer.next = this.rest.until + this.random() * 3;
+                    continue;
+                }
+                // People talking, or the two-minute budget spent: the melodic voices wait.
+                if (layer.kind !== 'air' && (this.speech > 0.5 || this.overBudget(now))) {
+                    layer.next = now + 3 + this.random() * 4;
+                    continue;
+                }
+                if (layer.kind === 'marimba') {
+                    this.lastOnset = this.playRun(layer, when);
+                } else if (layer.kind === 'guitar') {
+                    this.lastOnset = this.playPhrase(layer, when);
+                } else if (layer.kind === 'harp') {
+                    const end = this.playHarp(layer, when, this.ringing(now));
+                    if (end === null) { layer.next = now + 1 + this.random() * 2; continue; }
+                    this.lastOnset = end;
+                } else {
+                    let midi = layer.kind === 'air' ? null : this.harmony.next(layer, this.ringing(now));
+                    if (layer.kind === 'felt' && this.random() < 0.25) {
+                        const quoted = this.quote(layer, 2, when);
+                        if (quoted) { midi = quoted.at(-1); layer.step = this.nearestStep(midi, layer); }
+                    }
+                    // A felt note rings for seconds: never leave it on the leading tone.
+                    if (layer.kind === 'felt' && midi !== null && this.harmony.leading(midi)) midi = this.harmony.next(layer, this.ringing(now), -1);
+                    if (midi === null && layer.kind !== 'air') {
+                        layer.next = now + 1 + this.random() * 2;
+                        continue;
+                    }
+                    this.playVoice(layer.kind, midi, when);
+                    this.lastOnset = when;
+                }
+                // A pianist sometimes lets a note speak twice, softer, a step away.
+                if (layer.kind === 'felt' && this.random() < 0.1) {
+                    const again = this.harmony.next(layer, this.ringing(now));
+                    if (again !== null) {
+                        this.lastOnset = when + 0.5 + this.random() * 0.5;
+                        this.playVoice('felt', again, this.lastOnset, 0.35 + this.random() * 0.15);
+                    }
+                }
+                const spacing = ARRANGEMENT[layer.kind].density;
+                const rest = this.random() < 0.2 ? 2 : 1;
+                layer.next = now + this.settings.noteInterval * spacing * (0.7 + this.random() * 0.8) * rest * (1.6 - this.mood * 0.7) * (layer.kind === 'air' ? 1 : this.pace);
+            }
+        }
+
+        dispose() {
+            if (this.disposed) return;
+            this.disposed = true;
+            for (const voice of [...this.notes]) voice.release();
+            for (const node of this.nodes) node.disconnect();
+            this.layers = [];
+            this.nodes = [];
+        }
+
+    }
+    </script>
+
+    <script>
+    'use strict';
+    const button = document.getElementById('toggle');
+    const status = document.getElementById('status');
+    const canvas = document.getElementById('analyzer');
+    const pen = canvas.getContext('2d');
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    const targetBands = new Float32Array(80);
+    const displayBands = new Float32Array(80);
+    let session = null;
+    let width = 0, height = 0, animation = 0, lastDraw = 0;
+
+    function stop(message = '', immediate = false) {
+        const previous = session;
+        session = null;
+        button.textContent = 'Start';
+        button.setAttribute('aria-pressed', 'false');
+        status.textContent = message;
+        targetBands.fill(0);
+        requestDraw();
+        if (!previous) return;
+        clearInterval(previous.timer);
+        previous.context.onstatechange = null;
+        for (const track of previous.stream?.getTracks() || []) {
+            track.onended = null;
+            track.onmute = null;
+            track.stop();
+        }
+        previous.input?.disconnect();
+        const close = () => {
+            previous.engine?.dispose();
+            if (previous.context.state !== 'closed') previous.context.close().catch(() => {});
+        };
+        if (!immediate && previous.engine && previous.context.state === 'running') {
+            previous.engine.fade(0, 0.15);
+            setTimeout(close, 180);
+        } else close();
+    }
+
+    async function start() {
+        if (session) return;
+        status.textContent = '';
+        const Audio = window.AudioContext || window.webkitAudioContext;
+        if (!Audio || !navigator.mediaDevices?.getUserMedia) {
+            status.textContent = 'Microphone audio is unavailable. Open Ambience over HTTPS or localhost.';
+            return;
+        }
+        let current;
+        try {
+            const context = new Audio();
+            current = { context, stream: null, engine: null, input: null, timer: null };
+            session = current;
+            button.textContent = 'Stop';
+            button.setAttribute('aria-pressed', 'true');
+            requestDraw();
+            // Resume in the click gesture, before the permission prompt can consume it.
+            const resumed = context.resume().catch(() => {
+                if (session === current) stop('Audio could not start. Try Start again.', true);
+            });
+            const stream = await navigator.mediaDevices.getUserMedia({
+                // Echo cancellation removes most of our own playback, so the room can be heard while we play.
+                audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+                video: false
+            });
+            if (session !== current) { stream.getTracks().forEach(track => track.stop()); return; }
+            current.stream = stream;
+            await resumed;
+            if (session !== current) return;
+            if (context.state !== 'running') { stop('Audio was interrupted. Try Start again.', true); return; }
+            const analyser = context.createAnalyser();
+            analyser.fftSize = 2048;
+            analyser.smoothingTimeConstant = 0;
+            // A fine FFT for finding the room's hum while listening.
+            const fine = context.createAnalyser();
+            fine.fftSize = 32768;
+            fine.smoothingTimeConstant = 0.8;
+            current.input = context.createMediaStreamSource(stream);
+            current.input.connect(analyser); // Deliberately never connected to destination.
+            current.input.connect(fine);
+            const spectrum = new Float32Array(analyser.frequencyBinCount);
+            const fineSpectrum = new Float32Array(fine.frequencyBinCount);
+            const wave = new Float32Array(analyser.fftSize);
+            const cycle = new ListeningCycle(context.currentTime, Math.random);
+            const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+            current.engine = new SoundEngine(context, seed);
+            // Our own output level, so a rise in the microphone can be attributed.
+            const output = context.createAnalyser();
+            output.fftSize = 2048;
+            const outputWave = new Float32Array(output.fftSize);
+            current.engine.gate.connect(output);
+            const events = new RoomEvents();
+            const speechBand = [];
+            const tick = () => {
+                if (session !== current || context.state !== 'running') return;
+                const now = context.currentTime;
+                analyser.getFloatTimeDomainData(wave);
+                analyser.getFloatFrequencyData(spectrum);
+                const frame = acousticFrame(wave, spectrum, context.sampleRate);
+                speechBand.push(bandLevel(spectrum, context.sampleRate, 300, 3000));
+                if (speechBand.length > 30) speechBand.shift();
+                frame.speech = speechIndex(speechBand);
+                if (cycle.phase === 'listening') {
+                    fine.getFloatFrequencyData(fineSpectrum);
+                    frame.hum = humCandidate(fineSpectrum, context.sampleRate);
+                }
+                const event = cycle.update(now, frame);
+                if (event?.kind === 'play') {
+                    current.engine.adapt(event.room);
+                    current.engine.fade(1, event.fade);
+                } else if (event?.kind === 'quiet') current.engine.fade(0, event.fade);
+                if (cycle.phase === 'playing') {
+                    current.engine.setSpeech(frame.speech);
+                    output.getFloatTimeDomainData(outputWave);
+                    const outDb = acousticFrame(outputWave, [], context.sampleRate).db;
+                    const strength = events.update(now, frame.db, outDb, current.engine.attacking(now));
+                    if (strength !== null) current.engine.respond(strength, now);
+                    current.engine.setPace(events.pace());
+                }
+                current.engine.tick(now, cycle.phase === 'playing');
+                updateBands(spectrum, context.sampleRate, frame.db);
+            };
+            for (const track of stream.getTracks()) {
+                track.onended = () => { if (session === current) stop('Microphone disconnected.', true); };
+                track.onmute = () => { if (session === current) stop('Microphone interrupted.', true); };
+            }
+            context.onstatechange = () => {
+                if (session === current && context.state !== 'running') stop('Audio interrupted. Try Start again.', true);
+            };
+            current.timer = setInterval(tick, 100);
+            tick();
+        } catch (error) {
+            if (current && session !== current) return;
+            const messages = {
+                NotAllowedError: 'Microphone access was denied.',
+                NotFoundError: 'No microphone was found.',
+                NotReadableError: 'The microphone is unavailable.'
+            };
+            stop(messages[error.name] || 'Audio could not start. Try Start again.', true);
+        }
+    }
+
+    function bandLevel(spectrum, sampleRate, from, to) {
+        const binWidth = sampleRate / (spectrum.length * 2);
+        let power = 0;
+        for (let i = Math.max(1, Math.floor(from / binWidth)); i <= Math.min(spectrum.length - 1, Math.ceil(to / binWidth)); i++) {
+            if (Number.isFinite(spectrum[i])) power += Math.pow(10, spectrum[i] / 10);
+        }
+        return 10 * Math.log10(Math.max(power, 1e-10));
+    }
+
+    function updateBands(spectrum, sampleRate, db) {
+        const binWidth = sampleRate / (spectrum.length * 2);
+        const strength = clamp((db + 80) / 45);
+        for (let i = 0; i < targetBands.length; i++) {
+            const from = 55 * Math.pow(180, i / targetBands.length);
+            const to = 55 * Math.pow(180, (i + 1) / targetBands.length);
+            const first = Math.max(1, Math.floor(from / binWidth));
+            const last = Math.min(spectrum.length - 1, Math.max(first, Math.ceil(to / binWidth)));
+            let peak = -100;
+            for (let bin = first; bin <= last; bin++) peak = Math.max(peak, spectrum[bin]);
+            targetBands[i] = clamp((peak + 88) / 65) * strength;
+        }
+    }
+
+    function resize() {
+        const bounds = canvas.getBoundingClientRect();
+        width = bounds.width;
+        height = bounds.height;
+        const dpr = Math.min(devicePixelRatio || 1, 2);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        pen?.setTransform(dpr, 0, 0, dpr, 0, 0);
+        requestDraw();
+    }
+
+    function requestDraw() {
+        if (!animation && !document.hidden) animation = requestAnimationFrame(draw);
+    }
+
+    function draw(time) {
+        animation = 0;
+        if (!pen || document.hidden) return;
+        if (time - lastDraw < 32 && !reducedMotion.matches) { requestDraw(); return; }
+        const elapsed = Math.min(0.12, (time - lastDraw) / 1000 || 0.033);
+        lastDraw = time;
+        let remaining = 0;
+        for (let i = 0; i < displayBands.length; i++) {
+            const target = reducedMotion.matches ? 0 : targetBands[i];
+            const rate = target > displayBands[i] ? 5 : 2.4;
+            displayBands[i] += (target - displayBands[i]) * (1 - Math.exp(-elapsed * rate));
+            remaining = Math.max(remaining, displayBands[i]);
+        }
+        pen.clearRect(0, 0, width, height);
+        const left = width * 0.085, span = width * 0.83;
+        const baseline = height * 0.65;
+        const amplitude = Math.min(height * 0.62, 180);
+        const colors = [[132, 174, 185], [140, 159, 186], [163, 157, 183], [188, 172, 153], [139, 181, 182]];
+        for (let layer = 0; layer < colors.length; layer++) {
+            const [r, g, b] = colors[layer];
+            const points = [];
+            for (let i = 0; i <= 160; i++) {
+                const x = i / 160;
+                const edge = Math.pow(Math.sin(x * Math.PI), 1.6);
+                const index = Math.min(79, Math.floor(x * 79));
+                let band = 0;
+                for (let j = -3; j <= 3; j++) band += displayBands[clamp(index + j, 0, 79)] / 7;
+                const ridge = 0.12 + 0.065 * Math.sin(x * 9 + layer * 0.7) + 0.045 * Math.cos(x * 16 - layer * 0.9);
+                const lift = (ridge + band * (0.7 + layer * 0.06)) * edge;
+                points.push([left + x * span, baseline - lift * amplitude - layer * 4 * edge]);
+            }
+            const path = () => {
+                pen.beginPath();
+                pen.moveTo(points[0][0], points[0][1]);
+                for (let i = 1; i < points.length - 1; i++) {
+                    pen.quadraticCurveTo(points[i][0], points[i][1], (points[i][0] + points[i + 1][0]) / 2, (points[i][1] + points[i + 1][1]) / 2);
+                }
+                pen.lineTo(points.at(-1)[0], points.at(-1)[1]);
+            };
+            path();
+            pen.lineTo(left + span, baseline + 16);
+            pen.lineTo(left, baseline + 16);
+            pen.closePath();
+            const wash = pen.createLinearGradient(0, baseline - amplitude * 0.7, 0, baseline + 16);
+            wash.addColorStop(0, `rgba(${r},${g},${b},0.075)`);
+            wash.addColorStop(1, `rgba(${r},${g},${b},0)`);
+            pen.fillStyle = wash;
+            pen.fill();
+            path();
+            pen.strokeStyle = `rgba(${r},${g},${b},${0.16 + layer * 0.028})`;
+            pen.lineWidth = 1;
+            pen.shadowColor = `rgba(${r},${g},${b},0.3)`;
+            pen.shadowBlur = 12;
+            pen.stroke();
+            pen.shadowBlur = 0;
+        }
+        if (!reducedMotion.matches && (session || remaining > 0.001)) requestDraw();
+    }
+
+    button.addEventListener('click', () => session ? stop() : start());
+    window.addEventListener('pagehide', () => stop('', true));
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { cancelAnimationFrame(animation); animation = 0; }
+        else requestDraw();
+    });
+    reducedMotion.addEventListener('change', () => { displayBands.fill(0); requestDraw(); });
+    new ResizeObserver(resize).observe(canvas);
+    resize();
+    </script>
+</body>
+</html>
