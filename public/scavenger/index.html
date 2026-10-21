@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050607" />
+  <title>Scavenger</title>
+  <meta name="description" content="Scavenge for logs in an endless procedural space station. Dark, sprawling, quietly familiar." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="view" aria-label="Scavenger viewport"></canvas>
+
+  <div id="hud" class="hud is-hidden" aria-live="polite">
+    <div class="hud-top">
+      <div class="hud-sector"><span id="hudDistrict">ENGINEERING</span> <b id="hudSector">E-00</b></div>
+      <div class="hud-mode" id="hudMode">MANUAL</div>
+    </div>
+    <div class="hud-reticle" id="hudReticle"></div>
+    <div class="hud-bottom">
+      <div class="hud-gauge"><span>SPD</span><b id="hudSpeed">0.0</b><i>m/s</i></div>
+      <div class="hud-gauge"><span>POS</span><b id="hudPos">0 0 0</b></div>
+      <div class="hud-gauge"><span>LOG</span><b id="hudLogs">0</b><i id="hudLogsTotal"></i></div>
+    </div>
+    <div class="hud-toast" id="hudToast"></div>
+    <div class="hud-log" id="hudLog"></div>
+    <div class="hud-help" id="hudHelp"></div>
+  </div>
+
+  <div id="touch" class="touch" aria-hidden="true">
+    <div class="touch-col">
+      <button type="button" data-tap="lamp">LAMP</button>
+      <button type="button" data-tap="stick">STICK</button>
+      <button type="button" data-tap="ping">PING</button>
+      <button type="button" data-tap="drift">DRIFT</button>
+    </div>
+    <button type="button" class="touch-menu" data-tap="menu">MENU</button>
+    <div class="touch-col">
+      <button type="button" data-hold="up">UP</button>
+      <button type="button" data-hold="boost">BOOST</button>
+      <button type="button" data-hold="down">DOWN</button>
+    </div>
+  </div>
+
+  <div id="title" class="title">
+    <div class="title-inner">
+      <p class="title-kicker" id="titleKicker">HELIOS-9 // SERVICE LINK 7.3</p>
+      <h1>Scavenger</h1>
+      <p class="title-copy">The station is still running. Nobody is home. Drift through its service tunnels and see what was left on.</p>
+      <div class="title-modes">
+        <button class="btn primary" id="btnFly" type="button" disabled>Fly</button>
+        <button class="btn" id="btnDrift" type="button" disabled>Drift</button>
+        <button class="btn" id="btnLogs" type="button">Logbook</button>
+      </div>
+      <div class="title-boot">
+        <div class="bar"><i id="bootBar"></i></div>
+        <p id="bootText">Warming up...</p>
+      </div>
+      <div class="title-options">
+        <label>Seed <input id="optSeed" type="text" value="HELIOS-9" maxlength="24" spellcheck="false" autocomplete="off" /></label>
+        <label>Quality
+          <select id="optQuality">
+            <option value="auto" selected>Auto</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+        <label>Nostalgia <input id="optNostalgia" type="range" min="0" max="100" value="40" /></label>
+        <label>Sound <input id="optSound" type="checkbox" checked /></label>
+      </div>
+      <p class="title-keys">WASD move &middot; mouse look &middot; Space/C up/down &middot; Q/E roll &middot; Shift boost &middot; F headlamp &middot; G glowstick &middot; V ping &middot; H help</p>
+      <a class="title-back" href="../">Back to the disk drive</a>
+    </div>
+  </div>
+
+  <div id="logbook" class="logbook is-hidden" role="dialog" aria-label="Logbook">
+    <div class="logbook-inner">
+      <header>
+        <h2>Logbook</h2>
+        <span id="logbookMeta"></span>
+        <button class="btn" id="btnLogsClose" type="button">Close</button>
+      </header>
+      <ol id="logbookList"></ol>
+    </div>
+  </div>
+
+  <div id="fatal" class="fatal is-hidden"></div>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
