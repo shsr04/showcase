@@ -1,0 +1,1080 @@
+[
+  {
+    "order": 0,
+    "name": "Gloucester",
+    "routePoint": true,
+    "chapter": "II",
+    "dateIso": "1895-05"
+  },
+  {
+    "order": 1,
+    "name": "Massachusetts Bay",
+    "routePoint": false,
+    "chapter": "II",
+    "dateIso": "1895-05"
+  },
+  {
+    "order": 2,
+    "name": "Deer Island",
+    "routePoint": false,
+    "chapter": "II",
+    "dateIso": "1895-05"
+  },
+  {
+    "order": 3,
+    "name": "Nahant",
+    "routePoint": false,
+    "chapter": "II",
+    "dateIso": "1895-05"
+  },
+  {
+    "order": 4,
+    "name": "Marblehead",
+    "routePoint": false,
+    "chapter": "II",
+    "dateIso": "1895-05"
+  },
+  {
+    "order": 5,
+    "name": "Norman's Woe",
+    "routePoint": false,
+    "chapter": "II",
+    "dateIso": "1895-05"
+  },
+  {
+    "order": 6,
+    "name": "Boston",
+    "routePoint": true,
+    "chapter": "II",
+    "dateIso": "1895-05-24"
+  },
+  {
+    "order": 7,
+    "name": "East Boston",
+    "routePoint": false,
+    "chapter": "II",
+    "dateIso": "1895-05-24"
+  },
+  {
+    "order": 8,
+    "name": "Sable Island",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-06"
+  },
+  {
+    "order": 9,
+    "name": "Ponta Delgada",
+    "routePoint": true,
+    "chapter": "III",
+    "dateIso": "1895-06"
+  },
+  {
+    "order": 10,
+    "name": "Nova Scotia",
+    "routePoint": false,
+    "chapter": "II",
+    "dateIso": "1895-06"
+  },
+  {
+    "order": 11,
+    "name": "Azores",
+    "routePoint": true,
+    "chapter": "III",
+    "dateIso": "1895-06-15"
+  },
+  {
+    "order": 12,
+    "name": "Morocco shore",
+    "routePoint": false,
+    "chapter": "IV",
+    "dateIso": "1895-07"
+  },
+  {
+    "order": 13,
+    "name": "Canary Islands",
+    "routePoint": true,
+    "chapter": "V",
+    "dateIso": "1895-07"
+  },
+  {
+    "order": 14,
+    "name": "Fayal",
+    "routePoint": false,
+    "chapter": "IV",
+    "dateIso": "1895-07"
+  },
+  {
+    "order": 15,
+    "name": "Yarmouth",
+    "routePoint": true,
+    "chapter": "III",
+    "dateIso": "1895-07-02"
+  },
+  {
+    "order": 16,
+    "name": "Cape Sable",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-02"
+  },
+  {
+    "order": 17,
+    "name": "Gibraltar",
+    "routePoint": true,
+    "chapter": "IV",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 18,
+    "name": "Ironbound Island",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 19,
+    "name": "Liverpool, Nova Scotia",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 20,
+    "name": "Chebucto Head",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 21,
+    "name": "Halifax",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 22,
+    "name": "George's Island",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 23,
+    "name": "Sambro",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 24,
+    "name": "Rock of Lamentations",
+    "routePoint": false,
+    "chapter": "III",
+    "dateIso": "1895-07-03"
+  },
+  {
+    "order": 25,
+    "name": "Pico",
+    "routePoint": false,
+    "chapter": "IV",
+    "dateIso": "1895-07-26"
+  },
+  {
+    "order": 26,
+    "name": "São Miguel",
+    "routePoint": false,
+    "chapter": "IV",
+    "dateIso": "1895-07-26"
+  },
+  {
+    "order": 27,
+    "name": "Cape Verde Islands",
+    "routePoint": false,
+    "chapter": "V",
+    "dateIso": "1895-08"
+  },
+  {
+    "order": 28,
+    "name": "Pernambuco",
+    "routePoint": true,
+    "chapter": "V",
+    "dateIso": "1895-08"
+  },
+  {
+    "order": 29,
+    "name": "Suez Canal",
+    "routePoint": false,
+    "chapter": "V",
+    "dateIso": "1895-08"
+  },
+  {
+    "order": 30,
+    "name": "Mediterranean Sea",
+    "routePoint": false,
+    "chapter": "V",
+    "dateIso": "1895-08"
+  },
+  {
+    "order": 31,
+    "name": "Red Sea",
+    "routePoint": false,
+    "chapter": "V",
+    "dateIso": "1895-08"
+  },
+  {
+    "order": 32,
+    "name": "Brazil",
+    "routePoint": false,
+    "chapter": "V",
+    "dateIso": "1895-08"
+  },
+  {
+    "order": 33,
+    "name": "Cape Roque",
+    "routePoint": false,
+    "chapter": "V",
+    "dateIso": "1895-09"
+  },
+  {
+    "order": 34,
+    "name": "Rio de Janeiro",
+    "routePoint": true,
+    "chapter": "VI",
+    "dateIso": "1895-10"
+  },
+  {
+    "order": 35,
+    "name": "Maldonado",
+    "routePoint": true,
+    "chapter": "VI",
+    "dateIso": "1895-11"
+  },
+  {
+    "order": 36,
+    "name": "Montevideo",
+    "routePoint": true,
+    "chapter": "VI",
+    "dateIso": "1895-11"
+  },
+  {
+    "order": 37,
+    "name": "Buenos Aires",
+    "routePoint": true,
+    "chapter": "VI",
+    "dateIso": "1895-12"
+  },
+  {
+    "order": 38,
+    "name": "Mouth of the Plate",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1895-12"
+  },
+  {
+    "order": 39,
+    "name": "Uruguay",
+    "routePoint": false,
+    "chapter": "VI",
+    "dateIso": "1895-12"
+  },
+  {
+    "order": 40,
+    "name": "Cape Froward",
+    "routePoint": true,
+    "chapter": "VII",
+    "dateIso": "1896-01"
+  },
+  {
+    "order": 41,
+    "name": "Fortescue Bay",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-01"
+  },
+  {
+    "order": 42,
+    "name": "Three Island Cove",
+    "routePoint": true,
+    "chapter": "VII",
+    "dateIso": "1896-01"
+  },
+  {
+    "order": 43,
+    "name": "River Plate",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-01"
+  },
+  {
+    "order": 44,
+    "name": "Thieves' Bay",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-01"
+  },
+  {
+    "order": 45,
+    "name": "Point Indio",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-01-28"
+  },
+  {
+    "order": 46,
+    "name": "English Bank",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-01-28"
+  },
+  {
+    "order": 47,
+    "name": "Cape Pillar",
+    "routePoint": true,
+    "chapter": "VIII",
+    "dateIso": "1896-02"
+  },
+  {
+    "order": 48,
+    "name": "Cockburn Channel",
+    "routePoint": false,
+    "chapter": "VIII",
+    "dateIso": "1896-02"
+  },
+  {
+    "order": 49,
+    "name": "Port Angosto",
+    "routePoint": true,
+    "chapter": "X",
+    "dateIso": "1896-02"
+  },
+  {
+    "order": 50,
+    "name": "Bahia Blanca",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-02"
+  },
+  {
+    "order": 51,
+    "name": "Gulf of San Matias",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-02"
+  },
+  {
+    "order": 52,
+    "name": "Gulf of San Jorge",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-02"
+  },
+  {
+    "order": 53,
+    "name": "Sandy Point",
+    "routePoint": true,
+    "chapter": "VII",
+    "dateIso": "1896-02"
+  },
+  {
+    "order": 54,
+    "name": "Cape Virgins",
+    "routePoint": false,
+    "chapter": "VII",
+    "dateIso": "1896-02-11"
+  },
+  {
+    "order": 55,
+    "name": "Strait of Magellan",
+    "routePoint": false,
+    "chapter": "VIII",
+    "dateIso": "1896-02-11"
+  },
+  {
+    "order": 56,
+    "name": "St. Nicholas Bay",
+    "routePoint": false,
+    "chapter": "IX",
+    "dateIso": "1896-02-19"
+  },
+  {
+    "order": 57,
+    "name": "Alan Erric Island",
+    "routePoint": false,
+    "chapter": "X",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 58,
+    "name": "Juan Fernandez",
+    "routePoint": true,
+    "chapter": "X",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 59,
+    "name": "Robinson Crusoe's anchorage",
+    "routePoint": false,
+    "chapter": "X",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 60,
+    "name": "Selkirk monument",
+    "routePoint": false,
+    "chapter": "XI",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 61,
+    "name": "Robinson Crusoe's cave",
+    "routePoint": false,
+    "chapter": "XI",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 62,
+    "name": "Port Tamar",
+    "routePoint": true,
+    "chapter": "VII",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 63,
+    "name": "Tierra del Fuego",
+    "routePoint": false,
+    "chapter": "VIII",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 64,
+    "name": "Cape Horn",
+    "routePoint": false,
+    "chapter": "VIII",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 65,
+    "name": "Falkland Islands",
+    "routePoint": false,
+    "chapter": "VIII",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 66,
+    "name": "Port Stanley",
+    "routePoint": false,
+    "chapter": "VIII",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 67,
+    "name": "Snug Bay",
+    "routePoint": false,
+    "chapter": "IX",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 68,
+    "name": "Echo Mountain",
+    "routePoint": false,
+    "chapter": "IX",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 69,
+    "name": "Borgia Bay",
+    "routePoint": false,
+    "chapter": "IX",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 70,
+    "name": "Cape Quod",
+    "routePoint": false,
+    "chapter": "IX",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 71,
+    "name": "Pacific Ocean",
+    "routePoint": false,
+    "chapter": "X",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 72,
+    "name": "Robinson Crusoe Island",
+    "routePoint": false,
+    "chapter": "X",
+    "dateIso": "1896-03"
+  },
+  {
+    "order": 73,
+    "name": "Marquesas",
+    "routePoint": true,
+    "chapter": "XI",
+    "dateIso": "1896-05"
+  },
+  {
+    "order": 74,
+    "name": "Apia",
+    "routePoint": true,
+    "chapter": "XII",
+    "dateIso": "1896-06"
+  },
+  {
+    "order": 75,
+    "name": "Vailima",
+    "routePoint": false,
+    "chapter": "XII",
+    "dateIso": "1896-06"
+  },
+  {
+    "order": 76,
+    "name": "Papauta College",
+    "routePoint": false,
+    "chapter": "XII",
+    "dateIso": "1896-06"
+  },
+  {
+    "order": 77,
+    "name": "Samoa",
+    "routePoint": false,
+    "chapter": "XII",
+    "dateIso": "1896-06"
+  },
+  {
+    "order": 78,
+    "name": "Fiji",
+    "routePoint": false,
+    "chapter": "XIII",
+    "dateIso": "1896-07"
+  },
+  {
+    "order": 79,
+    "name": "Newcastle",
+    "routePoint": true,
+    "chapter": "XIII",
+    "dateIso": "1896-10"
+  },
+  {
+    "order": 80,
+    "name": "Sydney",
+    "routePoint": true,
+    "chapter": "XIII",
+    "dateIso": "1896-10"
+  },
+  {
+    "order": 81,
+    "name": "Melbourne",
+    "routePoint": true,
+    "chapter": "XIII",
+    "dateIso": "1896-11"
+  },
+  {
+    "order": 82,
+    "name": "Tasmania",
+    "routePoint": true,
+    "chapter": "XIII",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 83,
+    "name": "Devonport",
+    "routePoint": true,
+    "chapter": "XIV",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 84,
+    "name": "Melbourne Heads",
+    "routePoint": false,
+    "chapter": "XIII",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 85,
+    "name": "St. Kilda",
+    "routePoint": false,
+    "chapter": "XIII",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 86,
+    "name": "Launceston",
+    "routePoint": false,
+    "chapter": "XIII",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 87,
+    "name": "Hobson's Bay",
+    "routePoint": false,
+    "chapter": "XIII",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 88,
+    "name": "Port Phillip Heads",
+    "routePoint": false,
+    "chapter": "XIII",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 89,
+    "name": "Yarrow River",
+    "routePoint": false,
+    "chapter": "XIII",
+    "dateIso": "1896-12"
+  },
+  {
+    "order": 90,
+    "name": "Torres Strait",
+    "routePoint": true,
+    "chapter": "XIV",
+    "dateIso": "1897-01"
+  },
+  {
+    "order": 91,
+    "name": "Port Denison",
+    "routePoint": true,
+    "chapter": "XV",
+    "dateIso": "1897-02"
+  },
+  {
+    "order": 92,
+    "name": "Cooktown",
+    "routePoint": true,
+    "chapter": "XV",
+    "dateIso": "1897-02"
+  },
+  {
+    "order": 93,
+    "name": "Home Island",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-03"
+  },
+  {
+    "order": 94,
+    "name": "Sunday Island",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-03"
+  },
+  {
+    "order": 95,
+    "name": "Bird Island",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-03"
+  },
+  {
+    "order": 96,
+    "name": "Thursday Island",
+    "routePoint": true,
+    "chapter": "XV",
+    "dateIso": "1897-03"
+  },
+  {
+    "order": 97,
+    "name": "Booby Island",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-03"
+  },
+  {
+    "order": 98,
+    "name": "Gloucester Island",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-05"
+  },
+  {
+    "order": 99,
+    "name": "Great Barrier Reef",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-05"
+  },
+  {
+    "order": 100,
+    "name": "Endeavour River",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-05-31"
+  },
+  {
+    "order": 101,
+    "name": "M Reef",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-06"
+  },
+  {
+    "order": 102,
+    "name": "Arafura Sea",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-06"
+  },
+  {
+    "order": 103,
+    "name": "Cape Leeuwin",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-07"
+  },
+  {
+    "order": 104,
+    "name": "Timor",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-07-02"
+  },
+  {
+    "order": 105,
+    "name": "Dana Island",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-07-03"
+  },
+  {
+    "order": 106,
+    "name": "Christmas Island",
+    "routePoint": false,
+    "chapter": "XV",
+    "dateIso": "1897-07-11"
+  },
+  {
+    "order": 107,
+    "name": "Keeling Cocos Islands",
+    "routePoint": true,
+    "chapter": "XVI",
+    "dateIso": "1897-07-17"
+  },
+  {
+    "order": 108,
+    "name": "North Keeling",
+    "routePoint": false,
+    "chapter": "XVI",
+    "dateIso": "1897-07-17"
+  },
+  {
+    "order": 109,
+    "name": "South Keeling",
+    "routePoint": false,
+    "chapter": "XVI",
+    "dateIso": "1897-07-17"
+  },
+  {
+    "order": 110,
+    "name": "Rodrigues",
+    "routePoint": true,
+    "chapter": "XVI",
+    "dateIso": "1897-09-08"
+  },
+  {
+    "order": 111,
+    "name": "Mauritius",
+    "routePoint": true,
+    "chapter": "XVII",
+    "dateIso": "1897-09-19"
+  },
+  {
+    "order": 112,
+    "name": "Port Louis",
+    "routePoint": true,
+    "chapter": "XVII",
+    "dateIso": "1897-09-19"
+  },
+  {
+    "order": 113,
+    "name": "Tombo Bay",
+    "routePoint": false,
+    "chapter": "XVII",
+    "dateIso": "1897-09-19"
+  },
+  {
+    "order": 114,
+    "name": "Reunion",
+    "routePoint": false,
+    "chapter": "XVII",
+    "dateIso": "1897-10-27"
+  },
+  {
+    "order": 115,
+    "name": "Galets",
+    "routePoint": false,
+    "chapter": "XVII",
+    "dateIso": "1897-10-27"
+  },
+  {
+    "order": 116,
+    "name": "Cape St. Mary",
+    "routePoint": false,
+    "chapter": "XVII",
+    "dateIso": "1897-10-31"
+  },
+  {
+    "order": 117,
+    "name": "Madagascar",
+    "routePoint": false,
+    "chapter": "XVII",
+    "dateIso": "1897-10-31"
+  },
+  {
+    "order": 118,
+    "name": "Port Natal",
+    "routePoint": false,
+    "chapter": "XVII",
+    "dateIso": "1897-11-17"
+  },
+  {
+    "order": 119,
+    "name": "Natal",
+    "routePoint": false,
+    "chapter": "XVII",
+    "dateIso": "1897-11-17"
+  },
+  {
+    "order": 120,
+    "name": "Durban",
+    "routePoint": true,
+    "chapter": "XVII",
+    "dateIso": "1897-11-17"
+  },
+  {
+    "order": 121,
+    "name": "Cape Agulhas",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1897-12-27"
+  },
+  {
+    "order": 122,
+    "name": "Simons Bay",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1897-12-27"
+  },
+  {
+    "order": 123,
+    "name": "Cape of Good Hope",
+    "routePoint": true,
+    "chapter": "XVIII",
+    "dateIso": "1897-12-28"
+  },
+  {
+    "order": 124,
+    "name": "Table Bay",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1897-12-28"
+  },
+  {
+    "order": 125,
+    "name": "Table Mountain",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1897-12"
+  },
+  {
+    "order": 126,
+    "name": "Lion's Rump",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1897-12"
+  },
+  {
+    "order": 127,
+    "name": "Cape Town",
+    "routePoint": true,
+    "chapter": "XVIII",
+    "dateIso": "1897-12-29"
+  },
+  {
+    "order": 128,
+    "name": "Simons Town",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1898-01"
+  },
+  {
+    "order": 129,
+    "name": "Transvaal",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1898-01"
+  },
+  {
+    "order": 130,
+    "name": "Pretoria",
+    "routePoint": false,
+    "chapter": "XVIII",
+    "dateIso": "1898-01"
+  },
+  {
+    "order": 131,
+    "name": "Jamestown",
+    "routePoint": false,
+    "chapter": "XIX",
+    "dateIso": "1898-04"
+  },
+  {
+    "order": 132,
+    "name": "Plantation House",
+    "routePoint": false,
+    "chapter": "XIX",
+    "dateIso": "1898-04"
+  },
+  {
+    "order": 133,
+    "name": "St. Helena",
+    "routePoint": true,
+    "chapter": "XIX",
+    "dateIso": "1898-04-11"
+  },
+  {
+    "order": 134,
+    "name": "Longwood",
+    "routePoint": false,
+    "chapter": "XIX",
+    "dateIso": "1898-04"
+  },
+  {
+    "order": 135,
+    "name": "Ascension Island",
+    "routePoint": true,
+    "chapter": "XIX",
+    "dateIso": "1898-04-27"
+  },
+  {
+    "order": 136,
+    "name": "Cape St. Roque",
+    "routePoint": false,
+    "chapter": "XX",
+    "dateIso": "1898-05-10"
+  },
+  {
+    "order": 137,
+    "name": "Amazon River",
+    "routePoint": false,
+    "chapter": "XX",
+    "dateIso": "1898-05-14"
+  },
+  {
+    "order": 138,
+    "name": "Guiana",
+    "routePoint": false,
+    "chapter": "XX",
+    "dateIso": "1898-05-14"
+  },
+  {
+    "order": 139,
+    "name": "Venezuela",
+    "routePoint": false,
+    "chapter": "XX",
+    "dateIso": "1898-05-14"
+  },
+  {
+    "order": 140,
+    "name": "Devil’s Island",
+    "routePoint": false,
+    "chapter": "XX",
+    "dateIso": "1898-05-17"
+  },
+  {
+    "order": 141,
+    "name": "Cayenne",
+    "routePoint": false,
+    "chapter": "XX",
+    "dateIso": "1898-05-17"
+  },
+  {
+    "order": 142,
+    "name": "Trinidad",
+    "routePoint": false,
+    "chapter": "XX",
+    "dateIso": "1898-05-20"
+  },
+  {
+    "order": 143,
+    "name": "Grenada",
+    "routePoint": true,
+    "chapter": "XX",
+    "dateIso": "1898-05-22"
+  },
+  {
+    "order": 144,
+    "name": "Antigua",
+    "routePoint": false,
+    "chapter": "XIX",
+    "dateIso": "1898-05"
+  },
+  {
+    "order": 145,
+    "name": "West Indies",
+    "routePoint": false,
+    "chapter": "XIX",
+    "dateIso": "1898-05"
+  },
+  {
+    "order": 146,
+    "name": "Cape Hatteras",
+    "routePoint": false,
+    "chapter": "XXI",
+    "dateIso": "1898-06-05"
+  },
+  {
+    "order": 147,
+    "name": "New York",
+    "routePoint": false,
+    "chapter": "XXI",
+    "dateIso": "1898-06-25"
+  },
+  {
+    "order": 148,
+    "name": "Fire Island",
+    "routePoint": false,
+    "chapter": "XXI",
+    "dateIso": "1898-06-25"
+  },
+  {
+    "order": 149,
+    "name": "Montauk Point",
+    "routePoint": false,
+    "chapter": "XXI",
+    "dateIso": "1898-06-27"
+  },
+  {
+    "order": 150,
+    "name": "Point Judith",
+    "routePoint": false,
+    "chapter": "XXI",
+    "dateIso": "1898-06-27"
+  },
+  {
+    "order": 151,
+    "name": "Beavertail",
+    "routePoint": false,
+    "chapter": "XXI",
+    "dateIso": "1898-06-27"
+  },
+  {
+    "order": 152,
+    "name": "Newport",
+    "routePoint": true,
+    "chapter": "XXI",
+    "dateIso": "1898-06-27"
+  },
+  {
+    "order": 153,
+    "name": "Fairhaven",
+    "routePoint": true,
+    "chapter": "XXI",
+    "dateIso": "1898-07-03"
+  }
+]
