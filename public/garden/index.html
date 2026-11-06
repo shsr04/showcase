@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#cfe6f5" />
+  <title>Garden</title>
+  <meta name="description" content="Tend a drifting sky garden. Shape land, water and weather, and let its folk find their own way between the islands." />
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="view" aria-label="Garden viewport"></canvas>
+  <div id="ui-root"></div>
+  <div id="veil" class="veil"><span>Garden</span></div>
+  <noscript>Garden needs JavaScript.</noscript>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
