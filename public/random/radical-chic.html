@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4eedf">
+<title>Radical Chic — Concierge del tempo libero</title>
+<style>
+:root{color-scheme:light;--paper:#f4eedf;--ink:#242820;--red:#a43131;--gold:#c29b52}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;min-height:100svh}body:before{content:"";position:fixed;inset:12px;border:1px solid #24282030;pointer-events:none}main{max-width:1040px;margin:auto;padding:34px 34px 24px}.masthead{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--ink);padding-bottom:16px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase}.masthead span:last-child{color:var(--red)}header{text-align:center;padding:35px 0 28px}.eyebrow{margin:0 0 12px;font-size:11px;letter-spacing:3px;text-transform:uppercase}h1{font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:clamp(54px,9vw,100px);line-height:.95;letter-spacing:-5px;margin:0}h1 em{color:var(--red)}.intro{font-family:Georgia,serif;font-size:18px;margin:19px 0 0;color:#626357}.playground{display:grid;grid-template-columns:1fr 1fr;gap:52px;align-items:center;padding:5px 0 30px}.machine{position:relative;width:min(100%,410px);margin:0 auto;padding:14px}.rim{border-radius:50%;padding:12px;background:var(--ink);box-shadow:0 0 0 2px var(--gold),0 0 0 8px var(--paper),0 0 0 9px #c29b5270,0 14px 25px #24282018;position:relative}.rim:before{content:"";position:absolute;inset:5px;border:2px dotted var(--gold);border-radius:50%;pointer-events:none}canvas{display:block;width:100%;aspect-ratio:1;border-radius:50%;transition:transform 3.8s cubic-bezier(.13,.7,.12,1);will-change:transform}.pointer{position:absolute;top:1px;left:50%;transform:translateX(-50%);width:26px;height:36px;background:var(--gold);clip-path:polygon(0 0,100% 0,50% 100%);z-index:2;filter:drop-shadow(0 2px 1px #0006)}.hub{position:absolute;inset:0;display:grid;place-content:center;pointer-events:none}.hub span{display:grid;place-content:center;width:77px;height:77px;border-radius:50%;background:var(--paper);border:5px solid var(--gold);box-shadow:0 0 0 5px var(--ink);font-family:Georgia,serif;font-size:29px;font-style:italic}.caption{text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;margin:24px 0 0;color:#737367}.panel{padding:15px 0}.label{font-size:10px;letter-spacing:2.5px;font-weight:700;text-transform:uppercase;display:flex;align-items:center;gap:10px}.label:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--red)}#category{display:block;margin:24px 0 13px;color:var(--red);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px}#activity{font-family:Georgia,'Times New Roman',serif;font-size:clamp(24px,3vw,33px);line-height:1.3;letter-spacing:-.5px;margin:0;min-height:175px}.result{min-height:245px}.generate{width:100%;margin-top:18px;border:1px solid var(--red);border-radius:0;background:var(--red);color:var(--paper);padding:19px 24px;display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:background .2s,transform .2s}.generate:hover:not(:disabled){background:#852525;transform:translateY(-2px)}.generate:focus-visible{outline:3px solid var(--gold);outline-offset:4px}.generate:disabled{cursor:wait;opacity:.7}.generate span:last-child{font-size:23px;line-height:1;font-weight:400}.fineprint{font-size:11px;color:#737367;text-align:center;line-height:1.6;margin:13px 0 0}footer{border-top:1px solid #24282050;display:flex;justify-content:space-between;gap:15px;padding:18px 0 0;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#737367}footer em{text-transform:none;font-family:Georgia,serif;letter-spacing:0;font-size:13px}
+@media(max-width:700px){main{padding:27px 27px 22px}.masthead{font-size:8px;letter-spacing:1.2px}header{padding:30px 0 27px}h1{letter-spacing:-3px}.intro{font-size:16px}.playground{grid-template-columns:1fr;gap:18px}.machine{width:min(100%,320px)}.panel{padding:0}.result{min-height:0}#activity{min-height:0;font-size:26px}#category{margin-top:18px}.generate{margin-top:24px}footer{font-size:8px;align-items:center}footer em{font-size:11px}}
+@media(prefers-reduced-motion:reduce){canvas,.generate{transition:none!important}}
+
+/* Il concierge: controlli da app, ambizioni da circolo privato. */
+main{max-width:1180px}.masthead{align-items:center}.brand{font-family:Georgia,serif;font-size:22px;letter-spacing:-1px;text-transform:none}.member{border:1px solid #a4313140;border-radius:20px;padding:8px 12px;font-size:9px}header{text-align:left;padding:35px 0 30px}h1{font-size:clamp(54px,7vw,82px)}.intro{max-width:580px;line-height:1.5}.playground{grid-template-columns:minmax(300px,.9fr) minmax(0,1.4fr);gap:24px;align-items:stretch}.configuration{background:#fffcf6;border:1px solid #24282026;border-radius:14px;padding:27px}.section-title{font-family:Georgia,serif;font-weight:400;font-size:25px;letter-spacing:-.6px;margin:12px 0 8px}.help{color:#717166;font-size:12px;line-height:1.6;margin:0 0 21px}fieldset{padding:0;margin:0;border:0;min-width:0}.field{display:block;margin:0 0 17px}.field-title{display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:700;margin-bottom:8px}.optional{font-size:10px;color:#818177;font-weight:400}select,input{display:block;width:100%;min-width:0;border:1px solid #d8d5c9;border-radius:7px;background:#f9f7f0;color:var(--ink);font:13px Arial,sans-serif;padding:12px;min-height:44px}select{text-overflow:ellipsis}input::placeholder{color:#77776c}select:focus-visible,input:focus-visible,.secondary:focus-visible{outline:3px solid var(--gold);outline-offset:2px}fieldset:disabled{opacity:.65}.settings-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #e5e1d6;padding-top:17px}.count{font-size:11px;line-height:1.5;color:#717166}.count strong{color:var(--ink);font-size:16px}.secondary{border:1px solid #d8d5c9;border-radius:6px;background:transparent;padding:10px 13px;min-height:40px;color:var(--ink);font-size:11px;cursor:pointer}.secondary:hover:not(:disabled){background:#eeeade}.secondary:disabled{opacity:.5;cursor:default}.experience{border:1px solid #24282026;border-radius:14px;padding:26px;background:#eeeadf;display:flex;flex-direction:column}.roulette-area{display:flex;align-items:center;gap:25px;padding:5px 0 22px}.machine{width:235px;flex:0 0 235px;padding:14px}.rim{padding:8px}.hub span{width:52px;height:52px;font-size:22px;border-width:3px}.wheel-note{max-width:220px}.wheel-note h2{font-family:Georgia,serif;font-size:25px;font-weight:400;margin:0 0 10px}.wheel-note p{font-size:12px;line-height:1.7;color:#717166;margin:0}.wheel-note .badge{display:inline-block;font-size:9px;color:#626b54;background:#e0e5d7;border:1px solid #c8d0bb;border-radius:20px;padding:6px 10px;letter-spacing:1px;text-transform:uppercase;margin-top:15px}.panel{background:#fffcf6;border:1px solid #2428201c;border-radius:10px;padding:23px;flex:1;display:flex;flex-direction:column}.result{min-height:185px;flex:1}#category{margin:17px 0 12px;font-size:10px;letter-spacing:1.8px}#activity{font-size:27px;min-height:0;overflow-wrap:anywhere}.generate{border-radius:7px;margin-top:22px;padding:16px 20px;font-size:13px}.result-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}.result-foot p{margin:0;font-size:10px;line-height:1.5;color:#77776c}.fineprint{margin-bottom:0}.configuration .label{font-size:9px;letter-spacing:1.8px}footer{margin-top:5px}.status{min-height:17px;margin:12px 0 0;font-size:11px;color:#6b715e}
+@media(max-width:950px){.roulette-area{flex-direction:column;gap:15px}.wheel-note{text-align:center;max-width:100%}.wheel-note h2{font-size:22px}.machine{width:215px;flex-basis:auto}.wheel-note p{max-width:300px}.wheel-note .badge{margin-top:10px}#activity{font-size:24px}}
+@media(max-width:700px){header{text-align:center;padding:30px 0}.brand{font-size:20px}.member{font-size:8px;letter-spacing:1px}.playground{grid-template-columns:1fr;gap:18px}.configuration,.experience{padding:21px}.roulette-area{flex-direction:row;gap:16px}.machine{width:170px;flex:0 0 170px;padding:11px}.wheel-note{text-align:left}.wheel-note h2{font-size:20px}.wheel-note p{font-size:11px}.wheel-note .badge{font-size:8px}.panel{padding:20px}.result{min-height:140px}.section-title{font-size:24px}footer{flex-wrap:wrap;justify-content:center;text-align:center;gap:8px}.intro{font-size:16px}}
+@media(max-width:420px){main{padding-left:23px;padding-right:23px}.roulette-area{flex-direction:column}.wheel-note{text-align:center}.machine{width:205px;flex-basis:auto}.field-title{font-size:11px}.configuration,.experience{padding:18px}.panel{padding:17px}.result-foot{align-items:flex-start}}
+</style>
+</head>
+<body>
+<main>
+<div class="masthead"><span class="brand">rc. / il concierge</span><span class="member">Accesso democraticamente esclusivo</span></div>
+<header><p class="eyebrow">Il tempo libero, curato con eccessiva cura</p><h1>Radical <em>Chic.</em></h1><p class="intro">Progetta la tua prossima posa intellettuale.<br>Tu metti le preferenze. Noi mettiamo il sottotesto.</p></header>
+<section class="playground" aria-label="Pianifica la tua attività radical chic">
+<form id="preferences" class="configuration">
+<div class="label">01 / Il tuo brief culturale</div><h2 class="section-title">Un piano su misura.</h2><p class="help" id="preferences-help">Imposta ciò che ti ispira. Lascia «A sorpresa» e i campi vuoti per affidarti al nostro raffinato senso del caso.</p>
+<fieldset id="settings" aria-describedby="preferences-help"><legend class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">Preferenze per il piano</legend>
+<label class="field" for="category-choice"><span class="field-title">Universo culturale <span class="optional">facoltativo</span></span><select id="category-choice"><option value="">A sorpresa · ogni universo</option></select></label>
+<label class="field" for="action-choice"><span class="field-title">Tipo di attività <span class="optional">facoltativo</span></span><select id="action-choice"><option value="">A sorpresa · qualsiasi attività</option></select></label>
+<label class="field" for="place-choice"><span class="field-title">Luogo <span class="optional">facoltativo</span></span><select id="place-choice"><option value="">A sorpresa · purché autentico</option></select></label>
+<label class="field" for="city-choice"><span class="field-title">Città <span class="optional">facoltativo</span></span><input id="city-choice" type="text" maxlength="80" placeholder="A sorpresa, oppure scrivi una città" list="city-suggestions" autocomplete="off"><datalist id="city-suggestions"></datalist></label>
+<label class="field" for="ending-choice"><span class="field-title">Atteggiamento <span class="optional">facoltativo</span></span><select id="ending-choice"><option value="">A sorpresa · scegli il mio sottotesto</option></select></label>
+</fieldset>
+<div class="settings-foot"><span class="count"><strong id="combination-count">20.480</strong><br>piani culturalmente compatibili</span><button type="reset" class="secondary" id="reset">Tutto a sorpresa</button></div>
+<p class="status" id="settings-status" role="status">Il caso è il tuo curatore personale.</p>
+</form>
+<div class="experience">
+<div class="roulette-area"><div class="machine"><div class="pointer" aria-hidden="true"></div><div class="rim"><canvas id="wheel" width="800" height="800" role="img" aria-label="Roulette con otto categorie: arte, vino, cinema, libri, cibo, rituali, musica e impegno"></canvas><div class="hub" aria-hidden="true"><span>rc.</span></div></div></div><div class="wheel-note"><h2>Il caso. Con criterio.</h2><p>La roulette rispetta le tue preferenze. Anche quando sostieni di non averne.</p><span class="badge">Curatela algoritmica artigianale</span></div></div>
+<div class="panel"><div class="label">02 / La tua prossima esperienza</div><div class="result" aria-live="polite" aria-atomic="true" id="result"><span id="category">In attesa di ispirazione</span><p id="activity">Il piano perfetto?<br>Ha sempre un certo<br>non so che.</p></div><button type="submit" form="preferences" class="generate" id="generate"><span id="button-label">Genera il mio piano</span><span aria-hidden="true">↗</span></button><div class="result-foot"><p id="result-note">Su misura. Senza impegno.<br>Tranne quello intellettuale.</p><button type="button" class="secondary" id="copy" disabled>Copia piano</button></div><p class="status" id="copy-status" role="status"></p></div>
+<p class="fineprint">Nessuna prenotazione. È già molto aver avuto l’idea.</p>
+</div>
+</section>
+<footer><span>100% snobismo artigianale · 0% commissioni</span><em>Da prendere con un pizzico di fleur de sel.</em></footer>
+</main>
+<script>
+'use strict';
+// Modifica questi frammenti per aggiungere nuove combinazioni.
+const categories = [
+ {name:'Arte',actions:['Visitare una mostra di installazioni fatte di oggetti trovati','Partecipare al vernissage di un artista che lavora sul concetto di assenza','Contemplare una performance in cui non succede quasi nulla','Discutere una fotografia sfocata come metafora del presente']},
+ {name:'Vino',actions:['Degustare un vino naturale che sa vagamente di stalla','Chiedere se il vignaiolo lascia parlare il territorio','Organizzare una verticale di etichette che nessuno conosce','Sorseggiare un orange wine descrivendolo come «irrisolto»']},
+ {name:'Cinema',actions:['Rivedere un film georgiano di tre ore senza colonna sonora','Organizzare un cineforum su un regista che rifiuta la trama','Difendere un documentario girato interamente su un tram','Guardare un film in bianco e nero con sottotitoli minuscoli']},
+ {name:'Libri',actions:['Leggere un saggio sul disagio di possedere troppi saggi','Fondare un gruppo di lettura che non supera mai la prefazione','Citare un filosofo francese durante una conversazione sul meteo','Comprare una rivista indipendente stampata su carta riciclata']},
+ {name:'Cibo',actions:['Assaggiare un menu degustazione dedicato alle radici dimenticate','Organizzare una cena in cui ogni ingrediente ha una biografia','Discutere la fermentazione di una carota come atto politico','Condividere un pane di grani antichi dal prezzo contemporaneo']},
+ {name:'Rituali',actions:['Praticare il silenzio consapevole prima di lamentarsi del rumore','Scrivere un diario analogico sulla fatica di essere sempre connessi','Partecipare a un laboratorio di ceramica emotiva','Fare un bagno sonoro spiegando che le campane sono tibetane']},
+ {name:'Musica',actions:['Ascoltare un dj set ambient registrato in una serra','Scoprire un duo islandese che usa soltanto rumori di stoviglie','Comprare un vinile senza possedere un giradischi','Andare a un concerto di jazz così libero da non iniziare mai']},
+ {name:'Impegno',actions:['Organizzare un dibattito sulla gentrificazione davanti a un calice da dodici euro','Progettare un orto collettivo su un terrazzo privato','Discutere la decrescita felice indossando un cappotto di design','Partecipare a un incontro sul diritto alla lentezza arrivando in ritardo']}
+];
+const places = ['in un ex spazio industriale riconvertito','in un cortile con lucine e sedie spaiate','in un circolo a cui si accede solo tramite passaparola','in uno spazio polifunzionale con pareti grezze','in un salotto pieno di piante e manifesti d’autore','in un locale che non ha ancora deciso il proprio nome','in una cascina raggiungibile solo con indicazioni poetiche','in un atelier che apre «quando c’è energia»'];
+const endings = ['precisando che era meglio prima che diventasse mainstream','senza mai usare la parola «esperienza», ma pensandola intensamente','con una tote bag che promuove una causa molto specifica','concludendo che manca ancora una vera consapevolezza collettiva','spiegando che il bello è proprio non capire tutto','senza pubblicare nulla, a parte sette storie','chiamando tutto questo «una piccola forma di resistenza»','promettendo di tornarci in un periodo meno turistico','con un taccuino aperto su una pagina rigorosamente bianca','lamentando la scomparsa dei luoghi autentici'];
+const cities = ['Milano','Roma','Torino','Bologna','Firenze','Venezia','Napoli','Palermo'];
+// Tutte le scelte rimangono nel browser: nessun servizio esterno.
+const wheel = document.getElementById('wheel');
+const ctx = wheel.getContext('2d');
+const form = document.getElementById('preferences');
+const fieldset = document.getElementById('settings');
+const button = document.getElementById('generate');
+const buttonLabel = document.getElementById('button-label');
+const categoryText = document.getElementById('category');
+const activityText = document.getElementById('activity');
+const categoryChoice = document.getElementById('category-choice');
+const actionChoice = document.getElementById('action-choice');
+const placeChoice = document.getElementById('place-choice');
+const cityChoice = document.getElementById('city-choice');
+const endingChoice = document.getElementById('ending-choice');
+const reset = document.getElementById('reset');
+const copy = document.getElementById('copy');
+const settingsStatus = document.getElementById('settings-status');
+const copyStatus = document.getElementById('copy-status');
+const step = 360 / categories.length;
+// I menu espongono categorie; ogni categoria raccoglie più frammenti.
+const activityGroups = [
+ [{name:'Mostre e vernissage',items:[0,1]},{name:'Performance e linguaggi visivi',items:[2,3]}],
+ [{name:'Degustazioni',items:[0,3]},{name:'Cultura enologica',items:[1,2]}],
+ [{name:'Proiezioni d’autore',items:[0,3]},{name:'Cineforum e documentari',items:[1,2]}],
+ [{name:'Lettura e circoli letterari',items:[0,1]},{name:'Filosofia ed editoria indipendente',items:[2,3]}],
+ [{name:'Cene e degustazioni',items:[0,1]},{name:'Artigianato gastronomico',items:[2,3]}],
+ [{name:'Pratiche contemplative',items:[0,3]},{name:'Laboratori espressivi',items:[1,2]}],
+ [{name:'Ascolti sperimentali',items:[0,1]},{name:'Vinili e concerti',items:[2,3]}],
+ [{name:'Dibattiti e incontri',items:[0,3]},{name:'Ecologia e stili di vita',items:[1,2]}]
+];
+const placeGroups = [{name:'Spazi culturali',items:[0,3]},{name:'Luoghi conviviali',items:[1,4]},{name:'Indirizzi di nicchia',items:[2,5]},{name:'Rifugi creativi',items:[6,7]}];
+const attitudeGroups = [{name:'Nostalgia e autenticità',items:[0,9]},{name:'Intellettualismo contemplativo',items:[1,8]},{name:'Attivismo simbolico',items:[2,6]},{name:'Consapevolezza critica',items:[3,4]},{name:'Distacco selettivo',items:[5,7]}];
+function option(value,text){const el=document.createElement('option');el.value=value;el.textContent=text;return el;}
+categories.forEach((c,i)=>categoryChoice.append(option(String(i),c.name)));
+placeGroups.forEach((group,i)=>placeChoice.append(option(String(i),group.name)));
+attitudeGroups.forEach((group,i)=>endingChoice.append(option(String(i),group.name)));
+cities.forEach(city=>document.getElementById('city-suggestions').append(option(city,city)));
+function populateActions(){
+ actionChoice.replaceChildren(option('','A sorpresa · qualsiasi attività'));
+ categories.forEach((category,index)=>{
+  if(categoryChoice.value!=='' && Number(categoryChoice.value)!==index)return;
+  const group=document.createElement('optgroup');group.label=category.name;
+  activityGroups[index].forEach((type,i)=>group.append(option(index+':'+i,type.name)));
+  actionChoice.append(group);
+ });
+}
+function readSettings(){return {category:categoryChoice.value,action:actionChoice.value,place:placeChoice.value,city:cityChoice.value.trim(),ending:endingChoice.value};}
+function availableActions(settings){
+ const pool=[];
+ categories.forEach((c,index)=>c.actions.forEach((action,i)=>{
+  if(settings.category!=='' && Number(settings.category)!==index)return;
+  if(settings.action!==''){
+   const [categoryIndex,groupIndex]=settings.action.split(':').map(Number);
+   if(categoryIndex!==index || !activityGroups[index][groupIndex].items.includes(i))return;
+  }
+  pool.push({index,action});
+ }));
+ return pool;
+}
+function createPlan(settings,random=Math.random){
+ const pick=list=>list[Math.floor(random()*list.length)];
+ const chosen=pick(availableActions(settings));
+ const place=pick(fragmentPool(places,placeGroups,settings.place));
+ const ending=pick(fragmentPool(endings,attitudeGroups,settings.ending));
+ const city=', a '+(settings.city || pick(cities));
+ return {index:chosen.index,text:chosen.action+', '+place+city+', '+ending+'.'};
+}
+function fragmentPool(fragments,groups,choice){return choice==='' ? fragments : groups[Number(choice)].items.map(i=>fragments[i]);}
+function drawWheel(){
+ if(!ctx)return;
+ ctx.clearRect(0,0,800,800);
+ categories.forEach((category,i)=>{
+  const start=(i*step-90)*Math.PI/180,end=((i+1)*step-90)*Math.PI/180;
+  const active=categoryChoice.value==='' || Number(categoryChoice.value)===i;
+  ctx.beginPath();ctx.moveTo(400,400);ctx.arc(400,400,395,start,end);ctx.closePath();
+  ctx.fillStyle=active ? (i%2 ? '#242820' : '#a43131') : '#b6b2a7';ctx.fill();
+  ctx.strokeStyle='#c29b52';ctx.lineWidth=2;ctx.stroke();
+  ctx.save();ctx.translate(400,400);ctx.rotate((start+end)/2);
+  ctx.fillStyle=active ? '#f4eedf' : '#484a41';ctx.font='bold 25px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.translate(274,0);ctx.rotate(Math.PI/2);ctx.fillText(category.name.toUpperCase(),0,0);ctx.restore();
+ });
+}
+function updatePreferences(){
+ const settings=readSettings();
+ const count=availableActions(settings).length*fragmentPool(places,placeGroups,settings.place).length*fragmentPool(endings,attitudeGroups,settings.ending).length*(settings.city==='' ? cities.length : 1);
+ document.getElementById('combination-count').textContent=count.toLocaleString('it-IT',{useGrouping:'always'});
+ const fixed=[settings.category,settings.action,settings.place,settings.city,settings.ending].filter(v=>v!=='').length;
+ settingsStatus.textContent=fixed ? 'Preferenze aggiornate. Il prossimo giro sarà su misura.' : 'Il caso è il tuo curatore personale.';
+ drawWheel();
+}
+categoryChoice.addEventListener('change',()=>{populateActions();updatePreferences();});
+actionChoice.addEventListener('change',()=>{
+ if(actionChoice.value!==''){
+  const chosen=actionChoice.value;categoryChoice.value=chosen.split(':')[0];populateActions();actionChoice.value=chosen;
+ }
+ updatePreferences();
+});
+placeChoice.addEventListener('change',updatePreferences);
+endingChoice.addEventListener('change',updatePreferences);
+cityChoice.addEventListener('input',updatePreferences);
+form.addEventListener('reset',()=>{
+ // L’evento precede il ripristino nativo dei campi: applica subito i default.
+ categoryChoice.value='';placeChoice.value='';endingChoice.value='';cityChoice.value='';
+ populateActions();updatePreferences();
+});
+populateActions();updatePreferences();
+let rotation=0,spinning=false,lastActivity='';
+form.addEventListener('submit',event=>{
+ event.preventDefault();if(spinning)return;
+ const settings=readSettings();
+ let plan=createPlan(settings);
+ // Evita ripetizioni consecutive senza prolungare l’estrazione all’infinito.
+ for(let attempt=0;attempt<12 && plan.text===lastActivity;attempt++)plan=createPlan(settings);
+ spinning=true;fieldset.disabled=true;button.disabled=true;reset.disabled=true;copy.disabled=true;
+ buttonLabel.textContent='Stiamo curando il caso…';copyStatus.textContent='';
+ document.getElementById('result').setAttribute('aria-busy','true');
+ const target=(360-(plan.index+.5)*step)%360;
+ rotation+=360*5+((target-rotation%360+360)%360);
+ wheel.style.transform='rotate('+rotation+'deg)';
+ const reveal=()=>{
+  categoryText.textContent=categories[plan.index].name+' / piano curato per te';
+  activityText.textContent=plan.text;lastActivity=plan.text;
+  document.getElementById('result-note').textContent='Il tuo piano è pronto. Il capitale culturale ti aspetta.';
+  document.getElementById('result').setAttribute('aria-busy','false');
+  buttonLabel.textContent='Genera un altro piano';fieldset.disabled=false;button.disabled=false;reset.disabled=false;copy.disabled=false;spinning=false;
+ };
+ window.setTimeout(reveal,window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 3900);
+});
+copy.addEventListener('click',async()=>{
+ if(!lastActivity)return;
+ try{
+  if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText(lastActivity);}
+  else{
+   const textarea=document.createElement('textarea');textarea.value=lastActivity;
+   textarea.style.cssText='position:fixed;left:-9999px;top:0';document.body.append(textarea);textarea.select();
+   let copied;try{copied=document.execCommand('copy');}finally{textarea.remove();copy.focus();}
+   if(!copied)throw new Error('Copia non disponibile');
+  }
+  copyStatus.textContent='Copiato. Diffondi il tuo buon gusto.';
+ }catch(error){
+  const range=document.createRange();range.selectNodeContents(activityText);const selection=window.getSelection();
+  if(selection){selection.removeAllRanges();selection.addRange(range);}
+  copyStatus.textContent='Testo selezionato: usa Copia dal menu o Ctrl/Cmd+C.';
+ }
+});
+</script>
+</body>
+</html>
