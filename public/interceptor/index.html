@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0b0a" />
+  <title>Interceptor</title>
+  <meta name="description" content="A road west." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="stage" class="stage is-hidden">
+    <div id="game"></div>
+    <div id="ui" class="ui">
+      <div id="wound" class="wound"></div>
+      <div id="objective" class="objective"></div>
+      <div id="toast" class="toast"></div>
+      <div id="barks" class="barks"></div>
+      <div id="prompt" class="prompt"></div>
+      <div id="radioLine" class="radio-line"></div>
+      <div id="dash" class="dash">
+        <div class="g g-fuel"><span>FUEL</span><i class="bar"><b id="dFuelBar"></b></i><em id="dFuel">0.0</em></div>
+        <div class="g g-speed"><span>MPH</span><em id="dSpeed">--</em></div>
+        <div class="g g-water"><span>WATER</span><em id="dWater">0</em></div>
+        <div class="g g-ammo"><span id="dGun">GLOCK</span><em id="dAmmo">0</em></div>
+        <div class="g g-car"><canvas id="dCar" width="40" height="20"></canvas><em id="dTemp"></em></div>
+        <div class="g g-radio"><span id="dStation">RADIO OFF</span><em id="dRadio"></em></div>
+        <div class="g g-clock"><span id="dDay">DAY 1</span><em id="dClock">07:00</em></div>
+      </div>
+      <div id="panel" class="panel is-hidden"></div>
+      <div id="map" class="map is-hidden"><canvas id="mapCanvas"></canvas><div id="mapInfo" class="map-info"></div></div>
+      <div id="help" class="help is-hidden">
+        <h2>Keys</h2>
+        <dl>
+          <dt>W / S</dt><dd>throttle / brake, reverse</dd>
+          <dt>A / D</dt><dd>steer</dd>
+          <dt>Space</dt><dd>handbrake</dd>
+          <dt>Mouse</dt><dd>aim</dd>
+          <dt>LMB</dt><dd>fire out a side window</dd>
+          <dt>LMB on foot</dt><dd>shove, or fire once drawn</dd>
+          <dt>G</dt><dd>draw / holster, guards notice</dd>
+          <dt>R</dt><dd>reload (hand off the wheel)</dd>
+          <dt>X</dt><dd>switch gun</dd>
+          <dt>E</dt><dd>out, in, use, talk</dd>
+          <dt>1 – 3</dt><dd>answer</dd>
+          <dt>Tab</dt><dd>storage · X, number: drop</dd>
+          <dt>Z</dt><dd>drink</dd>
+          <dt>F</dt><dd>lights</dd>
+          <dt>Q</dt><dd>radio</dd>
+          <dt>Shift</dt><dd>run (loud)</dd>
+          <dt>M</dt><dd>map</dd>
+          <dt>H</dt><dd>help</dd>
+          <dt>Esc</dt><dd>pause / close</dd>
+        </dl>
+      </div>
+      <div id="pause" class="pause is-hidden">
+        <h2>Paused</h2>
+        <p id="pauseInfo"></p>
+        <div class="row">
+          <button class="btn primary" id="btnResume" type="button">Resume</button>
+          <button class="btn" id="btnMute" type="button">Mute</button>
+          <button class="btn" id="btnQuit" type="button">Save and quit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="title" class="title">
+    <div class="title-inner">
+      <h1>Interceptor</h1>
+      <div class="title-modes" id="titleModes">
+        <button class="btn primary" id="btnContinue" type="button" hidden>Continue</button>
+        <button class="btn" id="btnNew" type="button">New run</button>
+        <button class="btn" id="btnTutorial" type="button">Tutorial</button>
+      </div>
+      <p class="title-save" id="titleSave"></p>
+      <form class="title-new is-hidden" id="newForm" autocomplete="off">
+        <label>Name <input id="optName" type="text" maxlength="16" spellcheck="false" placeholder="courier" /></label>
+        <label>Seed <input id="optSeed" type="text" maxlength="24" spellcheck="false" placeholder="random" /></label>
+        <p class="title-warn" id="newWarn"></p>
+        <div class="row">
+          <button class="btn primary" id="btnDrive" type="submit">Drive</button>
+          <button class="btn" id="btnCancel" type="button">Back</button>
+        </div>
+      </form>
+      <p class="title-boot" id="bootText">Loading</p>
+      <a class="title-back" href="../">Back to the disk drive</a>
+    </div>
+  </div>
+
+  <div id="end" class="end is-hidden">
+    <div class="end-inner">
+      <p class="title-kicker" id="endKicker"></p>
+      <h1 id="endTitle"></h1>
+      <p class="end-copy" id="endCopy"></p>
+      <div class="end-lines" id="endLines" hidden></div>
+      <dl class="end-stats" id="endStats"></dl>
+      <div class="row" id="endButtons"></div>
+    </div>
+  </div>
+
+  <div id="notice" class="notice is-hidden">
+    <div>
+      <h1>Interceptor</h1>
+      <p>Desktop only.</p>
+      <a class="title-back" href="../">Back to the disk drive</a>
+    </div>
+  </div>
+
+  <div id="fatal" class="fatal is-hidden"></div>
+
+  <script src="./vendor/phaser.min.js"></script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
