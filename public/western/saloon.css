@@ -1,0 +1,79 @@
+/* Note: the playable saloon floor, its side panel and its prompt; colours and fonts come from the campaign's variables in style.css. */
+
+.saloon-stage, .brawl-stage { height: 100%; display: flex; align-items: center; justify-content: center; }
+/* Note: no pointer over the floor or its prompt, as on the stage; the mouse is locked there and aims unseen (js/camp/scene-pointer.js). */
+.saloon-view, .brawl-view { position: relative; flex: none; background: #1a1008; box-shadow: 0 0 0 3px #1a1008, 0 6px 14px rgba(0, 0, 0, 0.55); touch-action: none; user-select: none; cursor: none; }
+.saloon-view:focus, .brawl-view:focus { outline: none; }
+.c-stage .saloon-view:focus-visible, .c-stage .brawl-view:focus-visible { outline: 3px solid #ffe08a; outline-offset: -3px; }
+.saloon-canvas, .brawl-canvas { display: block; }
+/* Note: the view adds .crisp when the canvas lands on a whole number of device pixels per art pixel; otherwise smoothing hides the uneven pixels. */
+.saloon-canvas.crisp, .brawl-canvas.crisp { image-rendering: pixelated; }
+.saloon-live { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.saloon-prompt {
+  /* Note: never under 14 screen pixels: the stage is scaled by --cs, so the size is divided by it. */
+  --pt: max(0.95rem, calc(14px / var(--cs, 1)));
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  height: calc(var(--pt) * 2.3);
+  max-width: 440px;
+  padding: 0 0.8em 0 0.3em;
+  font: 700 var(--pt) var(--type);
+  color: var(--bone);
+  white-space: nowrap;
+  background: rgba(26, 16, 8, 0.95);
+  border: 2px solid var(--gold);
+  border-radius: 4px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+  cursor: none;
+}
+.saloon-prompt[hidden] { display: none; }
+.saloon-prompt kbd { flex: none; display: grid; place-items: center; min-width: 1.5em; height: 1.5em; padding: 0 0.25em; font: 900 0.9em var(--display); color: var(--ink); background: var(--gold-l); border: 0; border-radius: 3px; box-shadow: 0 2px 0 #7a5a1c; }
+.saloon-prompt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.saloon-panel { flex: none; height: 236px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.saloon-who { flex: none; margin: 4px 2px 0; font: 900 max(1rem, calc(13.5px / var(--cs, 1))) / 1.2 var(--display); color: var(--gold-l); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.saloon-panel .c-nav-note { flex: none; height: 2.8em; margin: 0 2px; overflow: hidden; }
+.saloon-stake { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 2px 0; font: max(0.8rem, calc(12.5px / var(--cs, 1))) var(--type); color: #cdb98c; }
+.saloon-stake input { width: 96px; font: 700 max(0.85rem, calc(13px / var(--cs, 1))) var(--type); padding: 3px 6px; color: var(--ink); background: rgba(255, 248, 222, 0.85); border: 1px solid var(--ink-soft); border-radius: 2px; user-select: text; }
+.saloon-prompt-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saloon-prompt-line b { display: inline-block; min-width: 1.4em; margin-right: 4px; padding: 0 4px; text-align: center; color: var(--ink); background: var(--gold-l); border-radius: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .brawl-meter i { transition: none; }
+}
+.c-foot-left .saloon-prompt-line b { color: var(--ink); }
+
+/* Note: the fight screen: the floor is the saloon's, the side panel holds the player's state and orders, the banner shows the end. */
+.brawl-banner { position: absolute; left: 50%; top: 44%; z-index: 3; display: grid; gap: 4px; justify-items: center; padding: 12px 28px 14px; text-align: center; color: var(--bone); background: rgba(26, 16, 8, 0.92); border: 2px solid var(--gold); border-radius: 4px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6); transform: translate(-50%, -50%); pointer-events: none; }
+.brawl-banner[hidden] { display: none; }
+.brawl-banner b { font: 900 1.3rem / 1.2 var(--display); letter-spacing: 0.04em; color: var(--gold-l); }
+.brawl-banner span { font: 0.82rem / 1.4 var(--type); }
+
+.brawl-panel { flex: none; display: flex; flex-direction: column; gap: 6px; }
+.brawl-state { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 4px 2px 0; font: 900 0.95rem / 1.2 var(--display); color: var(--gold-l); }
+.brawl-state small { font: 700 0.72rem var(--type); letter-spacing: 0.06em; text-transform: uppercase; color: #cdb98c; }
+.brawl-meter { flex: none; height: 10px; margin: 0 2px; background: #1a1008; border: 1px solid rgba(236, 210, 122, 0.45); border-radius: 2px; overflow: hidden; }
+.brawl-meter i { display: block; height: 100%; width: 100%; background: #8fcf7a; transition: width 120ms linear, background-color 120ms linear; }
+.brawl-meter i.is-hurt { background: #e6b84a; }
+.brawl-meter i.is-bad { background: #d9533a; }
+.brawl-orders { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 2px 0 0; }
+.brawl-orders .btn { width: 100%; padding: 0 4px; font-size: 0.64rem; letter-spacing: 0.05em; }
+.brawl-ammo, .brawl-sides { margin: 0 2px; font: 0.74rem / 1.4 var(--type); color: #cdb98c; }
+.brawl-sides { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.brawl-dot { display: inline-block; width: 10px; height: 10px; margin-right: 5px; vertical-align: -1px; border: 2px solid; border-radius: 50%; }
+.brawl-dot.brawl-mate { border-color: #7ed6c4; }
+.brawl-aggressor { border-color: #e86040; color: #ffb8a0; }
+.brawl-sides .brawl-aggressor { color: inherit; }
+.brawl-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brawl-exit { display: contents; }
+
+/* Note: item 349: drink seen through the sheriff's eyes: a slight blur, a double image and a slow sway of the view, growing with the drink; a hangover only dulls the picture; the aim rings stay fixed (item 347). */
+body[data-drink="tipsy"] :is(.saloon-view, .brawl-view, .duel-view, #game) canvas:not(.duel-aim, .duel-inset) { filter: blur(0.5px) drop-shadow(3px 0 0 rgba(236, 224, 196, 0.18)); animation: drink-sway 7s ease-in-out infinite; }
+body[data-drink="drunk"] :is(.saloon-view, .brawl-view, .duel-view, #game) canvas:not(.duel-aim, .duel-inset) { filter: blur(1.1px) drop-shadow(7px 1px 0 rgba(236, 224, 196, 0.3)); animation: drink-sway 4.5s ease-in-out infinite; --sway: 1.6deg; }
+body[data-drink="hungover"] :is(.saloon-view, .brawl-view, .duel-view, #game) canvas:not(.duel-aim, .duel-inset) { filter: brightness(1.12) contrast(0.9) saturate(0.8); }
+@keyframes drink-sway { 0%, 100% { transform: rotate(calc(-1 * var(--sway, 0.7deg))) translateX(-4px); } 50% { transform: rotate(var(--sway, 0.7deg)) translateX(4px); } }
+@media (prefers-reduced-motion: reduce) { body[data-drink] :is(.saloon-view, .brawl-view, .duel-view, #game) canvas:not(.duel-aim, .duel-inset) { animation: none; } }

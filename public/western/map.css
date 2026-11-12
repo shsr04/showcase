@@ -1,0 +1,130 @@
+/* Note: the world map of the campaign (SPEC 172, 234): the canvas map, the destination picker in the left board and the preview in the side panel. */
+/* Note: every size here is fixed, so nothing on the travel screen moves when a place is chosen; no animation loops, no motion beyond a hover colour. */
+
+.c-split.mv-split { grid-template-columns: 580px minmax(0, 1fr); gap: 14px; }
+
+.mv {
+  margin: 0;
+  padding: 6px;
+  width: 580px;
+  height: 432px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: radial-gradient(ellipse at 50% 40%, #efe0b8, #dcc590 85%);
+  border: 3px solid #4a3010;
+  box-shadow: inset 0 0 2rem rgba(98, 56, 18, 0.5), 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+.mv-stage { position: relative; flex: none; width: 562px; height: 378px; overflow: hidden; background: #d3bd88; border: 0; box-shadow: 0 0 0 1px rgba(58, 36, 16, 0.55); }
+.mv-canvas { display: block; width: 562px; height: 378px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.mv-canvas:focus { outline: none; }
+.mv-canvas:focus-visible { outline: 3px solid #ffe08a; outline-offset: -3px; box-shadow: inset 0 0 0 6px rgba(26, 20, 16, 0.55); }
+
+.mv-tools { position: absolute; top: 6px; right: 6px; width: 30px; display: grid; gap: 4px; }
+.mv-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: block;
+  font: 800 1rem / 1 var(--display);
+  color: #2a1a08;
+  text-align: center;
+  background: linear-gradient(#f2d98a, #cf9f40 46%, #a87a24 54%, #dcb256);
+  border: 2px solid #4a3010;
+  border-radius: 3px;
+  box-shadow: 0 2px 0 #4a3010, inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+.mv-btn:hover { filter: brightness(1.1); }
+.mv-btn:active { transform: translateY(2px); box-shadow: 0 0 0 #4a3010, inset 0 2px 4px rgba(60, 36, 8, 0.45); }
+.c-main .mv-btn:focus-visible { outline: 3px solid #1a1410; outline-offset: 1px; box-shadow: 0 0 0 5px #ffe08a; }
+
+.mv-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  display: none;
+  max-width: 250px;
+  padding: 6px 9px;
+  pointer-events: none;
+  font: 0.72rem / 1.35 var(--type);
+  color: var(--bone);
+  background: rgba(26, 18, 10, 0.94);
+  border: 1px solid #0c0804;
+  border-left: 4px solid var(--gold);
+  border-radius: 2px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+.mv-tip.is-on { display: grid; gap: 1px; }
+.mv-tip b { font: 900 0.86rem var(--display); color: var(--gold-l); }
+.mv-tip .mv-doubt { margin-top: 3px; color: #f0c9a0; font-style: italic; }
+.mv-tip .mv-hint { color: #cdb98c; }
+.mv-tip .mv-hint:empty { display: none; }
+.mv-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.mv-legend { flex: none; height: 24px; display: flex; flex-wrap: nowrap; align-items: center; gap: 0 12px; overflow: hidden; white-space: nowrap; font: 0.66rem var(--type); color: var(--ink-soft); }
+.mv-legend .lg::before { content: ''; display: inline-block; vertical-align: middle; margin-right: 5px; }
+.mv-legend .mv-lg-town::before { width: 9px; height: 9px; border-radius: 50%; background: #2a1c0f; border: 1px solid #2a1c0f; }
+.mv-legend .mv-lg-vil::before { width: 6px; height: 6px; border-radius: 50%; background: #2a1c0f; margin-right: 6px; }
+.mv-legend .mv-lg-vague::before { width: 7px; height: 7px; border-radius: 50%; background: #f3e6c2; border: 1.5px solid #2a1c0f; }
+.mv-legend .mv-lg-party::before { content: '\2605'; color: #b8862b; font-size: 0.95rem; line-height: 1; }
+.mv-legend .mv-lg-road::before { width: 18px; border-top: 2px solid #5a3d20; }
+.mv-legend .mv-lg-trail::before { width: 18px; border-top: 2px dashed #5a3d20; }
+/* Note: the red diamond of a place where an accepted case waits. */
+.mv-legend .mv-lg-case::before { width: 7px; height: 7px; background: #9a3a2a; border: 1px solid #1a1410; transform: rotate(45deg); }
+/* Note: the crosshair of a lead of the hunt. */
+.mv-legend .mv-lg-lead::before { width: 13px; height: 13px; background: radial-gradient(circle, transparent 3.6px, #2a1c0f 3.8px, #2a1c0f 5.2px, transparent 5.4px), linear-gradient(#2a1c0f, #2a1c0f) center / 1.6px 100% no-repeat, linear-gradient(#2a1c0f, #2a1c0f) center / 100% 1.6px no-repeat; }
+.mv-tip .mv-hunt { margin-top: 3px; color: #f0c9a0; }
+
+.mv-search {
+  flex: none;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  font: 700 0.8rem var(--type);
+  color: var(--ink);
+  background: #e8d9b0;
+  border: 2px solid #1a1008;
+  border-radius: 3px;
+  box-shadow: inset 0 2px 4px rgba(60, 36, 8, 0.35);
+  user-select: text;
+}
+.mv-search::placeholder { color: #7a634a; font-weight: 400; }
+.mv-modes { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.c-nav .mv-modes .btn { padding: 0 6px; letter-spacing: 0.08em; }
+.c-stage .mv-tabbtn.is-on { color: var(--gold-l); background: linear-gradient(#2a1d12, #1a1008); border-color: #0c0804; box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.7); }
+.mv-filters { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.c-stage .c-nav .mv-select { width: 100%; min-width: 0; height: 30px; padding: 0 4px; font: 700 0.7rem var(--type); }
+.c-stage .c-nav .mv-select[disabled] { opacity: 0.45; }
+.mv-count { flex: none; height: 32px; margin: 0 2px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mv-results { flex: none; gap: 5px; height: 265px; align-content: start; overflow: hidden; }
+.c-dest.mv-item { min-height: 40px; padding: 3px 8px; gap: 0; border-left-width: 6px; }
+.c-dest.mv-item b { font-size: 0.8rem; }
+.c-dest.mv-item small { font-size: 0.66rem; -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; display: block; }
+.c-dest.mv-item.is-vague { border-left-style: dashed; }
+.mv-pager { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }
+.mv-pager[hidden] { display: grid; visibility: hidden; }
+.mv-pageno { font: 700 0.7rem var(--type); color: #cdb98c; }
+.c-nav .mv-pager .btn { padding: 0 6px; }
+
+.mv-preview { margin: 0 0 8px; padding: 6px 10px; background: rgba(255, 248, 224, 0.42); border-left: 5px solid var(--red); box-shadow: 0 1px 0 rgba(70, 44, 20, 0.25); }
+.mv-pv-name { margin: 0; font: 900 1.15rem / 1.2 var(--display); letter-spacing: 0.03em; color: var(--ink); }
+.mv-pv-sub { margin: 1px 0 0; font: 0.7rem / 1.3 var(--type); color: var(--ink-soft); }
+.mv-doubtbox { margin: 5px 0 0; padding: 4px 8px; font: 0.72rem / 1.35 var(--type); color: #5a2a14; background: rgba(154, 106, 28, 0.16); border: 1px dashed #9a6a1c; }
+.mv-doubtbox b { color: #7a3a10; }
+.mv-doubtbox small { display: block; margin-top: 2px; font-size: 0.68rem; color: #6a4a2a; }
+.mv-facts { margin-top: 6px; gap: 1px; }
+.mv-facts > div { grid-template-columns: 66px 1fr; gap: 8px; font-size: 0.72rem; line-height: 1.3; }
+.mv-facts dt { font-size: 0.62rem; letter-spacing: 0.04em; }
+.mv-facts small { display: block; font-size: 0.66rem; color: #6a5238; }
+.mv-mine { font-weight: 800; }
+
+.c-lede:has(.mv-l) { display: block; -webkit-line-clamp: unset; flex-basis: 620px; max-width: 620px; }
+.c-lede .mv-l { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.c-lede .mv-l b { font: 800 0.72rem var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rust); font-style: normal; }
+.c-lede .mv-l.is-doubt { color: #7a3a10; font-size: 0.82rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mv-btn:active { transform: none; }
+}

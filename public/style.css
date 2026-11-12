@@ -435,6 +435,7 @@ h1::after {
 .diskette:nth-child(14) { --x: 90%; --y: 50%; --tilt: 4deg; z-index: 10; }
 .diskette:nth-child(15) { --x: 21%; --y: 56%; --tilt: -5deg; z-index: 10; }
 .diskette:nth-child(16) { --x: 80%; --y: 60%; --tilt: -4deg; z-index: 10; }
+.diskette:nth-child(17) { --x: 9%; --y: 66%; --tilt: 5deg; z-index: 10; }
 
 .diskette:hover,
 .diskette:focus-visible,

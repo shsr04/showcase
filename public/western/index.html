@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0806" />
+  <title>Western Showdown</title>
+  <meta name="description" content="A sheriff hunts his predecessor's killer across the American West, 1881." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,6 61,31 88,28 72,50 88,72 61,69 50,94 39,69 12,72 28,50 12,28 39,31' fill='%23d9a441' stroke='%234a3010' stroke-width='5' stroke-linejoin='round'/%3E%3Ccircle cx='50' cy='50' r='12' fill='none' stroke='%234a3010' stroke-width='5'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./saloon.css" />
+  <link rel="stylesheet" href="./map.css" />
+  <link rel="stylesheet" href="./controls.css" />
+</head>
+<body class="is-loading at-title">
+  <!-- Note: shared SVG filters and symbols; paper edges, ink stamps and the badge are drawn here, nothing is downloaded. -->
+  <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="deckle" x="-4%" y="-4%" width="108%" height="108%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="3" seed="11" result="broad" />
+        <feDisplacementMap in="SourceGraphic" in2="broad" scale="12" xChannelSelector="R" yChannelSelector="G" result="wavy" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.32" numOctaves="2" seed="3" result="fine" />
+        <feDisplacementMap in="wavy" in2="fine" scale="4" xChannelSelector="G" yChannelSelector="R" />
+      </filter>
+      <filter id="ink" x="-8%" y="-8%" width="116%" height="116%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="7" result="speck" />
+        <feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.8 0 0 0 2.3" result="holes" />
+        <feComposite in="SourceGraphic" in2="holes" operator="in" result="worn" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="5" result="warp" />
+        <feDisplacementMap in="worn" in2="warp" scale="3" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f3dc8c" />
+        <stop offset="0.5" stop-color="#c8963a" />
+        <stop offset="1" stop-color="#8a5f1c" />
+      </linearGradient>
+      <symbol id="badge" viewBox="0 0 100 100">
+        <polygon points="50,6 61,31 88.1,28 72,50 88.1,72 61,69 50,94 39,69 11.9,72 28,50 11.9,28 39,31" fill="url(#brass)" stroke="#4a3010" stroke-width="2.4" stroke-linejoin="round" />
+        <g fill="url(#brass)" stroke="#4a3010" stroke-width="2">
+          <circle cx="50" cy="6" r="5.2" /><circle cx="88.1" cy="28" r="5.2" /><circle cx="88.1" cy="72" r="5.2" />
+          <circle cx="50" cy="94" r="5.2" /><circle cx="11.9" cy="72" r="5.2" /><circle cx="11.9" cy="28" r="5.2" />
+        </g>
+        <circle cx="50" cy="50" r="15" fill="none" stroke="#4a3010" stroke-width="2.4" />
+        <circle cx="50" cy="50" r="10.5" fill="#6b4a14" opacity="0.35" />
+        <path d="M50 41l2.6 6.2 6.6.5-5 4.4 1.6 6.5L50 55l-5.8 3.6 1.6-6.5-5-4.4 6.6-.5z" fill="#4a3010" />
+      </symbol>
+      <symbol id="rule" viewBox="0 0 320 16">
+        <path d="M2 8H132M188 8H318" stroke="currentColor" stroke-width="2" />
+        <path d="M2 4H120M200 4H318" stroke="currentColor" stroke-width="0.8" opacity="0.7" />
+        <path d="M160 1l7 7-7 7-7-7z" fill="currentColor" />
+        <circle cx="140" cy="8" r="2.4" fill="currentColor" /><circle cx="180" cy="8" r="2.4" fill="currentColor" />
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- Note: no HUD; the stage holds the canvas and the speech bubbles. Everything else is an overlay outside play. -->
+  <div id="stage" class="stage is-hidden"><div id="game" aria-label="Western Showdown game"></div><div id="bubbles" class="bubbles" aria-live="polite"></div></div>
+
+  <section id="overlay" class="overlay">
+    <!-- Title: the poster is shown once, then each attempt starts at the briefing. -->
+    <section id="title" class="screen" aria-labelledby="titleH">
+      <div class="sheet poster">
+        <i class="sheet-bg" aria-hidden="true"></i>
+        <div class="sheet-body">
+          <p class="banner"><span aria-hidden="true">★</span> The American West · 1881 <span aria-hidden="true">★</span></p>
+          <h1 id="titleH" class="wordmark"><span class="w1">Western</span><span class="w2">Showdown</span></h1>
+          <svg class="rule" aria-hidden="true"><use href="#rule" /></svg>
+          <svg class="badge" aria-hidden="true"><use href="#badge" /></svg>
+          <!-- camp:begin -->
+          <div class="actions">
+            <button id="continueCampaign" class="btn primary is-hidden" type="button">Continue</button>
+            <button id="newCampaign" class="btn primary" type="button" disabled>New campaign</button>
+          </div>
+          <p id="campTitleNote" class="fine" role="status"></p>
+          <!-- camp:end -->
+          <div class="actions minor">
+            <!-- camp:begin -->
+            <button id="quickDuel" class="btn ghost" type="button" disabled>Quick duel</button>
+            <!-- camp:end -->
+            <button id="toBriefing" class="btn ghost" type="button">Quick breach</button>
+          </div>
+          <p class="fine"><!-- camp:begin -->Quick duel: one stranger, nothing at stake · <!-- camp:end -->Quick breach: one house in Tombstone</p>
+          <p class="loading" role="status">Loading…</p>
+          <nav class="links" aria-label="More">
+            <!-- camp:begin -->
+            <button id="campAbout" class="back" type="button">About this frontier</button>
+            <button class="back" type="button" data-menu-sound aria-pressed="true">Sound: on</button>
+            <!-- camp:end -->
+            <a class="back" href="../">Back to the disk drive</a>
+          </nav>
+        </div>
+      </div>
+    </section>
+
+    <!-- Briefing: a telegram with the case number, the rumor and the orders of the day. -->
+    <form id="briefing" class="screen" autocomplete="off" aria-labelledby="briefH">
+      <div class="sheet telegram">
+        <i class="sheet-bg" aria-hidden="true"></i>
+        <div class="sheet-body">
+          <header class="wire">
+            <p class="wire-co">Territorial Telegraph</p>
+            <h1 id="briefH" class="wire-title">Telegram</h1>
+            <p class="wire-meta">Tombstone, Arizona Territory · For the sheriff</p>
+          </header>
+          <div class="cols">
+            <section class="msg" aria-label="Message">
+              <p class="type">ARMED MEN HOLED UP IN A HOUSE AT THE EDGE OF TOWN STOP YOU AND ONE DEPUTY STOP TWO FLOORS AND NO WORD WHAT WAITS BEHIND EACH DOOR STOP</p>
+              <p class="type rumor"><b>RUMOR</b> <span id="tip"></span></p>
+              <div class="case">
+                <label for="seed">Case No.</label>
+                <input id="seed" type="text" maxlength="24" spellcheck="false" aria-describedby="seedHelp" />
+                <button id="newSeed" class="btn small ghost" type="button">Another case</button>
+              </div>
+              <p id="seedHelp" class="fine">The same case number builds the same house and the same men inside.</p>
+            </section>
+            <section class="orders" aria-labelledby="ordersH">
+              <h2 id="ordersH">Orders of the day</h2>
+              <div class="orders-grid">
+                <div>
+                  <h3>On the ground</h3>
+                  <dl>
+                    <div><dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>move</dd></div>
+                    <div><dt>toggle <kbd>Shift</kbd></dt><dd>sprint</dd></div>
+                    <div><dt>toggle <kbd>Ctrl</kbd></dt><dd>creep slowly and quietly</dd></div>
+                    <div><dt><kbd>Mouse</kbd></dt><dd>aim; click the play area to capture the cursor if needed</dd></div>
+                    <div><dt><kbd>Left click</kbd></dt><dd>fire</dd></div>
+                    <div><dt>hold <kbd>Right click</kbd></dt><dd>aim carefully; standing still, aim for the head</dd></div>
+                    <div><dt>toggle <kbd>Z</kbd></dt><dd>far aim while standing still; move the mouse to look farther</dd></div>
+                    <div><dt><kbd>C</kbd></dt><dd>crouch / stand</dd></div>
+                    <div><dt>toggle <kbd>X</kbd></dt><dd>lie prone / get up; crawl slowly and aim more steadily when still</dd></div>
+                    <div><dt>hold <kbd>Q</kbd><kbd>E</kbd></dt><dd>lean left / right</dd></div>
+                    <div><dt><kbd>R</kbd></dt><dd>reload</dd></div>
+                    <div><dt><kbd>K</kbd></dt><dd>knife takedown from behind or the side</dd></div>
+                    <div data-honour="dynamite" class="is-hidden"><dt><kbd>G</kbd></dt><dd>dynamite (Ironman reward): light a bundle and throw it at full strength</dd></div>
+                    <div><dt><kbd>Tab</kbd></dt><dd>switch rifle / revolver</dd></div>
+                  </dl>
+                </div>
+                <div>
+                  <h3>At the threshold</h3>
+                  <dl>
+                    <div><dt><kbd>F</kbd></dt><dd>open a door, climb a window, search a fallen man; aim at a wanted man who gives up to accept it, then at his side to tie his hands</dd></div>
+                    <div><dt>hold <kbd>F</kbd></dt><dd>force a locked door or bolted window</dd></div>
+                    <div><dt><kbd>1</kbd></dt><dd>cover me: the deputy watches what you face from a post beside you</dd></div>
+                    <div><dt><kbd>2</kbd></dt><dd>hold here: the deputy keeps watch on the pointed area</dd></div>
+                    <div><dt><kbd>3</kbd></dt><dd>push: advance through a nearby opening and secure the area</dd></div>
+                    <div><dt><kbd>4</kbd></dt><dd>fall back: withdraw to safer cover</dd></div>
+                    <div><dt><kbd>V</kbd></dt><dd>voice or hand signals</dd></div>
+                    <div><dt><kbd>Space</kbd></dt><dd>resist being carried</dd></div>
+                    <div><dt><kbd>Esc</kbd></dt><dd>pause</dd></div>
+                  </dl>
+                </div>
+              </div>
+            </section>
+          </div>
+          <p class="notice"><b>Notice</b> The browser keeps Ctrl+W, Ctrl+T and Ctrl+N for itself; the game asks before the tab closes mid-attempt.</p>
+          <div class="actions">
+            <button id="begin" class="btn primary" type="submit" disabled>Begin the breach <span aria-hidden="true">→</span></button>
+            <button id="toTitle" class="btn ghost" type="button">Back to the poster</button>
+          </div>
+          <button class="back" type="button" data-menu-sound aria-pressed="true">Sound: on</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Outcome: a rubber-stamped report; ids below are filled by ui.js. -->
+    <div id="result" class="screen is-hidden" role="dialog" aria-labelledby="resultTitle">
+      <div class="sheet poster outcome" id="resultSheet">
+        <i class="sheet-bg" aria-hidden="true"></i>
+        <div class="sheet-body">
+          <div class="head">
+            <div class="head-text">
+              <p class="banner" id="resultKicker"></p>
+              <h1 id="resultTitle" class="verdict"></h1>
+              <p id="resultReason" class="lede"></p>
+            </div>
+            <div class="stamps" id="resultStamps" aria-hidden="true"></div>
+          </div>
+          <div class="cols two">
+            <section aria-labelledby="lawH">
+              <h2 id="lawH">The law</h2>
+              <ul id="resultLines" class="ledger"></ul>
+            </section>
+            <section aria-labelledby="gangH">
+              <h2 id="gangH">The gang <span id="resultTally" class="tally"></span></h2>
+              <ul id="resultGang" class="ledger wanted"></ul>
+            </section>
+          </div>
+          <p class="case-line" id="resultMeta"></p>
+          <div class="actions">
+            <button id="fresh" class="btn primary" type="button">Fresh attempt <span aria-hidden="true">→</span></button>
+            <button id="replay" class="btn ghost" type="button">Replay this seed</button>
+          </div>
+          <button class="back" type="button" data-menu-sound aria-pressed="true">Sound: on</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- camp:begin -->
+  <!-- Campaign: one fixed-size stage (1280x720 design pixels, scaled to fit); cui.js fills the five regions, and every message, tooltip, question and ceremony is an overlay on top of them. -->
+  <section id="camp" class="overlay camp is-hidden" aria-label="Campaign">
+    <div id="campStage" class="c-stage">
+      <header id="campBar" class="c-bar" data-region="bar" aria-label="The party"></header>
+      <button id="campSound" class="c-sound" type="button" aria-pressed="false" aria-label="Sound" data-tip="Menu sounds (M)"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="sp" d="M3 9v6h4l5 4V5L7 9z" /><path class="on" d="M15.5 8.5a5 5 0 010 7M18 6a8.5 8.5 0 010 12" /><path class="off" d="M15 9l6 6M21 9l-6 6" /></svg><span>On</span></button>
+      <nav id="campNav" class="c-nav" data-region="nav" aria-label="Menu"></nav>
+      <main id="campMain" class="c-main" data-region="main">
+        <i class="sheet-bg" aria-hidden="true"></i>
+        <header id="campHead" class="c-head" data-region="head"></header>
+        <div id="campBody" class="c-body" data-region="body" tabindex="-1"></div>
+      </main>
+      <footer id="campFoot" class="c-foot" data-region="foot"></footer>
+      <div id="campToasts" class="c-toasts" aria-hidden="true"></div>
+      <div id="campTip" class="c-tip" role="tooltip" aria-hidden="true"></div>
+      <div id="campCeremony" class="c-cere" aria-hidden="true"></div>
+      <div id="campDialog" class="c-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="campDialogH">
+        <div class="c-modal-card">
+          <i class="sheet-bg" aria-hidden="true"></i>
+          <div id="campDialogBody" class="sheet-body"></div>
+        </div>
+      </div>
+      <div id="campLoading" class="c-loading is-hidden" role="status">Taking your places…</div>
+      <p id="campLive" class="sr-only" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+  <!-- camp:end -->
+
+  <!-- Pause: a wooden sign; only shown while an attempt is stopped. -->
+  <section id="pause" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="pauseH">
+    <div class="sign">
+      <i class="rope l" aria-hidden="true"></i><i class="rope r" aria-hidden="true"></i>
+      <h2 id="pauseH">Paused</h2>
+      <div class="stack">
+        <button id="resume" class="btn primary" type="button">Resume</button>
+        <button id="mute" class="btn ghost" type="button">Sound: on</button>
+        <button id="abandon" class="btn danger" type="button">Abandon attempt</button>
+      </div>
+      <p class="sign-keys"><kbd>Esc</kbd> resumes the attempt</p>
+    </div>
+  </section>
+
+  <section id="notice" class="overlay is-hidden">
+    <div class="screen">
+      <div class="sheet poster small">
+        <i class="sheet-bg" aria-hidden="true"></i>
+        <div class="sheet-body">
+          <p class="banner"><span aria-hidden="true">★</span> Notice <span aria-hidden="true">★</span></p>
+          <h1 class="wordmark small"><span class="w1">Western</span><span class="w2">Showdown</span></h1>
+          <p class="lede">This frontier needs a keyboard and a mouse. Desktop browsers only.</p>
+          <a class="back" href="../">Back to the disk drive</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="fatal" class="fatal is-hidden" role="alert"></div>
+
+  <noscript>
+    <div class="fatal">Western Showdown needs JavaScript. The telegraph office is closed.</div>
+  </noscript>
+
+  <script src="./vendor/phaser.min.js"></script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

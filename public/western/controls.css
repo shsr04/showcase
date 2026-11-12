@@ -1,0 +1,184 @@
+/* Note: the house style of the campaign's controls: fields are ledger wells set into the paper or the wood, selects carry an inked caret, checkboxes are inked tick boxes, the tooltip is a dark signboard slip and a message is a pinned paper slip; loaded last, so it wins over map.css and saloon.css. */
+
+.c-stage {
+  --well: linear-gradient(#e9dab2, #f5ead0 45%, #f1e4c2);
+  --well-edge: #2a1c0f;
+  --well-sunk: inset 0 2px 3px rgba(60, 36, 8, 0.38), inset 0 -1px 0 rgba(255, 250, 230, 0.6);
+  --well-focus: 0 0 0 2px #fff3c4, 0 0 0 4px #1a1410;
+  --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5'%3E%3Cpath d='M0 0h9L4.5 5z' fill='%232a1c0f'/%3E%3C/svg%3E");
+  --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M2 7.5l3.2 3.2L12 3.6' fill='none' stroke='%232a1c0f' stroke-width='2.6' stroke-linecap='square'/%3E%3C/svg%3E");
+}
+
+/* Note: fields and selects: one well, the small plaque's height. */
+
+.c-stage input[type='number'],
+.c-stage input[type='text'],
+.c-stage input[type='search'],
+.c-stage select {
+  height: 32px;
+  padding: 0 8px;
+  font: 700 0.82rem var(--type);
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: var(--well);
+  border: 2px solid var(--well-edge);
+  border-radius: 2px;
+  box-shadow: var(--well-sunk);
+  outline: none;
+  transition: box-shadow 90ms var(--ease), background 90ms var(--ease);
+  user-select: text;
+}
+.c-stage input[type='number'] { appearance: textfield; -moz-appearance: textfield; text-align: right; }
+.c-stage input[type='number']::-webkit-inner-spin-button,
+.c-stage input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.c-stage input::placeholder { color: #8a7458; font-weight: 400; font-style: italic; }
+.c-stage input:hover:not(:disabled),
+.c-stage select:hover:not(:disabled) { background: linear-gradient(#efe2bd, #fbf3dc 45%, #f5e9ca); }
+.c-stage input:focus-visible,
+.c-stage select:focus-visible { box-shadow: var(--well-sunk), var(--well-focus); }
+.c-stage input:disabled,
+.c-stage select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.c-stage select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 24px;
+  cursor: pointer;
+  background: var(--caret) right 9px center / 9px 5px no-repeat, var(--well);
+  text-overflow: ellipsis;
+}
+.c-stage select:hover:not(:disabled) { background: var(--caret) right 9px center / 9px 5px no-repeat, linear-gradient(#efe2bd, #fbf3dc 45%, #f5e9ca); }
+.c-stage select option { color: var(--ink); background: #f3e6c3; font: 700 0.82rem var(--type); }
+
+/* Note: style.css gives the selects in the nav a flat fill; they keep the well and the caret. */
+.c-stage .c-nav select { background: var(--caret) right 9px center / 9px 5px no-repeat, var(--well); }
+.c-stage .c-nav select:hover:not(:disabled) { background: var(--caret) right 9px center / 9px 5px no-repeat, linear-gradient(#efe2bd, #fbf3dc 45%, #f5e9ca); }
+
+/* Note: map.css sizes the picker's selects; they keep the caret's room. */
+.c-stage .c-nav .mv-select { height: 32px; padding: 0 22px 0 8px; font: 700 0.7rem var(--type); background-position: right 7px center, 0 0; }
+.c-stage .c-nav .mv-select[disabled] { opacity: 0.5; }
+
+/* Note: checkboxes: an inked tick on paper. */
+
+.c-stage input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  background: var(--well);
+  border: 2px solid var(--well-edge);
+  border-radius: 2px;
+  box-shadow: var(--well-sunk);
+  cursor: pointer;
+}
+.c-stage input[type='checkbox']:checked { background: var(--tick) center / 14px 14px no-repeat, linear-gradient(#f2d98a, #d9ad52); }
+.c-stage input[type='checkbox']:focus-visible { box-shadow: var(--well-sunk), var(--well-focus); }
+.c-stage input[type='checkbox']:disabled { cursor: default; opacity: 0.55; }
+.c-stage .c-check.is-off { opacity: 0.55; }
+.c-stage .c-check { gap: 10px; padding: 4px 0; cursor: pointer; }
+.c-stage .c-check b { font-weight: 800; }
+
+/* Note: the tooltip: a dark signboard slip with a brass hairline and a tail to its control. */
+
+.c-stage .c-tip {
+  max-width: 300px;
+  padding: 7px 12px 8px;
+  font: 0.8rem / 1.4 var(--serif);
+  color: #f1e3c0;
+  text-wrap: balance;
+  background: linear-gradient(#2c1f13, #1a1008);
+  border: 1px solid #0c0804;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(236, 210, 122, 0.32), 0 8px 14px rgba(0, 0, 0, 0.55);
+}
+.c-stage .c-tip::after {
+  content: '';
+  position: absolute;
+  left: var(--tail, 50%);
+  width: 9px;
+  height: 9px;
+  margin-left: -5px;
+  border: 1px solid #0c0804;
+  transform: rotate(45deg);
+}
+.c-stage .c-tip[data-side='above']::after { bottom: -6px; background: #1a1008; border-top: 0; border-left: 0; }
+.c-stage .c-tip[data-side='below']::after { top: -6px; background: #2c1f13; border-bottom: 0; border-right: 0; }
+.c-stage .c-tip[data-side='none']::after { display: none; }
+
+/* Note: a message: a pinned paper slip with a double rule, nailed at the top. */
+
+.c-stage .c-toast {
+  padding: 12px 18px 11px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 3px var(--plaster-l), inset 0 0 0 4px rgba(70, 44, 20, 0.45), 0 3px 0 rgba(10, 8, 6, 0.55), 0 10px 16px rgba(0, 0, 0, 0.4);
+}
+.c-stage .c-toast::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5px;
+  background: var(--nail);
+}
+.c-stage .c-toast .c-tail { width: 11px; height: 11px; margin-left: -5px; }
+
+/* Note: the road's controls: Ride and Auto, then two labelled groups of a field and its plaque. */
+
+.c-stage .c-roadbox { gap: 9px; }
+.c-stage .c-roadgrp { display: grid; gap: 7px; margin-top: 8px; }
+.c-stage .c-roadgrp .c-nav-h { padding-bottom: 3px; }
+.c-pair { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 7px; align-items: stretch; }
+.c-pair label { display: block; min-width: 0; }
+.c-pair select { width: 100%; }
+.c-stage .c-roadgrp .btn { height: 32px; }
+.c-stage .c-roadgrp > .btn { width: 100%; }
+
+/* Note: the store: the price over its resale, the plaques of a row one width. */
+
+.c-stage .c-grp:has(.btn) { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.c-stage .c-grp .btn { margin-bottom: 4px; letter-spacing: 0.12em; }
+.c-stage .c-good { grid-template-columns: minmax(0, 1fr) 96px auto; min-height: 42px; }
+.c-stage .c-price { display: grid; justify-items: end; line-height: 1.15; font-weight: 700; }
+.c-stage .c-price small { font-weight: 400; font-size: 0.68rem; color: var(--ink-soft); }
+.c-stage .c-good .btn.small { min-width: 64px; }
+.c-stage .c-qty input { width: 56px; }
+.c-stage .c-who select { width: 170px; }
+
+/* Note: the departure form: label, well and a one-line note. */
+
+.c-stage .c-bring { grid-template-columns: minmax(0, 1fr) 64px 104px; gap: 10px; padding: 3px 0; }
+.c-stage .c-bring input { width: 64px; }
+.c-stage .c-bring small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-stage .c-fields { padding: 6px 12px 10px; }
+
+/* Note: a sum of money: a small label and a well with a dollar sign set in it. */
+
+.c-stage .c-money { gap: 8px; }
+.c-stage .c-money > span:first-child { font: 800 0.62rem var(--display); letter-spacing: 0.18em; text-transform: uppercase; color: var(--rust); }
+.c-cash { position: relative; display: inline-flex; }
+.c-cash i { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font: 700 0.82rem var(--type); font-style: normal; color: var(--ink-soft); pointer-events: none; }
+.c-stage .c-cash input { width: 96px; padding-left: 20px; }
+.c-stage .c-terms { gap: 10px; }
+
+/* Note: the saloon stake sits in the dark nav; the well is the same. */
+
+.c-stage .saloon-stake input { width: 96px; }
+
+/* Note: rest: four plaques of one size, each with its price under the length. */
+
+.c-restrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+.c-stage .c-restrow .btn { display: grid; gap: 6px; justify-items: center; align-content: center; height: 68px; padding: 0 10px; }
+.c-restrow .btn small { font: 700 0.72rem var(--type); letter-spacing: 0.04em; text-transform: none; opacity: 0.85; }
+
+/* Note: a fixed row of a checklist (the sheriff, who always goes) lines up with the boxed rows. */
+
+.c-stage .c-check.is-fixed { padding-left: 30px; }
+.c-center { text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .c-stage input, .c-stage select { transition: none; }
+}
